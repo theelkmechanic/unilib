@@ -28,7 +28,7 @@
     ; glyphs, up to 12k of glyph maps)
     lda #1
     ldx gREG::r1H
-    ldy #2
+    ldy #0
     jsr SETLFS
     lda gREG::r1L
     ldx gREG::r0L

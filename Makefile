@@ -27,15 +27,15 @@ CONFIG  := src/cx16-asmhi.cfg
 
 # Additional C compiler flags and options.
 # Default: none
-CFLAGS  = --cpu 65c02
+CFLAGS  = --cpu 65c02 -g
 
 # Additional assembler flags and options.
 # Default: none
-ASFLAGS = --cpu 65c02
+ASFLAGS = --cpu 65c02 -g
 
 # Additional linker flags and options.
 # Default: none
-LDFLAGS = --mapfile unilib.map
+LDFLAGS = --mapfile unilib.map -Ln unilib.sym
 
 # Path to the directory containing C and ASM sources.
 # Default: src
