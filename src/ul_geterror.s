@@ -6,7 +6,7 @@
 
 ; ul_geterror - Return the last UniLib error code
 ; Out:  a           - Last UniLib error code
-.proc ULAPI_ul_geterror
+.proc ul_geterror
     lda UL_lasterr
     rts
 .endproc

@@ -1,10 +1,10 @@
-; ULF_plotchar - Draw a UTF-16 character at a specified screen location
+; ULFT_plotchar - Draw a UTF-16 character at a specified screen location
 
 .include "unilib_impl.inc"
 
 .code
 
-; ULF_plotchar - Draw a UTF-16 character at a specified screen location
+; ULFT_plotchar - Draw a UTF-16 character at a specified screen location
 ; In:   r0          - UTF-16 character (little-endian)
 ;       r1          - Screen location (column=low, row=high)
 ;       r2L         - Foreground color (1-15, undefined behavior if out of range)
@@ -29,7 +29,7 @@
     ; Look up the character info
     ldx gREG::r0L
     ldy gREG::r0H
-    jsr ULF_findcharinfo
+    jsr ULFT_findcharinfo
     bcs @gotchar
 
 @exit:
