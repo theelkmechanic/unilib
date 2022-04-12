@@ -1,42 +1,31 @@
-.org $080D
-.segment "STARTUP"
-.segment "INIT"
-.segment "ONCE"
-.segment "CODE"
+.include "unilib.inc"
+.include "cx16.inc"
+.include "cbm_kernal.inc"
 
-.include "x16.inc"
-.include "../src/unilib.inc"
+.segment "EXEHDR"
+
+    ; Stub launcher
+    .byte $0b, $08, $b0, $07, $9e, $32, $30, $36, $31, $00, $00, $00
+
+.segment "LOWCODE"
 
    jmp start
 
-unilib_fn: .byte "unilib.prg"
+.code
+
 font_fn: .byte "unilib.ulf"
 end_filenames:
 
 start:
-   ; Load the Unilib library (currently loads at $2000)
-   lda #0
-   sta ROM_BANK
-   lda #1
-   tay
-   ldx #SD_DEVICE
-   jsr SETLFS
-   lda #(font_fn-unilib_fn)
-   ldx #<unilib_fn
-   ldy #>unilib_fn
-   jsr SETNAM
-   lda #0
-   jsr LOAD
-
    ; Set font name in r0 and length in r1
    lda #(end_filenames-font_fn)
-   sta r1L
-   lda #SD_DEVICE
-   sta r1H
+   sta gREG::r1L
+   lda #8
+   sta gREG::r1H
    lda #<font_fn
-   sta r0L
+   sta gREG::r0L
    lda #>font_fn
-   sta r0H
+   sta gREG::r0H
 
    ; Initialize the Unilib library
    jsr ul_init
@@ -50,7 +39,7 @@ memhammer:   ldx #0
    tya
    and #$1f
    tay
-   jsr mem_alloc
+   jsr ulmem_alloc
    jsr validate_heap
    txa
    plx
@@ -68,7 +57,7 @@ memhammer:   ldx #0
    lda $400,x
    stz $400,x
    tax
-   jsr mem_free
+   jsr ulmem_free
    jsr validate_heap
    plx
    inx
