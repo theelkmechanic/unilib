@@ -1,6 +1,12 @@
 ; UniLib API
-.global ul_init         ; A = font filename length; YX = font filename; returns A = window handle of screen (always 0), or $FF if initialization fails
-.global ul_geterror     ; returns A = last error code
+.global ul_init             ; A = font filename length; YX = font filename; returns A = window handle of screen (always 0), or $FF if initialization fails
+.global ul_geterror         ; returns A = last error code
+
+; Integer math functions
+.global ulmath_udiv8_8        ; X / A => X, remainder => A
+.global ulmath_udiv16_8       ; YX / A => YX, remainder => A
+.global ulmath_umul8_8        ; X * A => YX
+.global ulmath_umul16_8       ; YX * A => AYX
 
 ; Banked RAM allocation functions - work on banked RAM "pointers", which are two bytes:
 ;  - High byte (in Y register) = RAM bank
@@ -8,9 +14,9 @@
 ; To access memory:
 ;  - RAM bank selector <- Y
 ;  - 16-bit address    <- $A000 | (X * 32)
-.global ulmem_alloc       ; YX = allocation size (max 7,936 bytes)
-.global ulmem_free        ; YX = "pointer" to free
-.global ulmem_access      ; YX "pointer" -> RAM bank selected, YX = 16-bit memory address of data
+.global ulmem_alloc         ; YX = allocation size (max 7,936 bytes), carry set will clear the allocated memory
+.global ulmem_free          ; YX = "pointer" to free
+.global ulmem_access        ; YX "pointer" -> RAM bank selected, YX = 16-bit memory address of data
 
 ; Window functions
 .global ulwin_border        ; A = window #; draws border around window
@@ -35,7 +41,7 @@
 .global ulwin_getkey        ; get a keystroke translated to UTF-16 in XY
 .global ulwin_getline       ; A = window; get window line location in A
 .global ulwin_getloc        ; A = window, g0 = text buffer, X = column, Y = line; get string at specified position
-.global ulwin_getsize       ; A = window; get size of window (x = columns, Y = lines)
+.global ulwin_getsize       ; A = window; get size of window (X = columns, Y = lines)
 .global ulwin_getstr        ; A = window, g0 = text buffer; get string at current position into buffer, A = length
 .global ulwin_getwin        ; get current window in A
 .global ulwin_idlecfg       ; XY = idle function; configure function to call while waiting for keypress
@@ -50,16 +56,17 @@
 .global ulwin_putstr        ; A = window, g0 = UTF-16 string; put string at current position
 .global ulwin_puttitle      ; A = window, g0 = title address; update window title
 .global ulwin_refresh       ; refresh the screen with any updated window contents
-.global ulwin_restore       ; A = window; restore screen under window from buffer
-.global ulwin_save          ; A = window; save screen under window to buffer
 .global ulwin_scroll        ; A = window, X = number of columns (signed), Y = number of lines (signed)
 .global ulwin_select        ; A = window; bring a window to the top
-.global ulwin_swap          ; A = window; swap window contents with screen save buffer
 .global ulwin_winptr        ; A = window, X = column, Y = line; return pointer to window backing store
 
 .enum ULERR
     OK = 0
-    CANT_LOAD_FONT
+    INVALID_PARAMS
+    INVALID_HANDLE
+    OUT_OF_MEMORY
+    OUT_OF_RESOURCES
+    LOAD_FAILED
 .endenum
 
 .enum ULCOLOR

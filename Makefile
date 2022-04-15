@@ -14,6 +14,10 @@ CORE_OBJS = \
 	$(OBJDIR)/ul_init.o \
 	$(OBJDIR)/ul_geterror.o
 
+MATH_OBJS = \
+	$(OBJDIR)/ulmath_idiv.o \
+	$(OBJDIR)/ulmath_imul.o
+
 MEM_OBJS = \
 	$(OBJDIR)/ulmem_access.o \
 	$(OBJDIR)/ulmem_alloc.o \
@@ -57,12 +61,9 @@ WIN_OBJS = \
 	$(OBJDIR)/ulwin_putstr.o \
 	$(OBJDIR)/ulwin_puttitle.o \
 	$(OBJDIR)/ulwin_refresh.o \
-	$(OBJDIR)/ulwin_restore.o \
-	$(OBJDIR)/ulwin_save.o \
 	$(OBJDIR)/ulwin_scroll.o \
 	$(OBJDIR)/ulwin_select.o \
-	$(OBJDIR)/ulwin_swap.o \
-	$(OBJDIR)/ulwin_winptr.o
+	$(OBJDIR)/ULW_utils.o \
 
 INTERNAL_OBJS = \
 	$(OBJDIR)/ULF_readblock.o \
@@ -71,7 +72,7 @@ INTERNAL_OBJS = \
 	$(OBJDIR)/ULV_plotchar.o \
 	$(OBJDIR)/ULV_setpaletteentry.o
 
-OBJECTS = $(CORE_OBJS) $(MEM_OBJS) $(WIN_OBJS) $(INTERNAL_OBJS)
+OBJECTS = $(CORE_OBJS) $(MATH_OBJS) $(MEM_OBJS) $(WIN_OBJS) $(INTERNAL_OBJS)
 
 TEST_SOURCES = \
 	test/ultest.s
@@ -85,7 +86,7 @@ HEADERS = \
 all: $(TESTAPP)
 
 $(TESTAPP): $(TEST_SOURCES) $(LIBRARY)
-	cl65 $(FLAGS) --asm-include-dir . -C $(CONFIGFILE) -m unilib.map -o $@ $^
+	cl65 $(FLAGS) --asm-include-dir . -C $(CONFIGFILE) -m ultest.map -Ln ultest.sym -o $@ $^
 
 $(LIBRARY): $(OBJECTS)
 	ar65 r $@ $^

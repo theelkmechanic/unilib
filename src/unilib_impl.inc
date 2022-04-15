@@ -4,6 +4,7 @@
 
 ; Utilities/data
 .global UL_lasterr
+.global UL_terminate
 
 ; File utilities
 .global ULF_readblock
@@ -12,32 +13,69 @@
 ; Font utilities
 .global ULFT_findcharinfo
 
+; Math utilities
+.global ULM_multbl_init
+.global ULM_temp_l
+.global ULM_temp_h
+
 ; Memory utilities
 .global ULM_numbanks
+.global ULM_slot2addr
 
 ; VERA utilities
 .global ULV_init
+.global ULV_setpaletteentry
+
 .global ULV_blt
 .global ULV_bltsrc
 .global ULV_bltdst
 .global ULV_bltlen
+
 .global ULV_plotchar
-.global ULV_setpaletteentry
+.global ULV_dirtylines
+
+.global ULV_swap
+.global ULV_save
+.global ULV_restore
 
 ; Windowing utilities
-.struct ULW_window
-slin        .byte
-scol        .byte
-elin        .byte
-ecol        .byte
-clin        .byte
-ccol        .byte
-flags       .byte
-color       .byte
-emcolor     .byte
-title_bank  .byte
-title_addr  .word
-save        .word
-prev        .byte
-next        .byte
+.struct ULW_WINDOW
+handle      .byte   ; Window handle
+flags       .byte   ; Flags: 0x80 - border
+slin        .byte   ; Start screen line of the inside of the window
+nlin        .byte   ; Number of lines in the window
+elin        .byte   ; Start screen line of the inside of the window + number of lines in the window
+clin        .byte   ; Current cursor line inside the window
+scol        .byte   ; Start screen column of the inside of the window
+ncol        .byte   ; Number of columns in the window
+ecol        .byte   ; Start screen column of the inside of the window + number of columns in the window
+ccol        .byte   ; Current cursor column inside the window
+color       .byte   ; Normal text color (low nibble = foreground, high nibble = background)
+emcolor     .byte   ; Emphasis text color (low nibble = foreground, high nibble = background)
+buf_ptr     .word   ; BRP to window contents buffer (3 bytes for each character in the inside of the window)
+title_addr  .word   ; Address of title text (UTF-16, null if none)
+title_bank  .byte   ; Bank RAM page for title text (0 if none/not needed)
+prev_addr   .word   ; Address of previous window structure (null if none)
+prev_bank   .byte   ; Bank RAM page of previous window structure (0 if none)
+next_addr   .word   ; Address of next window structure (null if none)
+next_bank   .byte   ; Bank RAM page of next window structure (0 if none)
 .endstruct
+
+.global ULW_inerror
+.global ULW_errorfg
+.global ULW_errorbg
+.global ULW_keyfg
+.global ULW_keybg
+.global ULW_keyidle
+
+.global ULW_getwinentryptr
+.global ULW_getwinptr
+.global ULW_getsize
+
+.global ULW_winlist
+.global ULW_screen_handle
+.global ULW_current_handle
+
+.globalzp ULW_screen_fptr
+.globalzp ULW_current_fptr
+.globalzp ULW_scratch_fptr

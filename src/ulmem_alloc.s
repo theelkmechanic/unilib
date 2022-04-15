@@ -4,7 +4,9 @@
 
 ; ulmem_alloc - Allocate a chunk of banked RAM
 ;   In: YX              - size to allocate (max = 7,936 bytes)
+;       carry           - if set, allocated memory will be cleared
 ;  Out: YX              - banked RAM "pointer" (Y=bank, X=slot#), 0/0 if allocation fails
+;       carry           - set on success, clear on failure
 .proc ulmem_alloc
 @numslots = gREG::r15H
 @extraslot = gREG::r15L
@@ -17,6 +19,7 @@
                         pha
                         lda BANKSEL::RAM
                         pha
+                        php
                         lda #1
                         sta BANKSEL::RAM
 
@@ -140,6 +143,8 @@
 @failed:                lda #0
                         tax
                         tay
+                        plp
+                        clc
 
                         ; Restore bank and return
 @done:                  pla
@@ -208,8 +213,72 @@
                         sbc @numslots
                         sta BANK::RAM
 
-                        ; Return bank in Y and slot in X
+                        ; If carry was set on entry, clear the allocated memory
                         plx
+                        plp
+                        phx
+                        bcc @return_brp
+
+                        ; Save r0/r1 so we can use memory_fill
+                        lda gREG::r0
+                        pha
+                        lda gREG::r0+1
+                        pha
+                        lda gREG::r1
+                        pha
+                        lda gREG::r1+1
+                        pha
+
+                        ; Calculate address
+                        txa
+                        stz gREG::r0+1
+                        asl
+                        rol gREG::r0+1
+                        asl
+                        rol gREG::r0+1
+                        asl
+                        rol gREG::r0+1
+                        asl
+                        rol gREG::r0+1
+                        asl
+                        sta gREG::r0
+                        lda gREG::r0+1
+                        rol
+                        adc #$a0
+                        sta gREG::r0+1
+
+                        ; Calculate length
+                        lda @numslots
+                        stz gREG::r1+1
+                        asl
+                        rol gREG::r1+1
+                        asl
+                        rol gREG::r1+1
+                        asl
+                        rol gREG::r1+1
+                        asl
+                        rol gREG::r1+1
+                        asl
+                        rol gREG::r1+1
+                        sta gREG::r1
+
+                        ; Clear allocated memory
+                        lda #$a5
+                        jsr MEMORY_FILL
+
+                        ; Restore r0/r1
+                        pla
+                        sta gREG::r1+1
+                        pla
+                        sta gREG::r1
+                        pla
+                        sta gREG::r0+1
+                        pla
+                        sta gREG::r0
+
+                        ; Return bank in Y and slot in X
+@return_brp:            plx
                         ldy BANKSEL::RAM
-                        bra @done
+                        sec
+                        jmp @done
 .endproc

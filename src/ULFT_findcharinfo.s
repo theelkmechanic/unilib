@@ -11,7 +11,7 @@
 ;       y           - overlay character glyph
 ;       carry       - set if character info was found
 .proc ULFT_findcharinfo
-    ; Map starts at $0D000 in VRAM and doesn't go past $0FFFF. Each block starts with 3 bytes:
+    ; Map starts at $11000 in VRAM. Each block starts with 3 bytes:
     ;   - Starting UTF-16 character in block (word, little-endian)
     ;   - Number of characters in block (byte)
     ; Each entry in the block is 3 bytes long:
@@ -19,21 +19,21 @@
     ;   - Overlay character glyph
     ;   - Character flags (top nibble) / Overlay character glyph color low nibble (bottom nibble)
 
-    ; Use VERA::DATA1, start looking at $0D000 with autoincrement 1
+    ; Use VERA::DATA1, start looking at $11000 with autoincrement 1
     lda VERA::CTRL
     ora #$01
     sta VERA::CTRL
-    lda #VERA::INC1
+    lda #VERA::INC1 | 1
     sta VERA::ADDR+2
-    lda #$d0
+    lda #$10
     sta VERA::ADDR+1
     stz VERA::ADDR
 
 @scan_maps:
-    ; If we're into the $1xxxx portion of VRAM, we're done
-    lda VERA::ADDR+2
-    and #$01
-    bne @not_found
+    ; Once we hit the $1F9xx portion of VRAM, we're done
+    lda VERA::ADDR+1
+    cmp #$f9
+    bcs @not_found
 
     ; Read the map entry and store in r11/r12L
     lda VERA::DATA1

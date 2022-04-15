@@ -111,7 +111,7 @@
   CLOCK_GET_DATE_TIME           := $FF50
   JOYSTICK_SCAN                 := $FF53
   JOYSTICK_GET                  := $FF56
-  SCREEN_SET_MODE               := $FF5F
+  SCREEN_MODE                   := $FF5F
   SCREEN_SET_CHARSET            := $FF62
   MOUSE_CONFIG                  := $FF68
   MOUSE_GET                     := $FF6B

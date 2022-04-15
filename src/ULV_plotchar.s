@@ -84,11 +84,12 @@
     lda gREG::r1L
     asl
     tax
-    ldy gREG::r1H
+    lda gREG::r1H
+    tay
     lda VERA::CTRL
     and #$fe
     sta VERA::CTRL
-    lda #$10
+    lda #VERA::INC1
     sta VERA::ADDR+2
     sty VERA::ADDR+1
     stx VERA::ADDR
@@ -97,11 +98,11 @@
     lda VERA::CTRL
     ora #$01
     sta VERA::CTRL
-    lda #$10
+    lda #VERA::INC1
     sta VERA::ADDR+2
     tya
     clc
-    adc #$20
+    adc #$40
     sta VERA::ADDR+1
     stx VERA::ADDR
 
