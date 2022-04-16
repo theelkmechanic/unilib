@@ -70,7 +70,8 @@ INTERNAL_OBJS = \
 	$(OBJDIR)/ULFT_findcharinfo.o \
 	$(OBJDIR)/ULV_blt.o \
 	$(OBJDIR)/ULV_plotchar.o \
-	$(OBJDIR)/ULV_setpaletteentry.o
+	$(OBJDIR)/ULV_setpaletteentry.o \
+	$(OBJDIR)/ULV_swap.o
 
 OBJECTS = $(CORE_OBJS) $(MATH_OBJS) $(MEM_OBJS) $(WIN_OBJS) $(INTERNAL_OBJS)
 

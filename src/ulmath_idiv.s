@@ -23,26 +23,26 @@
 ;  Out: YX              ; Quotient
 ;       A               ; Remainder
 .proc ulmath_udiv16_8
-                        sta ULM_temp_div
-                        sty ULM_temp_h
-                        stx ULM_temp_l
+                        sta UL_temp_div
+                        sty UL_temp_h
+                        stx UL_temp_l
                         ldx #16
                         lda #0
-                        asl ULM_temp_l
-                        rol ULM_temp_h
+                        asl UL_temp_l
+                        rol UL_temp_h
 :                       rol
-                        cmp ULM_temp_div
+                        cmp UL_temp_div
                         bcc :+
-                        sbc ULM_temp_div
-:                       rol ULM_temp_l
-                        rol ULM_temp_h
+                        sbc UL_temp_div
+:                       rol UL_temp_l
+                        rol UL_temp_h
                         dex
                         bne :--
-                        ldy ULM_temp_h
-                        ldx ULM_temp_l
+                        ldy UL_temp_h
+                        ldx UL_temp_l
                         rts
 .endproc
 
 .bss
 
-ULM_temp_div:           .res    1
+UL_temp_div:           .res    1

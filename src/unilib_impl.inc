@@ -5,6 +5,8 @@
 ; Utilities/data
 .global UL_lasterr
 .global UL_terminate
+.global UL_temp_l
+.global UL_temp_h
 
 ; File utilities
 .global ULF_readblock
@@ -15,8 +17,6 @@
 
 ; Math utilities
 .global ULM_multbl_init
-.global ULM_temp_l
-.global ULM_temp_h
 
 ; Memory utilities
 .global ULM_numbanks
@@ -32,11 +32,10 @@
 .global ULV_bltlen
 
 .global ULV_plotchar
-.global ULV_dirtylines
-
+.global ULV_setdirtylines
 .global ULV_swap
-.global ULV_save
-.global ULV_restore
+.global ULV_backbuf_offset
+.global ULV_dirtylines
 
 ; Windowing utilities
 .struct ULW_WINDOW

@@ -38,7 +38,7 @@ ULM_multab_neg_hi = ULM_multab_neg_lo + $200
 ;  Out: AYX             ; Product
 .proc ulmath_umul16_8
                         ; Save bank and switch to bank 1
-                        sty ULM_temp_l
+                        sty UL_temp_l
                         ldy BANKSEL::RAM
                         phy
                         ldy #1
@@ -50,10 +50,10 @@ ULM_multab_neg_hi = ULM_multab_neg_lo + $200
 
                         ; X is product low byte, so hang onto it, and save Y for addition
                         phx
-                        sty ULM_temp_h
+                        sty UL_temp_h
 
                         ; Multiply A*Y
-                        ldy ULM_temp_l
+                        ldy UL_temp_l
                         tax
                         jsr ULM_mulXY
 
@@ -63,7 +63,7 @@ ULM_multab_neg_hi = ULM_multab_neg_lo + $200
                         ; Add Y from first result to X from second to get product middle byte
                         txa
                         clc
-                        adc ULM_temp_h
+                        adc UL_temp_h
                         tay
 
                         ; And then add the carry from that into the high byte
@@ -74,10 +74,10 @@ ULM_multab_neg_hi = ULM_multab_neg_lo + $200
                         plx
 
                         ; Restore the original bank
-                        sta ULM_temp_h
+                        sta UL_temp_h
                         pla
                         sta BANKSEL::RAM
-                        lda ULM_temp_h
+                        lda UL_temp_h
                         rts
 .endproc
 
@@ -158,8 +158,3 @@ ULM_multab_neg_hi = ULM_multab_neg_lo + $200
                         bne :-
                         rts
 .endproc
-
-.bss
-
-ULM_temp_l:             .res    1
-ULM_temp_h:             .res    1

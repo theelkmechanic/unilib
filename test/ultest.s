@@ -64,6 +64,7 @@ start:
    lda gREG::r0H
    cmp #$ff
    bne @charloop
+   jsr ulwin_refresh
 @loop: bra @loop
 
 

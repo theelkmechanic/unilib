@@ -1,10 +1,10 @@
-; ULFT_plotchar - Draw a UTF-16 character at a specified screen location
+; ULV_plotchar - Draw a UTF-16 character at a specified screen location
 
 .include "unilib_impl.inc"
 
 .code
 
-; ULFT_plotchar - Draw a UTF-16 character at a specified screen location
+; ULV_plotchar - Draw a UTF-16 character at a specified screen location
 ; In:   r0          - UTF-16 character (little-endian)
 ;       r1          - Screen location (column=low, row=high)
 ;       r2L         - Foreground color (1-15, undefined behavior if out of range)
@@ -80,11 +80,16 @@
     ora gREG::r12H
     sta gREG::r12H
 
-    ; Set the location to write (base page)
+    ; Set the backbuffer location to write (base page), and flag the line as dirty
     lda gREG::r1L
     asl
     tax
     lda gREG::r1H
+    tay
+    lda #$80
+    sta ULV_dirtylines,y
+    tya
+    ora ULV_backbuf_offset
     tay
     lda VERA::CTRL
     and #$fe
@@ -94,7 +99,7 @@
     sty VERA::ADDR+1
     stx VERA::ADDR
 
-    ; Set the location to write (overlay page)
+    ; Set the backbuffer location to write (overlay page)
     lda VERA::CTRL
     ora #$01
     sta VERA::CTRL
@@ -118,5 +123,5 @@
     lda gREG::r12L
     sta VERA::DATA1
     sec
-    bra @exit
+    jmp @exit
 .endproc

@@ -15,7 +15,6 @@
                         ; Got the pointer, now follow the BRP in it
                         stx ULW_scratch_fptr
                         sty ULW_scratch_fptr+1
-                        sta BANKSEL::RAM
                         lda (ULW_scratch_fptr)
                         tax
                         inc ULW_scratch_fptr
@@ -35,13 +34,14 @@
                         asl
                         bcs @bad_handle
                         bmi @bad_handle
-                        sta ULM_temp_l
+                        sta UL_temp_l
                         ldx ULW_winlist
                         ldy ULW_winlist+1
                         jsr ulmem_access
+                        sta BANKSEL::RAM
                         txa
                         clc
-                        adc ULM_temp_l
+                        adc UL_temp_l
                         tax
                         tya
                         adc #0

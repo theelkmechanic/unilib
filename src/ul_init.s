@@ -189,6 +189,12 @@ ULW_scratch_fptr:       .res    3       ; current window handle
 :                       bit VERA::ADDR+1
                         bpl :--
 
+                        ; Current display is $00000/$040000, so backbuffer is at $02000/$06000; don't need
+                        ; to set up dirty lines array because creating the screen window will set them all
+                        ; for us
+                        lda #$20
+                        sta ULV_backbuf_offset
+
                         ; Lastly, initialize the windowing system; first we need our array of window BRPs,
                         ; so allocate an array to hold 64 BRPs (128 bytes); window handle will be 0-based
                         ; index into this list
@@ -283,3 +289,6 @@ ULW_keyidle:            .res    2       ; keyboard idle routine address
 
 ULW_screen_handle:      .res    1       ; Window handle of screen
 ULW_current_handle:     .res    1       ; Window handle of current topmost window
+
+UL_temp_l:             .res    1
+UL_temp_h:             .res    1
