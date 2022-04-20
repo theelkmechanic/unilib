@@ -3,6 +3,7 @@
 .include "cbm_kernal.inc"
 
 .global ULV_plotchar
+.global ULV_copyrect
 
 .segment "EXEHDR"
 
@@ -51,22 +52,222 @@ start:
 @charloop:
    jsr ULV_plotchar
    bcc @incchar
-   inc gREG::r1L
-   lda gREG::r1L
+   inc gREG::r0L
+   lda gREG::r0L
    cmp #80
    bne @incchar
-   stz gREG::r1L
-   inc gREG::r1H
-@incchar:
-   inc gREG::r0L
-   bne @charloop
+   stz gREG::r0L
    inc gREG::r0H
-   lda gREG::r0H
-   cmp #$ff
+   jsr ulwin_refresh
+@incchar:
+   inc gREG::r1L
+   bne @charloop
+   inc gREG::r1H
+   lda gREG::r1H
+   cmp #3
+   bne :+
+   lda #$1f
+   sta gREG::r1H
+   bra @charloop
+:  cmp #$27
+   bne :+
+   lda #$df
+   sta gREG::r1H
+   bra @charloop
+:  cmp #$e1
    bne @charloop
    jsr ulwin_refresh
+
+   lda #16
+   sta gREG::r0H
+   lda #28
+   sta gREG::r0L
+   lda #ULCOLOR::WHITE
+   sta gREG::r2L
+   lda #ULCOLOR::BLUE
+   sta gREG::r2H
+   ldy #0
+@line1loop:
+   lda line1,y
+   sta gREG::r1L
+   iny
+   lda line1,y
+   sta gREG::r1H
+   jsr ULV_plotchar
+   bcc @line1done
+   iny
+   inc gREG::r0L
+   bra @line1loop
+@line1done:
+
+   lda #16
+   sta gREG::r0H
+   lda #35
+   sta gREG::r0L
+   lda #ULCOLOR::BLACK
+   sta gREG::r2L
+   lda #ULCOLOR::WHITE
+   sta gREG::r2H
+   ldy #0
+@titleloop:
+   lda title,y
+   sta gREG::r1L
+   iny
+   lda title,y
+   sta gREG::r1H
+   jsr ULV_plotchar
+   bcc @titledone
+   iny
+   inc gREG::r0L
+   bra @titleloop
+@titledone:
+
+   lda #17
+   sta gREG::r0H
+   lda #28
+   sta gREG::r0L
+   lda #ULCOLOR::WHITE
+   sta gREG::r2L
+   lda #ULCOLOR::BLUE
+   sta gREG::r2H
+   ldy #0
+@line2loop:
+   lda line2,y
+   sta gREG::r1L
+   iny
+   lda line2,y
+   sta gREG::r1H
+   jsr ULV_plotchar
+   bcc @line2done
+   iny
+   inc gREG::r0L
+   bra @line2loop
+@line2done:
+
+   lda #18
+   sta gREG::r0H
+   lda #28
+   sta gREG::r0L
+   lda #ULCOLOR::WHITE
+   sta gREG::r2L
+   lda #ULCOLOR::BLUE
+   sta gREG::r2H
+   ldy #0
+@line3loop:
+   lda line3,y
+   sta gREG::r1L
+   iny
+   lda line3,y
+   sta gREG::r1H
+   jsr ULV_plotchar
+   bcc @line3done
+   iny
+   inc gREG::r0L
+   bra @line3loop
+@line3done:
+
+   lda #19
+   sta gREG::r0H
+   lda #28
+   sta gREG::r0L
+   lda #ULCOLOR::WHITE
+   sta gREG::r2L
+   lda #ULCOLOR::BLUE
+   sta gREG::r2H
+   ldy #0
+@line4loop:
+   lda line4,y
+   sta gREG::r1L
+   iny
+   lda line4,y
+   sta gREG::r1H
+   jsr ULV_plotchar
+   bcc @line4done
+   iny
+   inc gREG::r0L
+   bra @line4loop
+@line4done:
+
+   lda #20
+   sta gREG::r0H
+   lda #28
+   sta gREG::r0L
+   lda #ULCOLOR::WHITE
+   sta gREG::r2L
+   lda #ULCOLOR::BLUE
+   sta gREG::r2H
+   ldy #0
+@line5loop:
+   lda line5,y
+   sta gREG::r1L
+   iny
+   lda line5,y
+   sta gREG::r1H
+   jsr ULV_plotchar
+   bcc @line5done
+   iny
+   inc gREG::r0L
+   bra @line5loop
+@line5done:
+
+   jsr ulwin_refresh
+
+   ;source
+   lda #16
+   sta gREG::r0H
+   lda #28
+   sta gREG::r0L
+   lda #5
+   sta gREG::r2H
+   lda #22
+   sta gREG::r2L
+
+   ;dest up/right overlap
+   lda #19
+   sta gREG::r1H
+   lda #38
+   sta gREG::r1L
+   jsr ULV_copyrect
+   jsr ulwin_refresh
+
 @loop: bra @loop
 
+   ;dest up/left
+   lda #5
+   sta gREG::r1H
+   lda #2
+   sta gREG::r1L
+   jsr ULV_copyrect
+   jsr ulwin_refresh
+
+   ;dest down/left
+   lda #24
+   sta gREG::r1H
+   jsr ULV_copyrect
+   jsr ulwin_refresh
+
+   ;dest up/right
+   lda #5
+   sta gREG::r1H
+   lda #55
+   sta gREG::r1L
+   jsr ULV_copyrect
+   jsr ulwin_refresh
+
+   ; dest down/right
+   lda #24
+   sta gREG::r1H
+   jsr ULV_copyrect
+   jsr ulwin_refresh
+
+.rodata
+
+title: .word $0020, $0057, $0069, $006e, $0064, $006f, $0077, $0020, $0000
+line1: .word $250f, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2513, $0000
+line2: .word $2503, $0020, $0054, $0068, $0065, $0020, $0071, $0075, $0069, $0063, $006b, $0020, $0062, $0072, $006f, $0077, $006e, $0020, $0020, $0020, $0020, $2503, $0000
+line3: .word $2503, $0020, $0066, $006f, $0078, $0020, $006a, $0075, $006d, $0070, $0073, $0020, $016f, $0076, $0065, $0072, $0020, $0074, $0068, $0065, $0020, $2503, $0000
+line4: .word $2503, $0020, $006c, $0061, $007a, $0079, $0020, $0064, $016f, $0067, $002e, $0020, $0020, $0020, $0020, $0020, $0020, $0020, $0020, $0020, $0020, $2503, $0000
+line5: .word $2517, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $2501, $251b, $0000
 
 ;   ; Test memory alloc/free
 ;memhammer:   ldx #0
@@ -175,7 +376,7 @@ start:
 ;   pla
 ;   rts
 ;.endproc
-
-.data
-
-val_smallentries: .res  1
+;
+;.data
+;
+;val_smallentries: .res  1

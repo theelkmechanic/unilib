@@ -1,146 +1,198 @@
-; ULFT_findcharinfo - Find the base/overlay glyphs and flags for a given UTF-16 character
-
 .include "unilib_impl.inc"
+
+ULFT_CACHE_SIZE = 256
+ULFT_fontcache = $A900
+
+ULFT_fontcache_hi       = ULFT_fontcache + (ULFT_CACHE_SIZE * 0)
+ULFT_fontcache_base     = ULFT_fontcache + (ULFT_CACHE_SIZE * 1)
+ULFT_fontcache_overlay  = ULFT_fontcache + (ULFT_CACHE_SIZE * 2)
+ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 3)
 
 .code
 
-; ULFT_findcharinfo - Find the character info table entry for the specified UTF-16 character
-; In:   x/y         - UTF-16 character (x=lo, y=hi)
-; Out:  a           - character flags
-;       x           - base character glyph
-;       y           - overlay character glyph
-;       carry       - set if character info was found
-.proc ULFT_findcharinfo
-    ; Map starts at $11000 in VRAM. Each block starts with 3 bytes:
-    ;   - Starting UTF-16 character in block (word, little-endian)
-    ;   - Number of characters in block (byte)
-    ; Each entry in the block is 3 bytes long:
-    ;   - Base character glyph
-    ;   - Overlay character glyph
-    ;   - Character flags (top nibble) / Overlay character glyph color low nibble (bottom nibble)
+.proc ULFT_initfontcache
+                        ; Allocate 4 pages for cache (256 entries) and clear
+                        ldx #<(ULFT_CACHE_SIZE * 4)
+                        ldy #>(ULFT_CACHE_SIZE * 4)
+                        sec
+                        jsr ulmem_alloc
 
-    ; Use VERA::DATA1, start looking at $11000 with autoincrement 1
-    lda VERA::CTRL
-    ora #$01
-    sta VERA::CTRL
-    lda #VERA::INC1 | 1
-    sta VERA::ADDR+2
-    lda #$10
-    sta VERA::ADDR+1
-    stz VERA::ADDR
+                        ; Clear the flags page with #$10 to indicate empty cache slots
+                        lda #$10
+                        ldx #0
+:                       sta ULFT_fontcache_flags,x
+                        inx
+                        bne :-
+                        rts
+.endproc
+
+; ULFT_findcharinfo - Find the character info table entry for the specified UTF-16 character
+;   In: YX              - UTF-16 character (X=lo, Y=hi)
+;  Out: A/ULFT_charflags - character flags
+;       ULFT_baseglyph   - base layer character glyph
+;       ULFT_extraglyph  - overlay layer character glyph
+;       carry           - set if character info was found
+.proc ULFT_findcharinfo
+                        ; Check cache for match
+                        tya
+                        cmp ULFT_fontcache_hi,x
+                        bne @need_scan
+                        lda ULFT_fontcache_flags,x
+                        bit #$10
+                        bne @need_scan
+
+                        ; Found match, so just return it
+                        sta ULFT_charflags
+                        pha
+                        lda ULFT_fontcache_base,x
+                        sta ULFT_baseglyph
+                        lda ULFT_fontcache_overlay,x
+                        sta ULFT_extraglyph
+                        pla
+                        jmp @have_glyph
+
+                        ; Map starts at $11000 in VRAM. Each block starts with 3 bytes:
+                        ;   - Starting UTF-16 character in block (word, little-endian)
+                        ;   - Number of characters in block (byte)
+                        ; Each entry in the block is 3 bytes long:
+                        ;   - Base character glyph
+                        ;   - Overlay character glyph
+                        ;   - Character flags (top nibble) / Overlay character glyph color low nibble (bottom nibble)
+                        ;       * $80 = reverse character colors
+                        ;       * $40 = no glyph (do not print)
+                        ;       * $10 = (not a character flag--indicates empty cache slot)
+                        ;       * $08 = flip overlay vertical
+                        ;       * $04 = flip overlay horizontal
+                        ;       * $03 = overlay index bits 9:8
+
+                        ; Use VERA::DATA1, start looking at $11000 with autoincrement 1
+@need_scan:             lda VERA::CTRL
+                        ora #$01
+                        sta VERA::CTRL
+                        lda #VERA::INC1 | 1
+                        sta VERA::ADDR+2
+                        lda #$10
+                        sta VERA::ADDR+1
+                        stz VERA::ADDR
 
 @scan_maps:
-    ; Once we hit the $1F9xx portion of VRAM, we're done
-    lda VERA::ADDR+1
-    cmp #$f9
-    bcs @not_found
+                        ; Once we hit the $1F9xx portion of VRAM, we're done
+                        lda VERA::ADDR+1
+                        cmp #$f9
+                        bcs @not_found
 
-    ; Read the map entry and store in r11/r12L
-    lda VERA::DATA1
-    sta gREG::r11L
-    lda VERA::DATA1
-    sta gREG::r11H
+                        ; Read the map entry and store in r11/r12L
+                        lda VERA::DATA1
+                        sta ULFT_mapstart
+                        lda VERA::DATA1
+                        sta ULFT_mapstart+1
 
-    ; If we get to a zero-length block, we're done
-    lda VERA::DATA1
-    beq @not_found
-    sta gREG::r12L
+                        ; If we get to a zero-length block, we're done
+                        lda VERA::DATA1
+                        beq @not_found
+                        sta ULFT_maplen
 
-    ; If we hit a block that's greater than our character, we're done, because our maps are in
-    ; ascending order
-    cpy gREG::r11H
-    bne :+
-    cpx gREG::r11L
-:   bcs @in_range_low
+                        ; If we hit a block that's greater than our character, we're done, because our maps are in
+                        ; ascending order
+                        cpy ULFT_mapstart+1
+                        bne :+
+                        cpx ULFT_mapstart
+:                       bcs @in_range_low
 
-@not_found:
-    clc
-    rts
+                        ; Cache that character wasn't found/non-printing
+@not_found:             tya
+                        sta ULFT_fontcache_hi,x
+                        lda #$40
+                        sta ULFT_fontcache_flags,x
+                        clc
+                        rts
 
-@in_range_low:
-    ; Check that starting char + size > our char (calcuate last char in r13)
-    lda gREG::r11L
-    clc
-    adc gREG::r12L
-    sta gREG::r13L
-    lda gREG::r11H
-    adc #0
-    sta gREG::r13H
-    cpy gREG::r13H
-    bne :+
-    cpx gREG::r13L
+                        ; Check that starting char + size > our char
+@in_range_low:          lda ULFT_mapstart
+                        clc
+                        adc ULFT_maplen
+                        sta ULFT_mapchar
+                        lda ULFT_mapstart+1
+                        adc #0
+                        sta ULFT_mapchar+1
+                        cpy ULFT_mapchar+1
+                        bne :+
+                        cpx ULFT_mapchar
 
-    ; If we're past the end, skip to the next map
-:   bcs @next_map
+                        ; If we're past the end, skip to the next map
+:                       bcs @next_map
 
-    ; We found the right map. The font entry address is at:
-    ;   VERA::ADDR1 + (our char - starting char) * 3
-    ; which is the same as:
-    ;   map_base + (our char - starting char) * 2 + (our char - starting char).
+                        ; We found the right map. The font entry address is at:
+                        ;   VERA::ADDR1 + (our char - starting char) * 3
+                        phx
+                        phy
+                        txa
+                        sec
+                        sbc ULFT_mapstart
+                        ldx #3
+                        jsr ulmath_umul8_8
+                        stx ULFT_mapstart
+                        sty ULFT_mapstart+1
+                        ply
+                        plx
 
-    ; Subtract our char - starting char and store it twice (overwrite r11 and r12)
-    txa
-    sec
-    sbc gREG::r11L
-    sta gREG::r11L
-    sta gREG::r12L
-    tya
-    sbc gREG::r11H
-    sta gREG::r11H
-    sta gREG::r12H
+                        ; Move the VERA::ADDR1 ahead
+                        lda VERA::ADDR
+                        clc
+                        adc ULFT_mapstart
+                        sta VERA::ADDR
+                        lda VERA::ADDR+1
+                        adc ULFT_mapstart+1
+                        sta VERA::ADDR+1
 
-    ; Multiply one of them by 2
-    asl gREG::r12L
-    rol gREG::r12H
+                        ; Read the character info
+                        lda VERA::DATA1
+                        sta ULFT_baseglyph
+                        lda VERA::DATA1
+                        sta ULFT_extraglyph
+                        lda VERA::DATA1
+                        sta ULFT_charflags
 
-    ; And add them
-    lda gREG::r11L
-    clc
-    adc gREG::r12L
-    sta gREG::r11L
-    lda gREG::r11H
-    adc gREG::r12H
-    sta gREG::r11H
+                        ; And we're done--is it a valid glyph?
+@have_glyph:            bit #$40
+                        bne @not_found
+                        pha
+                        tya
+                        sta ULFT_fontcache_hi,x
+                        lda ULFT_baseglyph
+                        sta ULFT_fontcache_base,x
+                        lda ULFT_extraglyph
+                        sta ULFT_fontcache_overlay,x
+                        pla
+                        sta ULFT_fontcache_flags,x
+                        sec
+                        rts
 
-    ; Move the VERA::ADDR1 ahead
-    lda VERA::ADDR
-    clc
-    adc gREG::r11L
-    sta VERA::ADDR
-    lda VERA::ADDR+1
-    adc gREG::r11H
-    sta VERA::ADDR+1
-
-    ; Read the character info
-    ldx VERA::DATA1
-    ldy VERA::DATA1
-    lda VERA::DATA1
-
-    ; And we're done--is it a valid glyph?
-    bit #$40
-    bne @not_found
-    sec
-    rts
-
-    ; Jump to the next map (advance r12L*3 bytes)
-@next_map:
-    lda gREG::r12L
-    sta gREG::r11L
-    stz gREG::r11H
-    asl gREG::r11L
-    rol gREG::r11H
-    clc
-    adc gREG::r11L
-    sta gREG::r11L
-    lda gREG::r11H
-    adc #0
-    sta gREG::r11H
-    lda VERA::ADDR
-    clc
-    adc gREG::r11L
-    sta VERA::ADDR
-    lda VERA::ADDR+1
-    adc gREG::r11H
-    sta VERA::ADDR+1
-    jmp @scan_maps
+                        ; Jump to the next map (advance len*3 bytes)
+@next_map:              phx
+                        phy
+                        lda ULFT_maplen
+                        ldx #3
+                        jsr ulmath_umul8_8
+                        stx ULFT_mapstart
+                        sty ULFT_mapstart+1
+                        ply
+                        plx
+                        lda VERA::ADDR
+                        clc
+                        adc ULFT_mapstart
+                        sta VERA::ADDR
+                        lda VERA::ADDR+1
+                        adc ULFT_mapstart+1
+                        sta VERA::ADDR+1
+                        jmp @scan_maps
 .endproc
+
+.bss
+
+ULFT_mapstart:          .res    2
+ULFT_mapchar:           .res    2
+ULFT_maplen:            .res    1
+ULFT_baseglyph:         .res    1
+ULFT_extraglyph:        .res    1
+ULFT_charflags:         .res    1

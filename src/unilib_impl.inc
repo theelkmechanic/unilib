@@ -13,7 +13,11 @@
 .global ULF_writeblock
 
 ; Font utilities
+.global ULFT_initfontcache
 .global ULFT_findcharinfo
+.global ULFT_baseglyph
+.global ULFT_extraglyph
+.global ULFT_charflags
 
 ; Math utilities
 .global ULM_multbl_init
@@ -31,11 +35,20 @@
 .global ULV_bltdst
 .global ULV_bltlen
 
-.global ULV_plotchar
-.global ULV_setdirtylines
 .global ULV_swap
+.global ULV_setdirtylines
 .global ULV_backbuf_offset
 .global ULV_dirtylines
+
+.global ULV_calcglyphcolors
+.global ULV_basecolor
+.global ULV_extracolor
+
+.global ULV_plotchar
+.global ULV_copyrect
+.global ULV_clearrect
+.global ULV_fillrect
+.global ULV_changerectcolor
 
 ; Windowing utilities
 .struct ULW_WINDOW

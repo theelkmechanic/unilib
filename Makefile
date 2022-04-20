@@ -69,7 +69,9 @@ INTERNAL_OBJS = \
 	$(OBJDIR)/ULF_readblock.o \
 	$(OBJDIR)/ULFT_findcharinfo.o \
 	$(OBJDIR)/ULV_blt.o \
-	$(OBJDIR)/ULV_plotchar.o \
+	$(OBJDIR)/ULV_copy.o \
+	$(OBJDIR)/ULV_fill.o \
+	$(OBJDIR)/ULV_glyphcolor.o \
 	$(OBJDIR)/ULV_setpaletteentry.o \
 	$(OBJDIR)/ULV_swap.o
 

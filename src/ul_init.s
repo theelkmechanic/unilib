@@ -48,6 +48,11 @@ ULW_scratch_fptr:       .res    3       ; current window handle
                         ; on the first page of bank RAM starting at $A100, and if this is not the first call, they won't be
                         jsr ULM_multbl_init
 
+                        ; Initialize the font cache
+                        ;   *** WARNING *** This MUST be the second memory allocation call, or it will break badly; it assumes it's
+                        ; on the first page of bank RAM starting at $A900, and if this is not the second call, it won't be
+                        jsr ULFT_initfontcache
+
                         ; Initialize VERA to display 80x30 Unicode text:
                         ;   - Map size = 128x32, tile size = 8x16
                         ;   - Layer 0 (base) text mode:
@@ -144,56 +149,19 @@ ULW_scratch_fptr:       .res    3       ; current window handle
                         bne :-
 
                         ; Clear layer 0 with fg-on-bg spaces and layer 1 with fg-on-0 NULs
-                        lda VERA::CTRL
-                        and #$fe
-                        sta VERA::CTRL
-                        stz VERA::ADDR
-                        stz VERA::ADDR+1
-                        lda #$10
-                        sta VERA::ADDR+2
-                        lda VERA::CTRL
-                        ora #$01
-                        sta VERA::CTRL
-                        stz VERA::ADDR
-                        lda #$40
-                        sta VERA::ADDR+1
-                        lda #$10
-                        sta VERA::ADDR+2
-                        lda gREG::r2H
-                        asl
-                        asl
-                        asl
-                        asl
-                        ora gREG::r2L
-                        tay
-                        asl
-                        asl
-                        asl
-                        asl
-                        tax
-:                       lda #32
-                        stz VERA::DATA1
-                        stx VERA::DATA1
-                        sta VERA::DATA0
-                        sty VERA::DATA0
-                        lda VERA::ADDR
-                        cmp #160
-                        bcc :+
-                        stz VERA::ADDR
-                        inc VERA::ADDR+1
-                        lda VERA::CTRL
-                        eor #1
-                        sta VERA::CTRL
-                        stz VERA::ADDR
-                        inc VERA::ADDR+1
-:                       bit VERA::ADDR+1
-                        bpl :--
-
-                        ; Current display is $00000/$040000, so backbuffer is at $02000/$06000; don't need
-                        ; to set up dirty lines array because creating the screen window will set them all
-                        ; for us
-                        lda #$20
-                        sta ULV_backbuf_offset
+                        stz ULV_backbuf_offset
+                        stz gREG::r0L
+                        stz gREG::r0H
+                        lda #80
+                        sta gREG::r1L
+                        lda #30
+                        sta gREG::r1H
+                        lda #ULCOLOR::WHITE
+                        sta gREG::r2L
+                        lda #ULCOLOR::DGREY
+                        sta gREG::r2H
+                        jsr ULV_clearrect
+                        jsr ULV_swap
 
                         ; Lastly, initialize the windowing system; first we need our array of window BRPs,
                         ; so allocate an array to hold 64 BRPs (128 bytes); window handle will be 0-based
