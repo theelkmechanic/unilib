@@ -44,14 +44,24 @@ ULW_scratch_fptr:       .res    3       ; current window handle
                         bne @init_bank
 
                         ; Initialize math multiplication tables
-                        ;   *** WARNING *** This MUST be the fist memory allocation call, or it will break badly; it assumes they're
-                        ; on the first page of bank RAM starting at $A100, and if this is not the first call, they won't be
+                        ;   *** WARNING *** This MUST be the fist memory allocation call, or it will break badly; the multiplication
+                        ; functions assume they're on the first page of bank RAM starting at $A100, and if this is not the first call,
+                        ; they won't be
                         jsr ULM_multbl_init
 
                         ; Initialize the font cache
-                        ;   *** WARNING *** This MUST be the second memory allocation call, or it will break badly; it assumes it's
-                        ; on the first page of bank RAM starting at $A900, and if this is not the second call, it won't be
+                        ;   *** WARNING *** This MUST be the second memory allocation call, or it will break badly; the font glyph info
+                        ; lookup assumes it's on the first page of bank RAM starting at $A900, and if this is not the second call, it
+                        ; won't be
                         jsr ULFT_initfontcache
+
+                        ; Allocate the window map
+                        ;   *** WARNING *** This MUST be the third memory allocation call, or it will break badly; the windowing code
+                        ; assumes it's on the first page of bank RAM starting at $AD00, and if this is not the third call, it won't be
+                        ldx #<(80*30)
+                        ldy #>(80*30)
+                        sec
+                        jsr ulmem_alloc
 
                         ; Initialize VERA to display 80x30 Unicode text:
                         ;   - Map size = 128x32, tile size = 8x16

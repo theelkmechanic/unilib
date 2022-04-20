@@ -87,6 +87,8 @@ next_bank   .byte   ; Bank RAM page of next window structure (0 if none)
 .global ULW_winlist
 .global ULW_screen_handle
 .global ULW_current_handle
+.global ULW_fill_current_to_map
+ULW_WINMAP = $AD00
 
 .globalzp ULW_screen_fptr
 .globalzp ULW_current_fptr

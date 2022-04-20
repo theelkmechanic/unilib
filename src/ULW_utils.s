@@ -38,7 +38,6 @@
                         ldx ULW_winlist
                         ldy ULW_winlist+1
                         jsr ulmem_access
-                        sta BANKSEL::RAM
                         txa
                         clc
                         adc UL_temp_l

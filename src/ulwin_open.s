@@ -17,37 +17,26 @@
 @listptr = gREG::r11
 @winhandle = gREG::r12L
                         ; Save bank
-                        ldx BANKSEL::RAM
                         phx
+                        phy
+                        lda BANKSEL::RAM
+                        pha
+                        lda gREG::r5L
+                        pha
+                        lda gREG::r5H
+                        pha
 
                         ; Validate the parameters we can now
 @new_slin = gREG::r0H
 @new_nlin = gREG::r1H
-@new_elin = gREG::r15H
+@new_elin = gREG::r5H
 @new_scol = gREG::r0L
 @new_ncol = gREG::r1L
-@new_ecol = gREG::r15L
+@new_ecol = gREG::r5L
 @new_flags = gREG::r4H
-@border = gREG::r12H
 @new_fg = gREG::r2L
 @new_bg = gREG::r2H
 @new_title = gREG::r3
-
-                        ; Border is the only flag we have right now, so turn the 0x80 into a 1 if it's there
-                        lda @new_flags
-                        stz @border
-                        asl
-                        rol @border
-
-                        ; Check that the window isn't off the top or left of the screen
-                        lda @new_slin
-                        sec
-                        sbc @border
-                        bmi @bad_params
-                        lda @new_scol
-                        sec
-                        sbc @border
-                        bmi @bad_params
 
                         ; Calculate the end line/column
                         lda @new_scol
@@ -59,8 +48,43 @@
                         adc @new_nlin
                         sta @new_elin
 
+                        ; Have we initialized the screen yet?
+                        lda ULW_screen_fptr+2
+                        beq @find_empty_slot
+
+                        ; Check that the new window fits on the screen
+                        sta BANKSEL::RAM
+                        lda @new_slin
+                        bit @new_flags
+                        bpl :+
+                        dec
+:                       tay
+                        bmi @bad_params
+                        lda @new_scol
+                        bit @new_flags
+                        bpl :+
+                        dec
+:                       tax
+                        bmi @bad_params
+                        ldy #ULW_WINDOW::elin
+                        lda @new_elin
+                        bit @new_flags
+                        bpl :+
+                        inc
+:                       inc
+                        cmp (ULW_screen_fptr),y
+                        bcs @bad_params
+                        ldy #ULW_WINDOW::ecol
+                        lda @new_ecol
+                        bit @new_flags
+                        bpl :+
+                        inc
+:                       inc
+                        cmp (ULW_screen_fptr),y
+                        bcs @bad_params
+
                         ; Find an empty slot for a new window
-                        stz @winhandle
+@find_empty_slot:       stz @winhandle
                         ldx ULW_winlist
                         ldy ULW_winlist+1
 @access_next:           jsr ulmem_access
@@ -113,6 +137,12 @@
                         lsr
                         sta ULW_newwin_handle
 
+                        ; Get our window structure into the scratch pointer
+                        ldy ULW_newwin_brp+1
+                        jsr ulmem_access
+                        stx ULW_scratch_fptr
+                        sty ULW_scratch_fptr+1
+
                         ; Allocate a buffer for the window contents, should be lines * columns * 3
                         ldx @new_nlin
                         lda #3
@@ -125,45 +155,14 @@
                         lda ULW_newwin_handle
                         jsr ulwin_close
                         bra @out_of_memory
-                        tya
+
+                        ; Initialize the new window structure
+:                       tya
                         ldy #ULW_WINDOW::buf_ptr+1
                         sta (ULW_scratch_fptr),y
                         dey
                         txa
                         sta (ULW_scratch_fptr),y
-
-                        ; Have we initialized the screen yet?
-                        lda ULW_screen_fptr+2
-                        beq @init_new_window
-
-                        ; Check that the new window fits on the screen
-                        sta BANKSEL::RAM
-                        ldy #ULW_WINDOW::nlin
-                        lda @new_elin
-                        clc
-                        adc @border
-                        dec
-                        cmp (ULW_screen_fptr),y
-                        bcs :+
-                        ldy #ULW_WINDOW::ncol
-                        lda @new_ecol
-                        clc
-                        adc @border
-                        dec
-                        cmp (ULW_screen_fptr),y
-                        bcc @init_new_window
-
-                        ; Window is offscreen, so free it (ulwin_close will work) and fail
-:                       lda ULW_newwin_handle
-                        jsr ulwin_close
-                        bra @bad_params
-
-                        ; Initialize the new window structure
-@init_new_window:       ldx ULW_newwin_brp
-                        ldy ULW_newwin_brp+1
-                        jsr ulmem_access
-                        stx ULW_scratch_fptr
-                        sty ULW_scratch_fptr+1
                         lda ULW_newwin_handle
                         sta (ULW_scratch_fptr)
                         ldy #ULW_WINDOW::flags
@@ -179,8 +178,6 @@
                         lda @new_elin
                         sta (ULW_scratch_fptr),y
                         iny
-                        lda #0
-                        sta (ULW_scratch_fptr),y ; Cursor line
                         iny
                         lda @new_scol
                         sta (ULW_scratch_fptr),y
@@ -190,9 +187,6 @@
                         iny
                         lda @new_ecol
                         sta (ULW_scratch_fptr),y
-                        iny
-                        lda #0
-                        sta (ULW_scratch_fptr),y ; Cursor column
 
                         ; Save the title address/bank
                         ldy #ULW_WINDOW::title_addr
@@ -215,25 +209,19 @@
                         iny
                         lda ULW_current_fptr+2
                         sta (ULW_scratch_fptr),y
-                        iny
-                        lda #0
-                        sta (ULW_scratch_fptr),y
-                        iny
-                        sta (ULW_scratch_fptr),y
-                        iny
-                        sta (ULW_scratch_fptr),y
 
-                        ; Then set new window as current
+                        ; Then set new window as current and fill in the window map
                         lda ULW_scratch_fptr
                         sta ULW_current_fptr
                         lda ULW_scratch_fptr+1
                         sta ULW_current_fptr+1
                         lda BANKSEL::RAM
                         sta ULW_current_fptr+2
-
-                        ; Set window colors, clear it, and draw its border
                         lda ULW_newwin_handle
                         sta ULW_current_handle
+                        jsr ULW_fill_current_to_map
+
+                        ; Set window colors, clear it, and draw its border
                         ldx @new_fg
                         ldy @new_bg
                         jsr ulwin_putcolor
@@ -242,7 +230,114 @@
 
                         ; Restore bank and exit (A should already be set)
 @exit:                  plx
+                        stx gREG::r5H
+                        plx
+                        stx gREG::r5L
+                        plx
                         stx BANKSEL::RAM
+                        ply
+                        plx
+                        rts
+.endproc
+
+; ULW_fill_current_to_map - fill the current window rect in the window map
+.proc ULW_fill_current_to_map
+@flags = gREG::r15H
+                        ; Save stuff
+                        pha
+                        phx
+                        phy
+                        lda BANKSEL::RAM
+                        pha
+                        lda ULW_current_fptr+2
+                        sta BANKSEL::RAM
+
+                        ; Save the window flags where we can get at them (for the border flag)
+                        ldy #ULW_WINDOW::flags
+                        lda (ULW_current_fptr),y
+                        sta @flags
+
+                        ; Get a pointer to the first line of the window in the window map
+                        ldy #ULW_WINDOW::slin
+                        lda (ULW_current_fptr),y
+                        bit @flags
+                        bpl :+
+                        dec
+:                       ldx #80
+                        jsr ulmath_umul8_8
+                        clc
+                        adc #<(ULW_WINMAP)
+                        sta ULW_scratch_fptr
+                        txa
+                        adc #>(ULW_WINMAP)
+                        sta ULW_scratch_fptr+1
+
+                        ; And add in the column
+                        ldy #ULW_WINDOW::scol
+                        lda (ULW_current_fptr),y
+                        bit @flags
+                        bpl :+
+                        dec
+:                       clc
+                        adc ULW_scratch_fptr
+                        sta ULW_scratch_fptr
+                        lda ULW_scratch_fptr+1
+                        adc #0
+                        sta ULW_scratch_fptr+1
+
+                        ; X is num lines to fill, Y is num columns to fill, A is window handle
+                        ldy #ULW_WINDOW::nlin
+                        lda (ULW_current_fptr),y
+                        dec
+                        tax
+                        ldy #ULW_WINDOW::ncol
+                        lda (ULW_current_fptr),y
+                        dec
+                        tay
+                        bit @flags
+                        bpl :+
+                        inx
+                        inx
+                        iny
+                        iny
+:                       lda (ULW_current_fptr)
+
+                        ; Switch to bank 1
+                        pha
+                        lda #1
+                        sta BANKSEL::RAM
+                        pla
+
+                        ; Loop X times to fill lines
+@line_loop:             phy
+
+                        ; Loop Y times to fill columns
+@column_loop:           sta (ULW_scratch_fptr),y
+                        dey
+                        bpl @column_loop
+
+                        ; Check if done
+                        ply
+                        dex
+                        bmi @done
+
+                        ; Add one line
+                        pha
+                        lda ULW_scratch_fptr
+                        clc
+                        adc #80
+                        sta ULW_scratch_fptr
+                        lda ULW_scratch_fptr+1
+                        adc #0
+                        sta ULW_scratch_fptr+1
+                        pla
+                        bra @line_loop
+
+@done:                  pla
+                        sta BANKSEL::RAM
+                        ply
+                        plx
+                        pla
                         rts
 .endproc
 

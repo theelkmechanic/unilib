@@ -263,7 +263,7 @@
                         sta gREG::r1
 
                         ; Clear allocated memory
-                        lda #$a5
+                        lda #0
                         jsr MEMORY_FILL
 
                         ; Restore r0/r1
