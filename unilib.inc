@@ -8,15 +8,15 @@
 .global ulmath_umul8_8        ; X * A => YX
 .global ulmath_umul16_8       ; YX * A => AYX
 
-; Banked RAM allocation functions - work on banked RAM "pointers", which are two bytes:
-;  - High byte (in Y register) = RAM bank
-;  - Low byte (in X register) = index of 32-byte slot in 8K RAM bank area
+; Banked RAM allocation functions - work on banked RAM "pointers" (BRPs), which are two bytes:
+;  - High byte = RAM bank
+;  - Low byte = index of 32-byte slot in 8K RAM bank area
 ; To access memory:
-;  - RAM bank selector <- Y
-;  - 16-bit address    <- $A000 | (X * 32)
-.global ulmem_alloc         ; YX = allocation size (max 7,936 bytes), carry set will clear the allocated memory
-.global ulmem_free          ; YX = "pointer" to free
-.global ulmem_access        ; YX "pointer" -> RAM bank selected, YX = 16-bit memory address of data
+;  - RAM bank selector <- hi
+;  - 16-bit address    <- $A000 | (lo * 32)
+.global ulmem_alloc         ; r0 = allocation size (max 7,936 bytes), carry set will clear the allocated memory; returns BPR in r0
+.global ulmem_free          ; r0 = BRP to free
+.global ulmem_access        ; r0 BRP -> RAM bank selected, r0 = 16-bit memory address of data
 
 ; Window functions
 .global ulwin_border        ; A = window #; draws border around window
@@ -64,6 +64,7 @@
     OK = 0
     INVALID_PARAMS
     INVALID_HANDLE
+    INVALID_BRP
     OUT_OF_MEMORY
     OUT_OF_RESOURCES
     LOAD_FAILED

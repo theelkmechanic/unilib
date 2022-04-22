@@ -61,7 +61,7 @@ ULW_scratch_fptr:       .res    3       ; current window handle
                         ldx #<(80*30)
                         ldy #>(80*30)
                         sec
-                        jsr ulmem_alloc
+                        jsr ULM_alloc
 
                         ; Initialize VERA to display 80x30 Unicode text:
                         ;   - Map size = 128x32, tile size = 8x16
@@ -179,7 +179,7 @@ ULW_scratch_fptr:       .res    3       ; current window handle
                         ldx #64*2
                         ldy #0
                         sec
-                        jsr ulmem_alloc
+                        jsr ULM_alloc
                         stx ULW_winlist
                         sty ULW_winlist+1
 
@@ -204,17 +204,6 @@ ULW_scratch_fptr:       .res    3       ; current window handle
                         stz gREG::r4H
                         stz UL_lasterr
                         jsr ulwin_open
-
-                        ; Check if we opened successfully
-                        cmp #0
-                        bmi @init_done
-
-                        ; Save the screen window
-                        sta ULW_screen_handle
-                        jsr ULW_getwinptr
-                        stx ULW_screen_fptr
-                        sty ULW_screen_fptr+1
-                        sta ULW_screen_fptr+2
 
                         ; Restore the RAM bank and return success/failure
 @init_done:             pla

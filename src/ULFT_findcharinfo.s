@@ -15,7 +15,7 @@ ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 3)
                         ldx #<(ULFT_CACHE_SIZE * 4)
                         ldy #>(ULFT_CACHE_SIZE * 4)
                         sec
-                        jsr ulmem_alloc
+                        jsr ULM_alloc
 
                         ; Clear the flags page with #$10 to indicate empty cache slots
                         lda #$10

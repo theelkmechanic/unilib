@@ -20,7 +20,7 @@
                         inc ULW_scratch_fptr
                         lda (ULW_scratch_fptr)
                         tay
-                        jsr ulmem_access
+                        jsr ULM_access
                         lda BANKSEL::RAM
                         rts
 .endproc
@@ -37,7 +37,7 @@
                         sta UL_temp_l
                         ldx ULW_winlist
                         ldy ULW_winlist+1
-                        jsr ulmem_access
+                        jsr ULM_access
                         txa
                         clc
                         adc UL_temp_l
@@ -50,4 +50,33 @@
 @bad_handle:            lda #ULERR::INVALID_HANDLE
                         sta UL_lasterr
                         jmp UL_terminate
+.endproc
+
+; ULW_getwinstructcopy - copy window structure to known location
+;   In: A               - Window handle
+;  Out: ULW_WINDOW_COPY - Copy of window structure contents
+.proc ULW_getwinstructcopy
+                        ; Save A/X/Y/bank
+                        pha
+                        phx
+                        phy
+                        ldy BANKSEL::RAM
+                        phy
+
+                        jsr ULW_getwinptr
+                        stx ULW_scratch_fptr
+                        sty ULW_scratch_fptr+1
+                        ldy #.sizeof(ULW_WINDOW)-1
+:                       lda (ULW_scratch_fptr),y
+                        sta ULW_WINDOW_COPY::handle,y
+                        dey
+                        bpl :-
+
+                        ; Restore A/X/Y/bank
+                        ply
+                        sty BANKSEL::RAM
+                        ply
+                        plx
+                        pla
+                        rts
 .endproc

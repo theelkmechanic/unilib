@@ -2,10 +2,19 @@
 
 .code
 
-; ulmem_free - Free an allocated banked RAM "pointer"
-;   In: Y               - RAM bank
-;       X               - slot #
+; ulmem_free - Free an allocated banked RAM pointer
+;   In: YX              - BRP to free
 .proc ulmem_free
+                        ; Get BRP into YX
+                        ldx gREG::r0L
+                        ldy gREG::r0H
+.endproc
+
+; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
+
+; ULM_free - Free an allocated banked RAM pointer
+;   In: YX              - BRP to free
+.proc ULM_free
                         ; Make sure our paramters are in range before we do anything, check bank first so we can switch to it
                         pha
                         tya
@@ -14,7 +23,11 @@
                         beq @check_slot
                         cpy ULM_numbanks
                         bcc @check_slot
-:                       jmp @exit
+
+                        ; Bad BRP, so blow up
+:                       lda #ULERR::INVALID_BRP
+                        sta UL_lasterr
+                        jmp UL_terminate
 
                         ; Switch to bank and check that slot is in range and has a valid value in it
 @check_slot:            cpx #8
@@ -23,9 +36,9 @@
                         pha
                         sty BANKSEL::RAM
                         lda BANK::RAM,x
-                        beq @restore_bank
+                        beq :-
                         cmp #249 ; Length can't be more than 248, so if it is we're in the middle of a chunk
-                        bcs @restore_bank
+                        bcs :-
 
                         ; Okay, we have a valid pointer, so mark it free
 @savedstart = gREG::r15H
@@ -112,6 +125,6 @@
                         ; Restore bank and exit
 @restore_bank:          pla
                         sta BANKSEL::RAM
-@exit:                  pla
+                        pla
                         rts
 .endproc

@@ -63,7 +63,8 @@ WIN_OBJS = \
 	$(OBJDIR)/ulwin_refresh.o \
 	$(OBJDIR)/ulwin_scroll.o \
 	$(OBJDIR)/ulwin_select.o \
-	$(OBJDIR)/ULW_utils.o \
+	$(OBJDIR)/ULW_map.o \
+	$(OBJDIR)/ULW_utils.o
 
 INTERNAL_OBJS = \
 	$(OBJDIR)/ULF_readblock.o \

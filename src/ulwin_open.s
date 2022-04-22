@@ -16,7 +16,7 @@
 .proc ulwin_open
 @listptr = gREG::r11
 @winhandle = gREG::r12L
-                        ; Save bank
+                        ; Save X/Y/bank/r5
                         phx
                         phy
                         lda BANKSEL::RAM
@@ -87,7 +87,7 @@
 @find_empty_slot:       stz @winhandle
                         ldx ULW_winlist
                         ldy ULW_winlist+1
-@access_next:           jsr ulmem_access
+@access_next:           jsr ULM_access
                         stx @listptr
                         sty @listptr+1
 
@@ -115,7 +115,7 @@
                         ldy #0
                         ldx #.sizeof(ULW_WINDOW)
                         sec ; clear the allocated memory
-                        jsr ulmem_alloc
+                        jsr ULM_alloc
                         bcc @out_of_memory
 
                         ; Okay, need to save the window structure BRP in the right slot,
@@ -139,7 +139,7 @@
 
                         ; Get our window structure into the scratch pointer
                         ldy ULW_newwin_brp+1
-                        jsr ulmem_access
+                        jsr ULM_access
                         stx ULW_scratch_fptr
                         sty ULW_scratch_fptr+1
 
@@ -150,7 +150,7 @@
                         lda @new_ncol
                         jsr ulmath_umul8_8
                         clc
-                        jsr ulmem_alloc
+                        jsr ULM_alloc
                         bcs :+
                         lda ULW_newwin_handle
                         jsr ulwin_close
@@ -210,16 +210,25 @@
                         lda ULW_current_fptr+2
                         sta (ULW_scratch_fptr),y
 
-                        ; Then set new window as current and fill in the window map
+                        ; Then set new window as current (and as screen if it's the first),
+                        ; and fill in the window map
                         lda ULW_scratch_fptr
                         sta ULW_current_fptr
-                        lda ULW_scratch_fptr+1
-                        sta ULW_current_fptr+1
+                        ldy ULW_scratch_fptr+1
+                        sty ULW_current_fptr+1
                         lda BANKSEL::RAM
                         sta ULW_current_fptr+2
                         lda ULW_newwin_handle
-                        sta ULW_current_handle
-                        jsr ULW_fill_current_to_map
+                        ldx ULW_screen_fptr+2
+                        bne :+
+                        ldx ULW_scratch_fptr
+                        stx ULW_screen_fptr
+                        sty ULW_screen_fptr+1
+                        ldx BANKSEL::RAM
+                        stx ULW_screen_fptr+2
+                        sta ULW_screen_handle
+:                       sta ULW_current_handle
+                        jsr ULW_update_occlusion
 
                         ; Set window colors, clear it, and draw its border
                         ldx @new_fg
@@ -228,7 +237,7 @@
                         jsr ulwin_clear
                         jsr ulwin_border
 
-                        ; Restore bank and exit (A should already be set)
+                        ; Restore X/Y/bank/r5 and exit (A should already be set)
 @exit:                  plx
                         stx gREG::r5H
                         plx
@@ -237,107 +246,6 @@
                         stx BANKSEL::RAM
                         ply
                         plx
-                        rts
-.endproc
-
-; ULW_fill_current_to_map - fill the current window rect in the window map
-.proc ULW_fill_current_to_map
-@flags = gREG::r15H
-                        ; Save stuff
-                        pha
-                        phx
-                        phy
-                        lda BANKSEL::RAM
-                        pha
-                        lda ULW_current_fptr+2
-                        sta BANKSEL::RAM
-
-                        ; Save the window flags where we can get at them (for the border flag)
-                        ldy #ULW_WINDOW::flags
-                        lda (ULW_current_fptr),y
-                        sta @flags
-
-                        ; Get a pointer to the first line of the window in the window map
-                        ldy #ULW_WINDOW::slin
-                        lda (ULW_current_fptr),y
-                        bit @flags
-                        bpl :+
-                        dec
-:                       ldx #80
-                        jsr ulmath_umul8_8
-                        clc
-                        adc #<(ULW_WINMAP)
-                        sta ULW_scratch_fptr
-                        txa
-                        adc #>(ULW_WINMAP)
-                        sta ULW_scratch_fptr+1
-
-                        ; And add in the column
-                        ldy #ULW_WINDOW::scol
-                        lda (ULW_current_fptr),y
-                        bit @flags
-                        bpl :+
-                        dec
-:                       clc
-                        adc ULW_scratch_fptr
-                        sta ULW_scratch_fptr
-                        lda ULW_scratch_fptr+1
-                        adc #0
-                        sta ULW_scratch_fptr+1
-
-                        ; X is num lines to fill, Y is num columns to fill, A is window handle
-                        ldy #ULW_WINDOW::nlin
-                        lda (ULW_current_fptr),y
-                        dec
-                        tax
-                        ldy #ULW_WINDOW::ncol
-                        lda (ULW_current_fptr),y
-                        dec
-                        tay
-                        bit @flags
-                        bpl :+
-                        inx
-                        inx
-                        iny
-                        iny
-:                       lda (ULW_current_fptr)
-
-                        ; Switch to bank 1
-                        pha
-                        lda #1
-                        sta BANKSEL::RAM
-                        pla
-
-                        ; Loop X times to fill lines
-@line_loop:             phy
-
-                        ; Loop Y times to fill columns
-@column_loop:           sta (ULW_scratch_fptr),y
-                        dey
-                        bpl @column_loop
-
-                        ; Check if done
-                        ply
-                        dex
-                        bmi @done
-
-                        ; Add one line
-                        pha
-                        lda ULW_scratch_fptr
-                        clc
-                        adc #80
-                        sta ULW_scratch_fptr
-                        lda ULW_scratch_fptr+1
-                        adc #0
-                        sta ULW_scratch_fptr+1
-                        pla
-                        bra @line_loop
-
-@done:                  pla
-                        sta BANKSEL::RAM
-                        ply
-                        plx
-                        pla
                         rts
 .endproc
 

@@ -3,11 +3,30 @@
 .code
 
 ; ulmem_alloc - Allocate a chunk of banked RAM
-;   In: YX              - size to allocate (max = 7,936 bytes)
+;   In: r0              - size to allocate (max = 7,936 bytes)
 ;       carry           - if set, allocated memory will be cleared
-;  Out: YX              - banked RAM "pointer" (Y=bank, X=slot#), 0/0 if allocation fails
+;  Out: r0              - banked RAM pointer, 0/0 if allocation fails
 ;       carry           - set on success, clear on failure
 .proc ulmem_alloc
+                        ; Get size into YX
+                        ldx gREG::r0L
+                        ldy gREG::r0H
+
+                        ; Call the internal function
+                        jsr ULM_alloc
+
+                        ; Store the result
+                        sty gREG::r0H
+                        stx gREG::r0L
+                        rts
+.endproc
+
+; ULM_alloc - Allocate a chunk of banked RAM
+;   In: YX              - size to allocate (max = 7,936 bytes)
+;       carry           - if set, allocated memory will be cleared
+;  Out: YX              - banked RAM pointer, 0/0 if allocation fails
+;       carry           - set on success, clear on failure
+.proc ULM_alloc
 @numslots = gREG::r15H
 @extraslot = gREG::r15L
 @roomybank = gREG::r15L
