@@ -3,16 +3,16 @@
 .code
 
 ; ULV_copyrect - copy rectangle contents to new location
-;   In: r0              - Top/left of source (L=column, H=line)
-;       r1              - Top/left of destination (L=column, H=line)
-;       r2              - Size of rectangle (L=columns, H=lines)
+;   In: ULVR_srcpos     - Top/left of source (L=column, H=line)
+;       ULVR_destpos    - Top/left of destination (L=column, H=line)
+;       ULVR_size       - Size of rectangle (L=columns, H=lines)
 .proc ULV_copyrect
-@srclin = gREG::r0H
-@dstlin = gREG::r1H
-@numlin = gREG::r2H
-@srccol = gREG::r0L
-@dstcol = gREG::r1L
-@numcol = gREG::r2L
+@srclin = ULVR_srcpos+1
+@dstlin = ULVR_destpos+1
+@numlin = ULVR_size+1
+@srccol = ULVR_srcpos
+@dstcol = ULVR_destpos
+@numcol = ULVR_size
 @linestep = UL_temp_h
                         ; Save A/X/Y
                         pha

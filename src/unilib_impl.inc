@@ -52,6 +52,10 @@
 .global ULV_clearrect
 .global ULV_fillrect
 .global ULV_changerectcolor
+.global ULVR_srcpos
+.global ULVR_destpos
+.global ULVR_size
+.global ULVR_color
 
 ; Windowing utilities
 .struct ULW_WINDOW
@@ -76,7 +80,10 @@ next_addr   .word   ; Address of next window structure (null if none)
 next_bank   .byte   ; Bank RAM page of next window structure (0 if none)
 .endstruct
 
-.global ULW_getwinstructcopy
+.global ULW_getwinentryptr
+.global ULW_getwinptr
+.global ULW_getwinstruct
+.global ULW_copywinstruct
 .struct ULW_WINDOW_COPY
             .org $06e0
 handle      .byte   ; Window handle
@@ -111,10 +118,12 @@ ULWF_COVERED    = $01
 .global ULW_keybg
 .global ULW_keyidle
 
-.global ULW_getwinentryptr
-.global ULW_getwinptr
+.global ULW_border
+.global ULW_clear
 .global ULW_getloc
 .global ULW_getsize
+.global ULW_putcolor
+.global ULW_putcursor
 
 .global ULW_winlist_loop
 .global ULW_winlist
@@ -123,7 +132,7 @@ ULWF_COVERED    = $01
 
 .global ULW_maprect_loop
 .global ULW_update_occlusion
-.global ULW_update_dirty
+.global ULW_set_dirty_rect
 ULW_WINMAP = $AD00
 
 .globalzp ULW_screen_fptr

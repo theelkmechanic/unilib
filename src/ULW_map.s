@@ -35,9 +35,11 @@ ULW_temp_tilecount_hi   = $7c0
 .endproc
 
 ; ULW_set_dirty_rect - Mark a screen rectangle as dirty in the map
-;   In: A               - Handle to match (0-63, negative=force dirty)
-;       r0              - Start line/column (L=column, H=line)
-;       r1              - Number of lines/columns (L=columns, H=lines)
+;   In: ULW_WINDOW_COPY::handle - Handle to match (0-63, negative=force dirty)
+;       ULW_WINDOW_COPY::slin   - Start line
+;       ULW_WINDOW_COPY::scol   - Start column
+;       ULW_WINDOW_COPY::nlin   - Number of lines
+;       ULW_WINDOW_COPY::ncol   - Number of columns
 .proc ULW_set_dirty_rect
                         ; Save A/X/Y/bank
                         pha
@@ -45,17 +47,6 @@ ULW_temp_tilecount_hi   = $7c0
                         phy
                         ldy BANKSEL::RAM
                         phy
-
-                        ; Store our parameters where ULW_maprect_loop/ULW_set_dirty_cell is expecting them
-                        sta ULW_WINDOW_COPY::handle
-                        lda gREG::r0L
-                        sta ULW_WINDOW_COPY::scol
-                        lda gREG::r0H
-                        sta ULW_WINDOW_COPY::slin
-                        lda gREG::r1L
-                        sta ULW_WINDOW_COPY::ncol
-                        lda gREG::r1H
-                        sta ULW_WINDOW_COPY::nlin
 
                         ; Set the dirty flags for the window/rect in the window map
                         ldx #<ULW_set_dirty_cell

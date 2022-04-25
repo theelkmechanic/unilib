@@ -4,6 +4,32 @@
 
 .code
 
+; ULW_getwinstruct - access window structure and copy to known location
+;   In: A               - Window handle
+;  Out: ULW_scratch_ptr - Pointer to actual window structure
+;       BANKSEL::RAM    - Bank of actual window structure
+;       ULW_WINDOW_COPY - Copy of window structure contents
+.proc ULW_getwinstruct
+                        jsr ULW_getwinptr
+                        stx ULW_scratch_fptr
+                        sty ULW_scratch_fptr+1
+.endproc
+
+; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
+
+; ULW_copywinstruct - copy window structure to known location 
+;   In: ULW_scratch_ptr - Pointer to actual window structure
+;       BANKSEL::RAM    - Bank of actual window structure
+;  Out: ULW_WINDOW_COPY - Copy of window structure contents
+.proc ULW_copywinstruct
+                        ldy #.sizeof(ULW_WINDOW)-1
+:                       lda (ULW_scratch_fptr),y
+                        sta ULW_WINDOW_COPY::handle,y
+                        dey
+                        bpl :-
+                        rts
+.endproc
+
 ; ULW_getwinptr - look up the window pointer for a given window handle
 ;   In: A               Window handle
 ;  Out: A               Window far pointer bank (WARNING: also leaves in BANKSEL:RAM)
@@ -50,33 +76,4 @@
 @bad_handle:            lda #ULERR::INVALID_HANDLE
                         sta UL_lasterr
                         jmp UL_terminate
-.endproc
-
-; ULW_getwinstructcopy - copy window structure to known location
-;   In: A               - Window handle
-;  Out: ULW_WINDOW_COPY - Copy of window structure contents
-.proc ULW_getwinstructcopy
-                        ; Save A/X/Y/bank
-                        pha
-                        phx
-                        phy
-                        ldy BANKSEL::RAM
-                        phy
-
-                        jsr ULW_getwinptr
-                        stx ULW_scratch_fptr
-                        sty ULW_scratch_fptr+1
-                        ldy #.sizeof(ULW_WINDOW)-1
-:                       lda (ULW_scratch_fptr),y
-                        sta ULW_WINDOW_COPY::handle,y
-                        dey
-                        bpl :-
-
-                        ; Restore A/X/Y/bank
-                        ply
-                        sty BANKSEL::RAM
-                        ply
-                        plx
-                        pla
-                        rts
 .endproc

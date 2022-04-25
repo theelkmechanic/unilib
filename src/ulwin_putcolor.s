@@ -1,5 +1,3 @@
-; w_putcolor - Set window current foreground/background colors
-
 .include "unilib_impl.inc"
 
 .code
@@ -9,9 +7,7 @@
 ;       X               - Foreground color
 ;       Y               - Background color
 .proc ulwin_putcolor
-@handle = gREG::r12
-@fg = gREG::r11L
-@bg = gREG::r11H
+@handle = gREG::r11L
                         ; Treat 0 as black (1), clip fg to $f
                         sta @handle
                         lda BANKSEL::RAM
@@ -20,32 +16,44 @@
                         bne :+
                         inc
 :                       and #$0f
-                        sta @fg
+                        pha
                         tya
                         bne :+
                         inc
-:                       sta @bg
+:                       pha
 
-                        ; Get the window pointer into scratch
+                        ; Access the window structure
                         lda @handle
                         jsr ULW_getwinptr
-                        cmp #0
-                        beq @exit
                         stx ULW_scratch_fptr
                         sty ULW_scratch_fptr+1
 
+                        ; Use the internal helper
+                        ply
+                        plx
+                        jsr ULW_putcolor
+
+                        ; Exit
+@exit:                  pla
+                        sta BANKSEL::RAM
+                        lda @handle
+                        rts
+.endproc
+
+.proc ULW_putcolor
                         ; Normal color is bg high | fg low, treat 0 as black (1)
-                        lda @bg
+                        tya
                         asl
                         asl
                         asl
                         asl
-                        ora @fg
+                        stx UL_temp_l
+                        ora UL_temp_l
                         ldy #ULW_WINDOW::color
                         sta (ULW_scratch_fptr),y
 
                         ; Emphasis color is black on fg, unless fg is black, then white on black
-                        lda @fg
+                        txa
                         cmp #1
                         beq :+
                         ora #(ULCOLOR::BLACK) << 4
@@ -54,13 +62,8 @@
                         asl
                         asl
                         asl
-                        ora #(ULCOLOR::BLACK)
+                        ora #(ULCOLOR::WHITE)
 :                       iny
                         sta (ULW_scratch_fptr),y
-
-                        ; Exit
-@exit:                  pla
-                        sta BANKSEL::RAM
-                        lda @handle
                         rts
 .endproc

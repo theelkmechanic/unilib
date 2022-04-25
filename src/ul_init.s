@@ -159,19 +159,17 @@ ULW_scratch_fptr:       .res    3       ; current window handle
                         bne :-
 
                         ; Clear layer 0 with fg-on-bg spaces and layer 1 with fg-on-0 NULs
-                        stz ULV_backbuf_offset
-                        stz gREG::r0L
-                        stz gREG::r0H
-                        lda #80
-                        sta gREG::r1L
-                        lda #30
-                        sta gREG::r1H
-                        lda #ULCOLOR::WHITE
-                        sta gREG::r2L
-                        lda #ULCOLOR::DGREY
-                        sta gREG::r2H
-                        jsr ULV_clearrect
-                        jsr ULV_swap
+;                        stz ULV_backbuf_offset
+;                        stz ULVR_destpos
+;                        stz ULVR_destpos+1
+;                        lda #80
+;                        sta ULVR_size
+;                        lda #30
+;                        sta ULVR_size+1
+;                        lda #(ULCOLOR::DGREY << 4) |ULCOLOR::WHITE
+;                        sta ULVR_color
+;                        jsr ULV_clearrect
+;                        jsr ULV_swap
 
                         ; Lastly, initialize the windowing system; first we need our array of window BRPs,
                         ; so allocate an array to hold 64 BRPs (128 bytes); window handle will be 0-based
@@ -257,5 +255,5 @@ ULW_keyidle:            .res    2       ; keyboard idle routine address
 ULW_screen_handle:      .res    1       ; Window handle of screen
 ULW_current_handle:     .res    1       ; Window handle of current topmost window
 
-UL_temp_l:             .res    1
-UL_temp_h:             .res    1
+UL_temp_l:              .res    1
+UL_temp_h:              .res    1

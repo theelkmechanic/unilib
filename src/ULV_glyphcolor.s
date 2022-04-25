@@ -3,44 +3,43 @@
 .code
 
 ; ULV_calcglyphcolors - Given character flags and color nibbles, build the base and overlay color bytes
-;   In: ULFT_charflags   - Character flags
-;       X               - Foreground color
-;       Y               - Background color
+;   In: ULFT_charflags  - Character flags
+;       A               - Foreground color = low nibble, background color = high nibble
 ;  Out: ULV_basecolor   - Base layer color byte
 ;       ULV_extracolor  - Overlay layer color byte
 ; Destroys A/X/Y
 .proc ULV_calcglyphcolors
                         ; Do we need to reverse the colors?
-                        lda ULFT_charflags
+                        ldx ULFT_charflags
                         bpl @munge_colors
 
                         ; Swap the colors
-                        phx
-                        phy
-                        plx
-                        ply
+                        pha
+                        lsr
+                        lsr
+                        lsr
+                        lsr
+                        tay
+                        pla
+                        sty ULV_basecolor
+                        asl
+                        asl
+                        asl
+                        asl
+                        ora ULV_basecolor
 
-                        ; Put the foreground color in the flags high nibble for the overlay, and merge the foreground
-                        ; and background colors for the base
-@munge_colors:          and #$0f
-                        sta ULV_extracolor
+                        ; Save the base color, and put the foreground color in the flags high nibble for the overlay
+@munge_colors:          sta ULV_basecolor
                         txa
+                        and #$0f
+                        sta ULV_extracolor
+                        lda ULV_basecolor
                         asl
                         asl
                         asl
                         asl
                         ora ULV_extracolor
                         sta ULV_extracolor
-                        txa
-                        and #$0f
-                        sta ULV_basecolor
-                        tya
-                        asl
-                        asl
-                        asl
-                        asl
-                        ora ULV_basecolor
-                        sta ULV_basecolor
                         rts
 .endproc
 

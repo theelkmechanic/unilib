@@ -231,11 +231,14 @@
                         jsr ULW_update_occlusion
 
                         ; Set window colors, clear it, and draw its border
+                        jsr ULW_getwinptr
+                        stx ULW_scratch_fptr
+                        sty ULW_scratch_fptr+1
                         ldx @new_fg
                         ldy @new_bg
-                        jsr ulwin_putcolor
-                        jsr ulwin_clear
-                        jsr ulwin_border
+                        jsr ULW_putcolor
+                        jsr ULW_clear
+                        jsr ULW_border
 
                         ; Restore X/Y/bank/r5 and exit (A should already be set)
 @exit:                  plx

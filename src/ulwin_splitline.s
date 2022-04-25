@@ -2,7 +2,6 @@
 
 .code
 
-ULW_border:
-.proc ulwin_border
+.proc ulwin_splitline
     rts
 .endproc

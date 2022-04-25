@@ -3,36 +3,26 @@
 .code
 
 ; ULV_plotchar - Draw a UTF-16 character at a specified screen location
-; In:   r0              - Screen location (column=low, row=high)
-;       r1              - UTF-16 character (little-endian)
-;       r2L             - Foreground color (1-15, undefined behavior if out of range)
-;       r2H             - Background color (1-15, undefined behavior if out of range)
+; In:   YX              - UTF-16 character (little-endian)
+;       ULVR_destpos    - Screen location (column=low, row=high)
+;       ULVR_color      - Colors (fg=low nibble, bg=high nibble) (1-15, undefined behavior if out of range)
 ; Out:  carry           - Set if character plotted
 .proc ULV_plotchar
                         ; Plotting a character is basically a 1x1 fill, so just do that
-                        phx
-                        phy
-                        ldx gREG::r1L
-                        ldy gREG::r1H
-                        stz gREG::r1L
-                        stz gREG::r1H
-                        inc gREG::r1L
-                        inc gREG::r1H
-                        jsr ULV_fillrect
-                        sty gREG::r1H
-                        stx gREG::r1L
-                        ply
-                        plx
-                        rts
+                        stz ULVR_size
+                        stz ULVR_size+1
+                        inc ULVR_size
+                        inc ULVR_size+1
 .endproc
 
+; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
+
 ; ULV_fillrect - fill rectangle with Unicode character and color
-;   In: r0              - Top/left of rectangle (L=column, H=line)
-;       r1              - Size of rectange (L=columns, H=lines)
-;       r2L             - Foreground color (1-15, undefined behavior if out of range)
-;       r2H             - Background color (1-15, undefined behavior if out of range)
-;       YX              - UTF-16 character (little-endian)
-;  Out: carry           - Set if character found
+;   In: YX              - UTF-16 character (little-endian)
+;       ULVR_destpos    - Top/left of rectangle (column=low, line=high)
+;       ULVR_size       - Size of rectangle (columns=low, lines=high)
+;       ULVR_color      - Colors (fg=low nibble, bg=high nibble) (1-15, undefined behavior if out of range)
+; Out:  carry           - Set if character found
 .proc ULV_fillrect
                         ; Save A/X/Y
                         pha
@@ -52,10 +42,9 @@
 .endproc
 
 ; ULV_clearrect - clear rectangle with blanks and color
-;   In: r0              - Top/left of rectangle (L=column, H=line)
-;       r1              - Size of rectange (L=columns, H=lines)
-;       r2L             - Foreground color (1-15, undefined behavior if out of range)
-;       r2H             - Background color (1-15, undefined behavior if out of range)
+;   In: ULVR_destpos    - Top/left of rectangle (column=low, line=high)
+;       ULVR_size       - Size of rectangle (columns=low, lines=high)
+;       ULVR_color      - Colors (fg=low nibble, bg=high nibble) (1-15, undefined behavior if out of range)
 .proc ULV_clearrect
                         ; Save A/X/Y
                         pha
@@ -69,38 +58,33 @@
                         sta ULFT_baseglyph
 .endproc
 
+; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
+
 ; ULV_dofill - Calculate colors and do fill loop
 .proc ULV_dofill
-@line = gREG::r0H
-@column = gREG::r0L
-@numlines = gREG::r1H
-@numcolumns = gREG::r1L
-@fg = gREG::r2L
-@bg = gREG::r2H
                         ; Convert the colors
-                        ldx @fg
-                        ldy @bg
+                        lda ULVR_color
                         jsr ULV_calcglyphcolors
 
                         ; Calculate base layer starting address
                         lda VERA::CTRL
                         and #$fe
                         sta VERA::CTRL
-                        lda @column
+                        lda ULVR_destpos
                         asl
                         sta ULV_bltdst
-                        lda @line
+                        lda ULVR_destpos+1
                         ora ULV_backbuf_offset
                         sta VERA::ADDR+1
                         lda #VERA::INC1
                         sta VERA::ADDR+2
 
                         ; Num lines for outer loop, num columns for inner loop
-                        ldy @numlines
+                        ldy ULVR_size+1
                         phy
 @outer_loop:
                         ; Loop numcolumns writing base glyph/color
-                        ldy @numcolumns
+                        ldy ULVR_size
                         lda ULV_bltdst
                         sta VERA::ADDR
                         ldx ULV_basecolor
@@ -111,7 +95,7 @@
                         bne @inner_loop_base
 
                         ; Switch to overlay page, loop numcolumns writing overlay glyph/color
-                        ldy @numcolumns
+                        ldy ULVR_size
                         lda VERA::ADDR+1
                         ora #$40
                         sta VERA::ADDR+1
@@ -136,10 +120,10 @@
                         ply
 
                         ; Mark the lines dirty
-                        lda @line
+                        lda ULVR_destpos+1
                         tax
                         clc
-                        adc @numlines
+                        adc ULVR_size+1
                         dec
                         tay
                         jsr ULV_setdirtylines
@@ -148,3 +132,10 @@
                         sec
                         jmp ULV_exitfill
 .endproc
+
+.bss
+
+ULVR_srcpos:            .res    2
+ULVR_destpos:           .res    2
+ULVR_size:              .res    2
+ULVR_color:             .res    1
