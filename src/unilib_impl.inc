@@ -118,8 +118,24 @@ ULWF_COVERED    = $01
 .global ULW_keybg
 .global ULW_keyidle
 
-.global ULW_border
+.global ULW_drawchar
+.global ULW_drawstring
+.global ULW_fillrect
+.global ULW_clearrect
+.global ULWR_src
+.global ULWR_dest
+.global ULWR_size
+.global ULWR_char
+.global ULWR_color
+
+.global ULW_box
+.global ULW_boxtop
+.global ULW_boxbottom
+.global ULW_boxleft
+.global ULW_boxright
+
 .global ULW_clear
+.global ULW_drawborder
 .global ULW_getloc
 .global ULW_getsize
 .global ULW_putcolor
@@ -134,6 +150,11 @@ ULWF_COVERED    = $01
 .global ULW_update_occlusion
 .global ULW_set_dirty_rect
 ULW_WINMAP = $AD00
+
+.global ULW_getwinbufptr
+.global ULW_linelen
+.global ULW_linestride
+.globalzp ULW_winbufptr
 
 .globalzp ULW_screen_fptr
 .globalzp ULW_current_fptr

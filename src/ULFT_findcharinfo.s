@@ -34,6 +34,10 @@ ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 3)
 ;       carry           - set if character info was found
 .proc ULFT_findcharinfo
                         ; Check cache for match
+                        lda BANKSEL::RAM
+                        pha
+                        lda #1
+                        sta BANKSEL::RAM
                         tya
                         cmp ULFT_fontcache_hi,x
                         bne @need_scan
@@ -43,12 +47,11 @@ ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 3)
 
                         ; Found match, so just return it
                         sta ULFT_charflags
-                        pha
                         lda ULFT_fontcache_base,x
                         sta ULFT_baseglyph
                         lda ULFT_fontcache_overlay,x
                         sta ULFT_extraglyph
-                        pla
+                        lda ULFT_charflags
                         jmp @have_glyph
 
                         ; Map starts at $11000 in VRAM. Each block starts with 3 bytes:
@@ -105,6 +108,9 @@ ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 3)
                         lda #$40
                         sta ULFT_fontcache_flags,x
                         clc
+@restoreandexit:        pla
+                        sta BANKSEL::RAM
+                        lda ULFT_fontcache_flags,x
                         rts
 
                         ; Check that starting char + size > our char
@@ -166,7 +172,7 @@ ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 3)
                         pla
                         sta ULFT_fontcache_flags,x
                         sec
-                        rts
+                        bra @restoreandexit
 
                         ; Jump to the next map (advance len*3 bytes)
 @next_map:              phx

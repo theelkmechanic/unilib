@@ -24,7 +24,6 @@ MEM_OBJS = \
 	$(OBJDIR)/ulmem_free.o
 
 WIN_OBJS = \
-	$(OBJDIR)/ulwin_border.o \
 	$(OBJDIR)/ulwin_box.o \
 	$(OBJDIR)/ulwin_busy.o \
 	$(OBJDIR)/ulwin_changecolor.o \

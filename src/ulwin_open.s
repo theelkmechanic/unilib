@@ -238,7 +238,7 @@
                         ldy @new_bg
                         jsr ULW_putcolor
                         jsr ULW_clear
-                        jsr ULW_border
+                        jsr ULW_drawborder
 
                         ; Restore X/Y/bank/r5 and exit (A should already be set)
 @exit:                  plx

@@ -218,7 +218,34 @@ start:
    jsr ulwin_refresh
 
 
+   ; Open a white-on-blue window at 5,5-15x70 with a border and title
+   lda #5
+   sta gREG::r0L
+   sta gREG::r0H
+   lda #70
+   sta gREG::r1L
+   lda #15
+   sta gREG::r1H
+   lda #ULCOLOR::WHITE
+   sta gREG::r2L
+   lda #ULCOLOR::BLUE
+   sta gREG::r2H
+   lda #<wintitle
+   sta gREG::r3L
+   lda #>wintitle
+   sta gREG::r3H
+   stz gREG::r4L
+   lda #$80
+   sta gREG::r4H
+   jsr ulwin_open
+   jsr ulwin_refresh
+
 @loop: bra @loop
+
+wintitle:   .word $0057, $0061, $0073, $0075, $0020, $0055, $006e, $0069
+            .word $0063, $006f, $0064, $0065, $0020, $0077, $0061, $0257
+            .word $0061, $006e, $0064, $0061, $0020, $004e, $0061, $0020
+            .word $0073, $0061, $006e, $0069, $0000
 
 ;   ; Test memory alloc/free
 ;memhammer:   ldx #0

@@ -36,10 +36,8 @@ ULW_temp_tilecount_hi   = $7c0
 
 ; ULW_set_dirty_rect - Mark a screen rectangle as dirty in the map
 ;   In: ULW_WINDOW_COPY::handle - Handle to match (0-63, negative=force dirty)
-;       ULW_WINDOW_COPY::slin   - Start line
-;       ULW_WINDOW_COPY::scol   - Start column
-;       ULW_WINDOW_COPY::nlin   - Number of lines
-;       ULW_WINDOW_COPY::ncol   - Number of columns
+;       ULWR_dest       - Top/left of screen rectangle (L=column, H=line)
+;       ULWR_size       - Size of screen rectangle (L=columns, H=lines)
 .proc ULW_set_dirty_rect
                         ; Save A/X/Y/bank
                         pha
@@ -100,21 +98,26 @@ ULW_temp_tilecount_hi   = $7c0
                         bpl :-
 
                         ; Adjust for border
+                        ldy ULW_WINDOW_COPY::scol
+                        sty ULWR_dest
+                        ldy ULW_WINDOW_COPY::slin
                         ldx ULW_WINDOW_COPY::nlin
                         lda ULW_WINDOW_COPY::ncol
                         bit ULW_WINDOW_COPY::flags
                         bpl :+
-                        dec ULW_WINDOW_COPY::slin
-                        dec ULW_WINDOW_COPY::scol
+                        dec ULWR_dest
+                        dey
                         inx
                         inx
                         inc
                         inc
-                        stx ULW_WINDOW_COPY::nlin
-                        sta ULW_WINDOW_COPY::ncol
+:                       
+                        sty ULWR_dest+1
+                        stx ULWR_size+1
+                        sta ULWR_size
 
                         ; Calculate the total number of tiles for the window
-:                       jsr ulmath_umul8_8
+                        jsr ulmath_umul8_8
                         phy
                         phx
 
@@ -139,11 +142,9 @@ ULW_temp_tilecount_hi   = $7c0
 ; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE ***
 
 ; ULW_maprect_loop - Loop over a rectangle in the window map, calling a function for each cell
-;   In: ULW_WINDOW_COPY::slin   - Start line
-;       ULW_WINDOW_COPY::nlin   - Number of lines
-;       ULW_WINDOW_COPY::scol   - Start column
-;       ULW_WINDOW_COPY::ncol   - Number of columns
-;       YX                      - Function address to call for each cell
+;   In: ULWR_dest       - Top/left of screen rectangle (L=column, H=line)
+;       ULWR_size       - Size of screen rectangle (L=columns, H=lines)
+;       YX              - Function address to call for each cell
 .proc ULW_maprect_loop
                         ; Update callback address
                         stx @cell_callback+1
@@ -154,12 +155,12 @@ ULW_temp_tilecount_hi   = $7c0
                         sta BANKSEL::RAM
 
                         ; Calculate and store our start address
-                        lda ULW_WINDOW_COPY::slin
+                        lda ULWR_dest+1
                         ldx #80
                         jsr ulmath_umul8_8
                         txa
                         clc
-                        adc ULW_WINDOW_COPY::scol
+                        adc ULWR_dest
                         sta @column_loop+1
                         sta @column_store+1
                         tya
@@ -167,9 +168,15 @@ ULW_temp_tilecount_hi   = $7c0
                         sta @column_loop+2
                         sta @column_store+2
 
+                        ; Start each line at last column, and loop over all lines
+                        lda ULWR_size
+                        dec
+                        sta @line_loop+1
+                        lda ULWR_size+1
+                        sta @line_count
+
                         ; Initialize Y for each line 
-                        dec ULW_WINDOW_COPY::ncol
-@line_loop:             ldy ULW_WINDOW_COPY::ncol
+@line_loop:             ldy #$00
 
                         ; Read the existing value in the map
 @column_loop:           lda ULW_WINMAP,y
@@ -185,9 +192,10 @@ ULW_temp_tilecount_hi   = $7c0
                         bpl @column_loop
 
                         ; Check if done
-                        dec ULW_WINDOW_COPY::nlin
+                        dec @line_count
                         bne :+
                         rts
+@line_count:            .byte   $00
 
                         ; Add one line
 :                       lda @column_loop+1

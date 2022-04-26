@@ -1,6 +1,7 @@
 ; UniLib API
 .global ul_init             ; r0 = font filename, r1L = font filename length, r1H = drive # to load from, r2 = screen colors (r2L = foreground, r2H = background); returns error code (ULERR::OK on success)
 .global ul_geterror         ; returns A = last error code
+.global ul_isprint          ; YX = UTF-16 character; carry set if printable (i.e., ulwin_putchar will advance cursor)
 
 ; Integer math functions
 .global ulmath_udiv8_8        ; X / A => X, remainder => A
@@ -19,7 +20,6 @@
 .global ulmem_access        ; r0 BRP -> RAM bank selected, r0 = 16-bit memory address of data
 
 ; Window functions
-.global ulwin_border        ; A = window #; draws border around window
 .global ulwin_box           ; A = window, r0 = top left, r1 = bottom right; draws box in window
 .global ulwin_busy          ; display "Busy" window
 .global ulwin_changecolor   ; A = window, X = foreground, Y = background; change color of entire window
