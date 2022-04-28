@@ -168,7 +168,48 @@ a_handy_rts:            rts
                         lda ULW_WINDOW_COPY::title_addr
                         ora ULW_WINDOW_COPY::title_addr+1
                         ora ULW_WINDOW_COPY::title_bank
-                        bra a_handy_rts
+                        beq a_handy_rts
+
+                        ; Draw the window title into the top line using the emphasis color
+
+                        ; First, limit the title length to window width + border - 6 (and make sure at least 1 char can be drawn)
+                        lda ULW_WINDOW_COPY::ncol
+                        sec
+                        sbc #7
+                        bmi a_handy_rts ; not enough space to draw any of title
+                        inc
+
+                        ; Start with a space at -1,1
+                        pha
+                        lda #$ff
+                        sta ULWR_dest+1
+                        inc
+                        sta ULWR_char+1
+                        inc
+                        sta ULWR_dest
+                        lda ULW_WINDOW_COPY::emcolor
+                        sta ULWR_color
+                        lda #' '
+                        sta ULWR_char
+                        jsr ULW_drawchar
+                        inc ULWR_dest
+
+                        ; Print the title string
+                        pla
+                        sta ULWR_size
+                        ldx ULW_WINDOW_COPY::title_addr
+                        ldy ULW_WINDOW_COPY::title_addr+1
+                        lda ULW_WINDOW_COPY::title_bank
+                        jsr ULW_drawstring
+                        clc
+                        adc ULWR_dest
+                        sta ULWR_dest
+
+                        ; And finish with another space
+                        lda #' '
+                        sta ULWR_char
+                        stz ULWR_char+1
+                        jmp ULW_drawchar
 .endproc
 
 ; ULW_clearrect - clear a rectangle in a window with a specific color
@@ -243,8 +284,8 @@ a_handy_rts:            rts
                         dec @linecount
                         bne :--
 
-                        ; Okay, window backbuffer is cleared; check occlusion, if the window is:
-                        ;   - visible, we can clear it in the backbuffer immediately
+                        ; Okay, window backbuffer is filled; check occlusion, if the window is:
+                        ;   - visible, we can fill it in the screen backbuffer immediately
                         ;   - occluded, we mark the visible portions of the rectangle as dirty
                         ;   - covered, we don't need to do anything
                         lda #$01
@@ -252,7 +293,7 @@ a_handy_rts:            rts
                         bne @done
                         bvs @occluded
 
-                        ; The window is visible, so we can clear the rectangle immediately in the backbuffer
+                        ; The window is visible, so we can fill the rectangle immediately in the backbuffer
                         lda ULWR_dest
                         clc
                         adc ULW_WINDOW_COPY::scol
@@ -296,10 +337,116 @@ a_handy_rts:            rts
 ; ULW_drawstring - draw a string into a window at a specific location in a specific color
 ;   In: ULW_scratch_fptr/BANKSEL::RAM/ULW_WINDOW_COPY - Window structure
 ;       ULWR_dest       - Top/left in window contents (L=column, H=line)
+;       ULWR_size       - Low byte = max length in characters (0 = whole string)
 ;       ULWR_color      - Color (fg=low nibble, bg=high nibble)
-;       YX              - Address of string (in low memory)
+;       AYX             - Far pointer to string (A=RAM bank, YX=address)
+;  Out: A               - Number of characters drawn
 .proc ULW_drawstring
+                        ; If the address is outside the bank space or the bank in A is the same as the current bank, just print it
+                        cpy #$A0
+                        bcc @gotstring
+                        cpy #$C0
+                        bcs @gotstring
+                        cmp BANKSEL::RAM
+                        beq @gotstring
+
+                        ; Save bank and switch
+                        sta ULS_scratch_fptr+2
+                        lda BANKSEL::RAM
+                        pha
+                        lda ULS_scratch_fptr+2
+                        sta BANKSEL::RAM
+
+                        ; Copy from scratch to $700 until we hit a null or the end of the page
+                        ldy #0
+@copychar:              lda (ULS_scratch_fptr),y
+                        sta $700,y
+                        tax
+                        iny
+                        lda (ULS_scratch_fptr),y
+                        sta $700,y
+                        iny
+                        beq @neednull
+                        cmp #0
+                        bne @copychar
+                        cpx #0
+                        bne @copychar
+
+                        ; At end of string, so load new address into YX
+@usecopy:               ldx #0
+                        ldy #7
+
+                        ; Switch bank back
+                        pla
+                        sta BANKSEL::RAM
+
+                        ; Okay, draw string characters to window; need pointer we can increment
+@gotstring:             stx ULS_scratch_fptr
+                        sty ULS_scratch_fptr+1
+
+                        ; Get the max length to write (but not more than to the end of our line)
+                        lda ULW_WINDOW_COPY::ncol
+                        sec
+                        sbc ULWR_dest
+                        cmp ULWR_size
+                        bcc :+
+                        lda ULWR_size
+:                       clc
+                        adc ULWR_dest
+                        sta @lastcol
+                        lda ULWR_dest
+                        sta @startcol
+
+                        ; Write our string characters/color to the line
+                        ldy #0
+:                       lda (ULS_scratch_fptr),y
+                        tax
+                        iny
+                        lda (ULS_scratch_fptr),y
+                        iny
+
+                        ; Check for NUL-terminator
+                        cmp #0
+                        bne :+
+                        cpx #0
+                        bne :+
+                        dey
+                        dey
+                        bra @written
+
+@neednull:              ; From copy routine above, used the whole page so need to back up one character and put in a NUL
+                        tya
+                        dey
+                        sta $700,y
+                        dey
+                        sta $700,y
+                        bra @usecopy
+
+                        ; Try to print the character
+:                       stx ULWR_char
+                        sta ULWR_char+1
+                        phy
+                        jsr ULW_drawchar
+                        ply
+
+                        ; Step ahead one cell if we printed something
+                        bcc :--
+                        inc ULWR_dest
+                        cmp @lastcol
+                        bcc :--
+
+                        ; Number of characters printed is ULWR_dest-@startcol
+@written:               lda ULWR_dest
+                        sec
+                        sbc @startcol
+                        ldx @startcol
+                        stx ULWR_dest
                         rts
+@startcol:              .byte $00
+@lastcol:               .byte $00
+.endproc
+
+.proc ULS_access
 .endproc
 
 .bss
@@ -316,3 +463,5 @@ ULWR_color:             .res    1
 .segment "EXTZP": zeropage
 
 ULW_winbufptr:          .res    2
+
+ULS_scratch_fptr:       .res    3
