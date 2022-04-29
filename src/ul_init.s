@@ -57,7 +57,7 @@ ULW_scratch_fptr:       .res    3       ; current window handle
 
                         ; Allocate the window map
                         ;   *** WARNING *** This MUST be the third memory allocation call, or it will break badly; the windowing code
-                        ; assumes it's on the first page of bank RAM starting at $AD00, and if this is not the third call, it won't be
+                        ; assumes it's on the first page of bank RAM starting at $AE00, and if this is not the third call, it won't be
                         ldx #<(80*30)
                         ldy #>(80*30)
                         sec
@@ -247,8 +247,6 @@ ULW_keyfg:              .byte   ULCOLOR::WHITE      ; keyboard entry window fore
 ULW_keybg:              .byte   ULCOLOR::BLUE       ; keyboard entry window background color
 
 .bss
-
-ULM_numbanks:           .res    1
 
 ULW_keyidle:            .res    2       ; keyboard idle routine address
 

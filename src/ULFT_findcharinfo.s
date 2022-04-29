@@ -4,16 +4,17 @@ ULFT_CACHE_SIZE = 256
 ULFT_fontcache = $A900
 
 ULFT_fontcache_hi       = ULFT_fontcache + (ULFT_CACHE_SIZE * 0)
-ULFT_fontcache_base     = ULFT_fontcache + (ULFT_CACHE_SIZE * 1)
-ULFT_fontcache_overlay  = ULFT_fontcache + (ULFT_CACHE_SIZE * 2)
-ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 3)
+ULFT_fontcache_plane    = ULFT_fontcache + (ULFT_CACHE_SIZE * 1)
+ULFT_fontcache_base     = ULFT_fontcache + (ULFT_CACHE_SIZE * 2)
+ULFT_fontcache_overlay  = ULFT_fontcache + (ULFT_CACHE_SIZE * 3)
+ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 4)
 
 .code
 
 .proc ULFT_initfontcache
-                        ; Allocate 4 pages for cache (256 entries) and clear
-                        ldx #<(ULFT_CACHE_SIZE * 4)
-                        ldy #>(ULFT_CACHE_SIZE * 4)
+                        ; Allocate 5 pages for cache (256 entries) and clear
+                        ldx #<(ULFT_CACHE_SIZE * 5)
+                        ldy #>(ULFT_CACHE_SIZE * 5)
                         sec
                         jsr ULM_alloc
 
@@ -26,23 +27,31 @@ ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 3)
                         rts
 .endproc
 
-; ULFT_findcharinfo - Find the character info table entry for the specified UTF-16 character
-;   In: YX              - UTF-16 character (X=lo, Y=hi)
+; ULFT_findcharinfo - Find the character info table entry for the specified Unicode character
+;   In: AYX              - Unicode character (X=lo, Y=hi, A=plane)
 ;  Out: A/ULFT_charflags - character flags
 ;       ULFT_baseglyph   - base layer character glyph
 ;       ULFT_extraglyph  - overlay layer character glyph
-;       carry           - set if character info was found
+;       carry            - set if character info was found
 .proc ULFT_findcharinfo
+                        ; Save the character we're scanning for
+                        stx ULFT_scanchar
+                        sty ULFT_scanchar+1
+                        sta ULFT_scanchar+2
+
                         ; Check cache for match
                         lda BANKSEL::RAM
                         pha
                         lda #1
                         sta BANKSEL::RAM
+                        lda ULFT_fontcache_flags,x
+                        bit #$10
+                        bne @need_scan
                         tya
                         cmp ULFT_fontcache_hi,x
                         bne @need_scan
-                        lda ULFT_fontcache_flags,x
-                        bit #$10
+                        lda ULFT_scanchar+2
+                        cmp ULFT_fontcache_plane,x
                         bne @need_scan
 
                         ; Found match, so just return it
@@ -54,8 +63,8 @@ ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 3)
                         lda ULFT_charflags
                         jmp @have_glyph
 
-                        ; Map starts at $11000 in VRAM. Each block starts with 3 bytes:
-                        ;   - Starting UTF-16 character in block (word, little-endian)
+                        ; Map starts at $11000 in VRAM. Each block starts with 4 bytes:
+                        ;   - Starting UTF-16 character in block (three bytes, little-endian)
                         ;   - Number of characters in block (byte)
                         ; Each entry in the block is 3 bytes long:
                         ;   - Base character glyph
@@ -84,31 +93,41 @@ ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 3)
                         cmp #$f9
                         bcs @not_found
 
-                        ; Read the map entry and store in r11/r12L
+                        ; Read the map entry and store in r11/r12
                         lda VERA::DATA1
                         sta ULFT_mapstart
                         lda VERA::DATA1
                         sta ULFT_mapstart+1
+                        lda VERA::DATA1
+                        sta ULFT_mapstart+2
 
                         ; If we get to a zero-length block, we're done
                         lda VERA::DATA1
                         beq @not_found
                         sta ULFT_maplen
 
+                        ; For blocks where hi/plane are less than our character, we can skip to the next block.
                         ; If we hit a block that's greater than our character, we're done, because our maps are in
-                        ; ascending order
+                        ; ascending order.
+                        lda ULFT_scanchar+2
+                        cmp ULFT_mapstart+2
+                        bcc @next_map
+                        bne @not_found
+                        bcc @next_map
                         cpy ULFT_mapstart+1
-                        bne :+
+                        bne @not_found
                         cpx ULFT_mapstart
-:                       bcs @in_range_low
+                        bcs @in_range_low
 
                         ; Cache that character wasn't found/non-printing
-@not_found:             tya
-                        sta ULFT_fontcache_hi,x
-                        lda #$40
-                        sta ULFT_fontcache_flags,x
+@not_found:             lda #$40
                         clc
-@restoreandexit:        pla
+@restoreandexit:        sta ULFT_fontcache_flags,x
+                        tya
+                        sta ULFT_fontcache_hi,x
+                        lda ULFT_scanchar+2
+                        sta ULFT_fontcache_plane,x
+                        pla
                         sta BANKSEL::RAM
                         lda ULFT_fontcache_flags,x
                         rts
@@ -121,6 +140,11 @@ ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 3)
                         lda ULFT_mapstart+1
                         adc #0
                         sta ULFT_mapchar+1
+                        lda ULFT_mapstart+2
+                        adc #0
+                        sta ULFT_mapchar+2
+                        cmp ULFT_scanchar+2
+                        bne :+
                         cpy ULFT_mapchar+1
                         bne :+
                         cpx ULFT_mapchar
@@ -163,14 +187,11 @@ ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 3)
 @have_glyph:            bit #$40
                         bne @not_found
                         pha
-                        tya
-                        sta ULFT_fontcache_hi,x
                         lda ULFT_baseglyph
                         sta ULFT_fontcache_base,x
                         lda ULFT_extraglyph
                         sta ULFT_fontcache_overlay,x
                         pla
-                        sta ULFT_fontcache_flags,x
                         sec
                         bra @restoreandexit
 
@@ -196,8 +217,9 @@ ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 3)
 
 .bss
 
-ULFT_mapstart:          .res    2
-ULFT_mapchar:           .res    2
+ULFT_scanchar:          .res    3
+ULFT_mapstart:          .res    3
+ULFT_mapchar:           .res    3
 ULFT_maplen:            .res    1
 ULFT_baseglyph:         .res    1
 ULFT_extraglyph:        .res    1

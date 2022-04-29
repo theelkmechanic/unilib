@@ -1,5 +1,3 @@
-; ULV_blt - Copy a block of data from one point in VRAM to another
-
 .include "unilib_impl.inc"
 
 .code
@@ -55,6 +53,6 @@
 
 .bss
 
-ULV_bltsrc: .res 3
-ULV_bltdst: .res 3
-ULV_bltlen: .res 2
+ULV_bltsrc:             .res    3
+ULV_bltdst:             .res    3
+ULV_bltlen:             .res    2

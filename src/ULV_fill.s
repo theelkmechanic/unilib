@@ -2,11 +2,11 @@
 
 .code
 
-; ULV_plotchar - Draw a UTF-16 character at a specified screen location
-; In:   YX              - UTF-16 character (little-endian)
+; ULV_plotchar - Draw a Unicode character at a specified screen location
+;   In: AYX             - Unicode character (X=lo, Y=hi, A=plane)
 ;       ULVR_destpos    - Screen location (column=low, row=high)
 ;       ULVR_color      - Colors (fg=low nibble, bg=high nibble) (1-15, undefined behavior if out of range)
-; Out:  carry           - Set if character plotted
+;  Out: carry           - Set if character plotted
 .proc ULV_plotchar
                         ; Plotting a character is basically a 1x1 fill, so just do that
                         stz ULVR_size
@@ -18,7 +18,7 @@
 ; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
 
 ; ULV_fillrect - fill rectangle with Unicode character and color
-;   In: YX              - UTF-16 character (little-endian)
+;   In: AYX             - Unicode character (X=lo, Y=hi, A=plane)
 ;       ULVR_destpos    - Top/left of rectangle (column=low, line=high)
 ;       ULVR_size       - Size of rectangle (columns=low, lines=high)
 ;       ULVR_color      - Colors (fg=low nibble, bg=high nibble) (1-15, undefined behavior if out of range)

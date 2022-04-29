@@ -2,38 +2,53 @@
 
 .code
 
-; ulmem_alloc - Allocate a chunk of banked RAM
-;   In: r0              - size to allocate (max = 7,936 bytes)
-;       carry           - if set, allocated memory will be cleared
-;  Out: r0              - banked RAM pointer, 0/0 if allocation fails
-;       carry           - set on success, clear on failure
-.proc ulmem_alloc
-                        ; Get size into YX
-                        ldx gREG::r0L
-                        ldy gREG::r0H
+; ulmem_access - Access the memory at a banked RAM pointer (BRP)
+;   In: YX              - BRP
+;  Out: BANKSEL::RAM    - Set to RAM bank from BRP
+;       YX              - 16-bit address of memory
+.proc ulmem_access
+                        pha
+                        sty BANKSEL::RAM
+                        .byte $24 ; skip the pha at the start of ULM_slot2addr
+.endproc
 
-                        ; Call the internal function
-                        jsr ULM_alloc
+; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
 
-                        ; Store the result
-                        sty gREG::r0H
-                        stx gREG::r0L
+.proc ULM_slot2addr
+                        ; Given a slot index in X, turn it into an address in YX; we multiply by 32
+                        ; and add $A000 to get the address
+                        pha
+                        txa
+                        lsr
+                        lsr
+                        lsr
+                        clc
+                        adc #$A0
+                        tay
+                        txa
+                        asl
+                        asl
+                        asl
+                        asl
+                        asl
+                        tax
+                        pla
                         rts
 .endproc
 
-; ULM_alloc - Allocate a chunk of banked RAM
+; ulmem_alloc - Allocate a chunk of banked RAM
 ;   In: YX              - size to allocate (max = 7,936 bytes)
 ;       carry           - if set, allocated memory will be cleared
 ;  Out: YX              - banked RAM pointer, 0/0 if allocation fails
 ;       carry           - set on success, clear on failure
-.proc ULM_alloc
-@numslots = gREG::r15H
-@extraslot = gREG::r15L
-@roomybank = gREG::r15L
-@roomybankstart = gREG::r14H
-@roomybanksize = gREG::r14L
-@chunkstart = gREG::r13H
-@inused = gREG::r13L
+.proc ulmem_alloc
+@numslots = ULM_scratchspace
+@extraslot = ULM_scratchspace+1
+@roomybank = ULM_scratchspace+1
+@roomybankstart = ULM_scratchspace+2
+@roomybanksize = ULM_scratchspace+3
+@chunkstart = ULM_scratchspace+4
+@inused = ULM_scratchspace+5
                         ; Switch to bank 1 to start
                         pha
                         lda BANKSEL::RAM
@@ -301,3 +316,125 @@
                         sec
                         jmp @done
 .endproc
+
+; ulmem_free - Free an allocated banked RAM pointer
+;   In: YX              - BRP to free
+.proc ulmem_free
+@savedstart = ULM_scratchspace
+@savedend = ULM_scratchspace+1
+@savedsize = ULM_scratchspace+2
+@beforestart = ULM_scratchspace+3
+@beforesize = ULM_scratchspace+4
+@aftersize = ULM_scratchspace+5
+                        ; Make sure our paramters are in range before we do anything, check bank first so we can switch to it
+                        pha
+                        tya
+                        beq :+
+                        lda ULM_numbanks
+                        beq @check_slot
+                        cpy ULM_numbanks
+                        bcc @check_slot
+
+                        ; Bad BRP, so blow up
+:                       lda #ULERR::INVALID_BRP
+                        sta UL_lasterr
+                        jmp UL_terminate
+
+                        ; Switch to bank and check that slot is in range and has a valid value in it
+@check_slot:            cpx #8
+                        bcc :-
+                        lda BANKSEL::RAM
+                        pha
+                        sty BANKSEL::RAM
+                        lda BANK::RAM,x
+                        beq :-
+                        cmp #249 ; Length can't be more than 248, so if it is we're in the middle of a chunk
+                        bcs :-
+
+                        ; Okay, we have a valid pointer, so mark it free
+                        stx @savedstart
+                        sta @savedsize
+                        clc
+                        adc @savedstart
+                        sta @savedend
+                        ldy @savedsize
+                        lda #0
+:                       sta BANK::RAM,x
+                        inx
+                        dey
+                        bne :-
+
+                        ; And update the free count
+                        lda BANK::RAM
+                        clc
+                        adc @savedsize
+                        sta BANK::RAM
+
+                        ; Check before and after for free slots that we can consolidate with this one
+                        stz @beforestart
+                        stz @aftersize
+                        ldx #7
+@check_short:           lda BANK::RAM,x
+                        beq @next_short
+
+                        ; Check if the small free is right after ours
+                        cmp @savedend
+                        bne :+
+                        stx @aftersize
+                        stz BANK::RAM,x
+                        bra @next_short
+
+                        ; Check if the small free is right before ours
+:                       tay
+                        stx @beforesize
+                        clc
+                        adc @beforesize
+                        cmp @savedstart
+                        bne @next_short
+                        sty @beforestart
+                        stz BANK::RAM,x
+
+@next_short:            dex
+                        bne @check_short
+
+                        ; Now, if we don't have a short free after or before, see if we have a long free; if we do, don't
+                        ; any short free we may calculate because it will be wrong
+                        lda @savedend
+                        beq :+
+                        tax
+                        lda BANK::RAM,x
+                        beq @restore_bank
+:                       lda @savedstart
+                        cmp #9
+                        bcc :+
+                        tax
+                        dex
+                        lda BANK::RAM,x
+                        beq @restore_bank
+
+                        ; Add up the size of our slot after consolidation and save it in the small list if small enough
+:                       ldx @savedstart
+                        lda @beforestart
+                        beq :+
+                        tax
+                        lda @beforesize
+:                       clc
+                        adc @savedsize
+                        adc @aftersize
+                        cmp #8
+                        bcs @restore_bank
+                        tay
+                        txa
+                        sta BANK::RAM,y
+
+                        ; Restore bank and exit
+@restore_bank:          pla
+                        sta BANKSEL::RAM
+                        pla
+                        rts
+.endproc
+
+.bss
+
+ULM_numbanks:           .res    1
+ULM_scratchspace:       .res    6

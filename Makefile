@@ -19,9 +19,7 @@ MATH_OBJS = \
 	$(OBJDIR)/ulmath_imul.o
 
 MEM_OBJS = \
-	$(OBJDIR)/ulmem_access.o \
-	$(OBJDIR)/ulmem_alloc.o \
-	$(OBJDIR)/ulmem_free.o
+	$(OBJDIR)/ulmem.o
 
 STR_OBJS = \
 	$(OBJDIR)/ulstr_getlen.o

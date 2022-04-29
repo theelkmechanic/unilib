@@ -23,10 +23,6 @@
 .global ULM_multbl_init
 
 ; Memory utilities
-.global ULM_access
-.global ULM_alloc
-.global ULM_free
-.global ULM_numbanks
 .global ULM_slot2addr
 
 ; VERA utilities
@@ -147,7 +143,7 @@ ULWS_COVERED    = $80
 .global ULW_maprect_loop
 .global ULW_update_occlusion
 .global ULW_set_dirty_rect
-ULW_WINMAP = $AD00
+ULW_WINMAP = $AE00
 
 .global ULW_getwinbufptr
 .global ULW_linelen
