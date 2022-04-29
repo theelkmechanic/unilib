@@ -1,0 +1,14 @@
+.*
+card.img
+card/
+dump.bin
+imgui.ini
+ULTEST.PRG
+*.a
+*.map
+*.sh
+*.sym
+obj/
+sto/
+test/*.o
+tools/
