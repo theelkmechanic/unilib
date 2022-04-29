@@ -23,6 +23,9 @@ MEM_OBJS = \
 	$(OBJDIR)/ulmem_alloc.o \
 	$(OBJDIR)/ulmem_free.o
 
+STR_OBJS = \
+	$(OBJDIR)/ulstr_getlen.o
+
 WIN_OBJS = \
 	$(OBJDIR)/ulwin_box.o \
 	$(OBJDIR)/ulwin_busy.o \
@@ -75,7 +78,7 @@ INTERNAL_OBJS = \
 	$(OBJDIR)/ULV_setpaletteentry.o \
 	$(OBJDIR)/ULV_swap.o
 
-OBJECTS = $(CORE_OBJS) $(MATH_OBJS) $(MEM_OBJS) $(WIN_OBJS) $(INTERNAL_OBJS)
+OBJECTS = $(CORE_OBJS) $(MATH_OBJS) $(MEM_OBJS) $(STR_OBJS) $(WIN_OBJS) $(INTERNAL_OBJS)
 
 TEST_SOURCES = \
 	test/ultest.s

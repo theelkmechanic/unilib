@@ -72,8 +72,7 @@ ccol        .byte   ; Current cursor column inside the window
 color       .byte   ; Normal text color (low nibble = foreground, high nibble = background)
 emcolor     .byte   ; Emphasis text color (low nibble = foreground, high nibble = background)
 buf_ptr     .word   ; BRP to window contents buffer (3 bytes for each character in the inside of the window)
-title_addr  .word   ; Address of title text (UTF-16, null if none)
-title_bank  .byte   ; Bank RAM page for title text (0 if none/not needed)
+title       .word   ; Title string
 prev_addr   .word   ; Address of previous window structure (null if none)
 prev_bank   .byte   ; Bank RAM page of previous window structure (0 if none)
 next_addr   .word   ; Address of next window structure (null if none)
@@ -87,7 +86,7 @@ next_bank   .byte   ; Bank RAM page of next window structure (0 if none)
 .struct ULW_WINDOW_COPY
             .org $06e0
 handle      .byte   ; Window handle
-flags       .byte   ; Flags: 0x80 - border, 0x40 - occluded, 0x01 - completely covered
+flags       .byte   ; Flags: 0x80 - border
 slin        .byte   ; Start screen line of the inside of the window
 nlin        .byte   ; Number of lines in the window
 elin        .byte   ; Start screen line of the inside of the window + number of lines in the window
@@ -99,17 +98,16 @@ ccol        .byte   ; Current cursor column inside the window
 color       .byte   ; Normal text color (low nibble = foreground, high nibble = background)
 emcolor     .byte   ; Emphasis text color (low nibble = foreground, high nibble = background)
 buf_ptr     .word   ; BRP to window contents buffer (3 bytes for each character in the inside of the window)
-title_addr  .word   ; Address of title text (UTF-16, null if none)
-title_bank  .byte   ; Bank RAM page for title text (0 if none/not needed)
+title       .word   ; Title string
 prev_addr   .word   ; Address of previous window structure (null if none)
 prev_bank   .byte   ; Bank RAM page of previous window structure (0 if none)
+status      .byte   ; Window status (0x80 - completely covered, 0x40 - partially occluded)
 next_addr   .word   ; Address of next window structure (null if none)
 next_bank   .byte   ; Bank RAM page of next window structure (0 if none)
 .endstruct
 
-ULWF_BORDER     = $80
-ULWF_OCCLUDED   = $40
-ULWF_COVERED    = $01
+ULWS_OCCLUDED   = $40
+ULWS_COVERED    = $80
 
 .global ULW_inerror
 .global ULW_errorfg
