@@ -10,7 +10,7 @@ ULW_temp_tilecount_hi   = $7c0
 
 .code
 
-; ULW_update_occlusion - Update the window map and occlusion/covered flags
+; ULW_update_occlusion - Update the window map and occlusion/covered status
 .proc ULW_update_occlusion
                         ; Save A/X/Y/bank
                         pha
@@ -26,7 +26,7 @@ ULW_temp_tilecount_hi   = $7c0
                         jsr ULW_winlist_loop
 
                         ; Okay, map is up to date and we have visible tile counts for all our windows, so go back through
-                        ; and use that to set their occluded/covered flags
+                        ; and use that to set their occluded/covered status
                         ldx #<ULW_update_coverflags
                         ldy #>ULW_update_coverflags
                         sec
@@ -241,15 +241,15 @@ ULW_temp_tilecount_hi   = $7c0
                         rts
 .endproc
 
-; ULW_update_coverflags - Update window occluded/covered flags based on tile count results
+; ULW_update_coverflags - Update window occluded/covered status based on tile count results
 ;   In: BANKSEL::RAM/ULW_scratch_fptr - Address/bank of window structure
 .proc ULW_update_coverflags
-                        ; Get the flags and clear the occluded/covered bits
-                        ldy #ULW_WINDOW::flags
+                        ; Get the status and clear the occluded/covered bits
+                        ldy #ULW_WINDOW::status
                         lda (ULW_scratch_fptr),y
-                        and #<~(ULWF_OCCLUDED | ULWF_COVERED)
+                        and #<~(ULWS_OCCLUDED | ULWS_COVERED)
                         tay
-                        stz ULW_WINDOW_COPY::flags
+                        stz ULW_WINDOW_COPY::status
 
                         ; Get the window handle so we can access the counts
                         lda (ULW_scratch_fptr)
@@ -266,20 +266,20 @@ ULW_temp_tilecount_hi   = $7c0
                         bne @occluded
                         lda ULW_temp_tilecount_lo,x
                         cmp ULW_temp_tiletotal_lo,x
-                        beq @store_flags
+                        beq @store_status
 
                         ; Window is covered, set both bits
-@covered:               lda #ULWF_OCCLUDED | ULWF_COVERED
+@covered:               lda #ULWS_OCCLUDED | ULWS_COVERED
                         .byte $2c
 
                         ; Window is occluded, just set the occluded bit
-@occluded:              lda #ULWF_OCCLUDED
-                        sta ULW_WINDOW_COPY::flags
+@occluded:              lda #ULWS_OCCLUDED
+                        sta ULW_WINDOW_COPY::status
 
-                        ; Store the correct flags
-@store_flags:           tya
-                        ora ULW_WINDOW_COPY::flags
-                        ldy #ULW_WINDOW::flags
+                        ; Store the correct status
+@store_status:          tya
+                        ora ULW_WINDOW_COPY::status
+                        ldy #ULW_WINDOW::status
                         sta (ULW_scratch_fptr),y
                         rts
 .endproc

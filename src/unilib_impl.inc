@@ -23,6 +23,7 @@
 .global ULM_multbl_init
 
 ; Memory utilities
+.global ULM_init
 .global ULM_slot2addr
 
 ; VERA utilities
@@ -67,10 +68,12 @@ ecol        .byte   ; Start screen column of the inside of the window + number o
 ccol        .byte   ; Current cursor column inside the window
 color       .byte   ; Normal text color (low nibble = foreground, high nibble = background)
 emcolor     .byte   ; Emphasis text color (low nibble = foreground, high nibble = background)
-buf_ptr     .word   ; BRP to window contents buffer (3 bytes for each character in the inside of the window)
+charbuf     .word   ; BRP to window character buffer (3 bytes for each tile in the window)
+colorbuf    .word   ; BRP to window color buffer (1 byte for each tile in the window)
 title       .word   ; Title string
 prev_addr   .word   ; Address of previous window structure (null if none)
 prev_bank   .byte   ; Bank RAM page of previous window structure (0 if none)
+status      .byte   ; Window status (0x80 - completely covered, 0x40 - partially occluded)
 next_addr   .word   ; Address of next window structure (null if none)
 next_bank   .byte   ; Bank RAM page of next window structure (0 if none)
 .endstruct
@@ -93,7 +96,8 @@ ecol        .byte   ; Start screen column of the inside of the window + number o
 ccol        .byte   ; Current cursor column inside the window
 color       .byte   ; Normal text color (low nibble = foreground, high nibble = background)
 emcolor     .byte   ; Emphasis text color (low nibble = foreground, high nibble = background)
-buf_ptr     .word   ; BRP to window contents buffer (3 bytes for each character in the inside of the window)
+charbuf     .word   ; BRP to window character buffer (3 bytes for each tile in the window)
+colorbuf    .word   ; BRP to window color buffer (1 byte for each tile in the window)
 title       .word   ; Title string
 prev_addr   .word   ; Address of previous window structure (null if none)
 prev_bank   .byte   ; Bank RAM page of previous window structure (0 if none)

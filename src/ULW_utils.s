@@ -47,7 +47,7 @@
                         inc ULW_scratch_fptr
                         lda (ULW_scratch_fptr)
                         tay
-                        jsr ULM_access
+                        jsr ulmem_access
                         lda BANKSEL::RAM
                         rts
 .endproc
@@ -64,7 +64,7 @@
                         sta UL_temp_l
                         ldx ULW_winlist
                         ldy ULW_winlist+1
-                        jsr ULM_access
+                        jsr ulmem_access
                         txa
                         clc
                         adc UL_temp_l
@@ -83,45 +83,60 @@
 ;   In: ULW_scratch_fptr/BANKSEL::RAM/ULW_WINDOW_COPY - Window structure
 ;       X                               - Column in window contents
 ;       Y                               - Line in window contents
+;       carry                           - Clear = character buffer, Set = color buffer
 ;  Out: ULW_winbufptr/BANKSEL::RAM      - Window buffer pointer to line/column
 ;       ULW_linelen                     - Length of window content line in buffer
 ;       ULW_linestride                  - Length of full window line in buffer (including border)
 .proc ULW_getwinbufptr
-                        ; For a window with no border, line length and stride are both ncol*3
+                        ; Save the charbuf/colorbuf option for later
+                        ror ULW_carryflag
+
+                        ; For a window with no border, line length and stride are both ncol*3 for charbuf and ncol for colorbuf
                         phx
                         phy
-                        lda ULW_WINDOW_COPY::ncol
-                        ldx #3
+                        ldx ULW_WINDOW_COPY::ncol
+                        bit ULW_carryflag
+                        bmi :+
+                        lda #3
                         jsr ulmath_umul8_8 ; The most this can be is 240, so we can ignore the high byte
-                        stx ULW_linelen
+:                       stx ULW_linelen
                         stx ULW_linestride
 
-                        ; If we have a border, the stride becomes linelen+6 (also save flags so we can check border later)
-                        lda ULW_WINDOW_COPY::flags
-                        pha
+                        ; If we have a border, the stride becomes linelen+2*tilewidth (also save offset to correct BRP to access)
+                        ldy #0
+                        bit ULW_carryflag
                         bpl :+
-                        txa
-                        clc
-                        adc #6
-                        sta ULW_linestride
+                        iny
+                        iny
+:                       lda ULW_WINDOW_COPY::flags
+                        bpl :++
+                        bit ULW_carryflag
+                        bmi :+
+                        inx
+                        inx
+                        inx
+                        inx
+:                       inx
+                        inx
+                        stx ULW_linestride
 
-                        ; Access the window buffer and save the start address
-:                       ldx ULW_WINDOW_COPY::buf_ptr
-                        ldy ULW_WINDOW_COPY::buf_ptr+1
-                        jsr ULM_access
+                        ; Access the correct buffer and save the start address
+:                       ldx ULW_WINDOW_COPY::charbuf,y
+                        lda ULW_WINDOW_COPY::charbuf+1,y
+                        tay
+                        jsr ulmem_access
                         stx ULW_winbufptr
                         sty ULW_winbufptr+1
 
                         ; If we have a border, we increment X and Y by 1 to compensate
-                        pla
                         ply
                         plx
-                        bit #$80
-                        beq :+
+                        bit ULW_WINDOW_COPY::flags
+                        bpl :+
                         inx
                         iny
 
-                        ; Now, the offset into the window buffer is (Y*linestride)+X*3
+                        ; Now, the offset into the window buffer is (Y*linestride)+X*(3 for charbuf, 1 for colorbuf)
 :                       phx
                         tya
                         ldx ULW_linestride
@@ -135,10 +150,12 @@
                         sta ULW_winbufptr+1
                         pla
                         beq a_handy_rts
+                        bit ULW_carryflag
+                        bmi :+
                         ldx #3
                         jsr ulmath_umul8_8
                         txa
-                        clc
+:                       clc
                         adc ULW_winbufptr
                         sta ULW_winbufptr
                         tya
@@ -165,9 +182,8 @@ a_handy_rts:            rts
                         jsr ULW_box
 
                         ; Is there a window title?
-                        lda ULW_WINDOW_COPY::title_addr
-                        ora ULW_WINDOW_COPY::title_addr+1
-                        ora ULW_WINDOW_COPY::title_bank
+                        lda ULW_WINDOW_COPY::title
+                        ora ULW_WINDOW_COPY::title+1
                         beq a_handy_rts
 
                         ; Draw the window title into the top line using the emphasis color
@@ -185,6 +201,7 @@ a_handy_rts:            rts
                         sta ULWR_dest+1
                         inc
                         sta ULWR_char+1
+                        sta ULWR_char+2
                         inc
                         sta ULWR_dest
                         lda ULW_WINDOW_COPY::emcolor
@@ -197,9 +214,8 @@ a_handy_rts:            rts
                         ; Print the title string
                         pla
                         sta ULWR_size
-                        ldx ULW_WINDOW_COPY::title_addr
-                        ldy ULW_WINDOW_COPY::title_addr+1
-                        lda ULW_WINDOW_COPY::title_bank
+                        ldx ULW_WINDOW_COPY::title
+                        ldy ULW_WINDOW_COPY::title+1
                         jsr ULW_drawstring
                         clc
                         adc ULWR_dest
@@ -209,6 +225,7 @@ a_handy_rts:            rts
                         lda #' '
                         sta ULWR_char
                         stz ULWR_char+1
+                        stz ULWR_char+2
                         jmp ULW_drawchar
 .endproc
 
@@ -222,13 +239,14 @@ a_handy_rts:            rts
                         lda #' '
                         sta ULWR_char
                         stz ULWR_char+1
+                        stz ULWR_char+2
                         bra ULW_fillrect
 .endproc
 
 ; ULW_drawchar - draw a UTF-16 character into a window at a specific location in a specific color
 ;   In: ULW_scratch_fptr/BANKSEL::RAM/ULW_WINDOW_COPY - Window structure
 ;       ULWR_dest       - Line/column in window contents (L=column, H=line)
-;       ULWR_char       - UTF-16 character
+;       ULWR_char       - Unicode character
 ;       ULWR_color      - Color (fg=low nibble, bg=high nibble)
 .proc ULW_drawchar
                         ; This is just a fillrect with size 1x1
@@ -246,43 +264,9 @@ a_handy_rts:            rts
 ;       ULWR_char       - UTF-16 character
 ;       ULWR_color      - Color (fg=low nibble, bg=high nibble)
 .proc ULW_fillrect
-                        ; Get the window buffer at our top left
-                        ldx ULWR_dest
-                        ldy ULWR_dest+1
-                        jsr ULW_getwinbufptr
-
-                        ; Need to fill nlin lines with our character/color pattern
-                        lda ULWR_size+1
-                        sta @linecount
-                        lda ULWR_size
-                        ldx #3
-                        jsr ulmath_umul8_8
-                        stx @linefill_cmp+1
-
-                        ; Write our character/color pattern to the line
-:                       ldy #0
-:                       lda ULWR_char
-                        sta (ULW_winbufptr),y
-                        iny
-                        lda ULWR_char+1
-                        sta (ULW_winbufptr),y
-                        iny
-                        lda ULWR_color
-                        sta (ULW_winbufptr),y
-                        iny
-@linefill_cmp:          cpy #$00
-                        bcc :-
-
-                        ; Advance to the next line
-                        lda ULW_winbufptr
-                        clc
-                        adc ULW_linestride
-                        sta ULW_winbufptr
-                        lda ULW_winbufptr+1
-                        adc #0
-                        sta ULW_winbufptr+1
-                        dec @linecount
-                        bne :--
+                        ; Fill the characters, then the colors
+                        jsr ULW_fillrect_char
+                        jsr ULW_fillrect_color
 
                         ; Okay, window backbuffer is filled; check occlusion, if the window is:
                         ;   - visible, we can fill it in the screen backbuffer immediately
@@ -310,9 +294,8 @@ a_handy_rts:            rts
                         sta ULVR_color
                         ldx ULWR_char
                         ldy ULWR_char+1
+                        lda #0
                         jmp ULV_fillrect
-
-@linecount:             .byte $00
 
                         ; The window is occluded, so we need to walk the window map and mark any blocks in the rectangle
                         ; for this window as dirty
@@ -334,6 +317,66 @@ a_handy_rts:            rts
 @done:                  rts
 .endproc
 
+; Helper for ULW_fillrect/ULW_colorrect - carry clear to fill character buffer, carry set to fill color buffer
+ULW_fillrect_color:
+                        ldx ULWR_color
+                        lda #$ff
+                        bra ULW_fillrect_charorcolor
+ULW_fillrect_char:
+                        ldx ULWR_char
+                        stx charloload+1
+                        ldx ULWR_char+1
+                        stx charhiload+1
+                        ldx ULWR_char+2
+                        lda #0
+ULW_fillrect_charorcolor:
+                        stx lastload+1
+                        sta ULW_carryflag
+
+                        ; Get the appropriate buffer at our top left
+                        ldx ULWR_dest
+                        ldy ULWR_dest+1
+                        rol ULW_carryflag
+                        jsr ULW_getwinbufptr
+
+                        ; Need to fill nlin lines with our character/color pattern
+                        lda ULWR_size+1
+                        sta ULW_linecount
+                        ldx ULWR_size
+                        bit ULW_carryflag
+                        bmi :+
+                        lda #3
+                        jsr ulmath_umul8_8
+:                       stx linefill_cmp+1
+
+                        ; Write our character/color pattern to the line
+:                       ldy #0
+:                       bit ULW_carryflag
+                        bmi lastload
+charloload:             lda #$00
+                        sta (ULW_winbufptr),y
+                        iny
+charhiload:             lda #$00
+                        sta (ULW_winbufptr),y
+                        iny
+lastload:               lda #$00
+                        sta (ULW_winbufptr),y
+                        iny
+linefill_cmp:           cpy #$00
+                        bcc :-
+
+                        ; Advance to the next line
+                        lda ULW_winbufptr
+                        clc
+                        adc ULW_linestride
+                        sta ULW_winbufptr
+                        lda ULW_winbufptr+1
+                        adc #0
+                        sta ULW_winbufptr+1
+                        dec ULW_linecount
+                        bne :--
+                        rts
+
 ; ULW_drawstring - draw a string into a window at a specific location in a specific color
 ;   In: ULW_scratch_fptr/BANKSEL::RAM/ULW_WINDOW_COPY - Window structure
 ;       ULWR_dest       - Top/left in window contents (L=column, H=line)
@@ -342,46 +385,10 @@ a_handy_rts:            rts
 ;       AYX             - Far pointer to string (A=RAM bank, YX=address)
 ;  Out: A               - Number of characters drawn
 .proc ULW_drawstring
-                        ; If the address is outside the bank space or the bank in A is the same as the current bank, just print it
-                        cpy #$A0
-                        bcc @gotstring
-                        cpy #$C0
-                        bcs @gotstring
-                        cmp BANKSEL::RAM
-                        beq @gotstring
 
-                        ; Save bank and switch
-                        sta ULS_scratch_fptr+2
-                        lda BANKSEL::RAM
-                        pha
-                        lda ULS_scratch_fptr+2
-                        sta BANKSEL::RAM
-
-                        ; Copy from scratch to $700 until we hit a null or the end of the page
-                        ldy #0
-@copychar:              lda (ULS_scratch_fptr),y
-                        sta $700,y
-                        tax
-                        iny
-                        lda (ULS_scratch_fptr),y
-                        sta $700,y
-                        iny
-                        beq @neednull
-                        cmp #0
-                        bne @copychar
-                        cpx #0
-                        bne @copychar
-
-                        ; At end of string, so load new address into YX
-@usecopy:               ldx #0
-                        ldy #7
-
-                        ; Switch bank back
-                        pla
-                        sta BANKSEL::RAM
-
-                        ; Okay, draw string characters to window; need pointer we can increment
-@gotstring:             stx ULS_scratch_fptr
+                        ; Draw string characters to window; need pointer we can increment
+                        jsr ulstr_access
+                        stx ULS_scratch_fptr
                         sty ULS_scratch_fptr+1
 
                         ; Get the max length to write (but not more than to the end of our line)
@@ -414,17 +421,10 @@ a_handy_rts:            rts
                         dey
                         bra @written
 
-@neednull:              ; From copy routine above, used the whole page so need to back up one character and put in a NUL
-                        tya
-                        dey
-                        sta $700,y
-                        dey
-                        sta $700,y
-                        bra @usecopy
-
                         ; Try to print the character
 :                       stx ULWR_char
                         sta ULWR_char+1
+                        stz ULWR_char+2
                         phy
                         jsr ULW_drawchar
                         ply
@@ -446,18 +446,17 @@ a_handy_rts:            rts
 @lastcol:               .byte $00
 .endproc
 
-.proc ULS_access
-.endproc
-
 .bss
 
+ULW_linecount:          .res    1
 ULW_linelen:            .res    1
 ULW_linestride:         .res    1
+ULW_carryflag:          .res    1
 
 ULWR_src:               .res    2
 ULWR_dest:              .res    2
 ULWR_size:              .res    2
-ULWR_char:              .res    2
+ULWR_char:              .res    3
 ULWR_color:             .res    1
 
 .segment "EXTZP": zeropage

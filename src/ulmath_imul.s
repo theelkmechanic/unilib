@@ -111,7 +111,7 @@ ULM_multab_neg_hi = ULM_multab_neg_lo + $200
                         ldx #<2048
                         ldy #>2048
                         clc
-                        jsr ULM_alloc
+                        jsr ulmem_alloc
 
                         ; *** WARNING *** We're assuming that this was the first ulmem_alloc, so the
                         ; allocated memory is at $A100 on bank 1. If this was NOT the first ulmem_alloc,

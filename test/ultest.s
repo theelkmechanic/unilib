@@ -36,7 +36,7 @@ start:
    lda #>font_fn
    sta gREG::r0H
 
-   ; Use white on blue by default
+   ; Use white on dark grey by default
    lda #ULCOLOR::WHITE
    sta gREG::r2L
    lda #ULCOLOR::DGREY
@@ -192,6 +192,7 @@ start:
    ldx #0
    ldy #0
 @charloop:
+   lda #0
    jsr ULV_plotchar
    bcc @incchar
    inc ULVR_destpos

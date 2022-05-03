@@ -16,32 +16,14 @@ ULW_scratch_fptr:       .res    3       ; current window handle
 ;       r2H             Initial screen background color
 ;  Out: A               Error code (0 = OK)
 .proc ul_init
-                        ; Initialize the banked RAM so it's ready for memory allocations; see how many RAM banks we have to work with
-                        sec
-                        jsr MEMTOP
-                        sta ULM_numbanks
-
                         ; Save whatever bank we were on and switch to bank 1
                         lda BANKSEL::RAM
                         pha
                         lda #1
                         sta BANKSEL::RAM
 
-                        ; First page of each bank is slot tracking. First byte is # of free slots, then the next 7 are
-                        ; the index of the first free entry that is exactly 1 slot, 2 slots, etc., or 0 if there is no
-                        ; exact match. Since there isn't to begin with, the whole first page gets set to 0, and the first
-                        ; byte is set to 248 (since the slots for the first page are in use for the bitmap).
-@init_bank:             lda #0
-                        tax
-:                       inx
-                        sta BANK::RAM,x
-                        bne :-
-                        lda #248
-                        sta BANK::RAM
-                        inc BANKSEL::RAM
-                        lda BANKSEL::RAM
-                        cmp ULM_numbanks
-                        bne @init_bank
+                        ; Initialize the heap
+                        jsr ULM_init
 
                         ; Initialize math multiplication tables
                         ;   *** WARNING *** This MUST be the fist memory allocation call, or it will break badly; the multiplication
@@ -61,7 +43,7 @@ ULW_scratch_fptr:       .res    3       ; current window handle
                         ldx #<(80*30)
                         ldy #>(80*30)
                         sec
-                        jsr ULM_alloc
+                        jsr ulmem_alloc
 
                         ; Initialize VERA to display 80x30 Unicode text:
                         ;   - Map size = 128x32, tile size = 8x16
@@ -76,10 +58,10 @@ ULW_scratch_fptr:       .res    3       ; current window handle
                         ;       - line stride is 256
                         ;       - tile set is at $08000 (32k)
 
-                        ; Load font to $08000 in VRAM (4K layer 0 base glyphs, 32K layer 1 overlay glyphs, followed by glyph maps)
+                        ; Load font to $08000 in VRAM (headerless, 4K layer 0 base glyphs, 32K layer 1 overlay glyphs, followed by glyph maps)
                         lda #1
                         ldx gREG::r1H
-                        ldy #0
+                        ldy #2
                         jsr SETLFS
                         lda gREG::r1L
                         ldx gREG::r0L
@@ -177,7 +159,7 @@ ULW_scratch_fptr:       .res    3       ; current window handle
                         ldx #64*2
                         ldy #0
                         sec
-                        jsr ULM_alloc
+                        jsr ulmem_alloc
                         stx ULW_winlist
                         sty ULW_winlist+1
 

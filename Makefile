@@ -22,6 +22,7 @@ MEM_OBJS = \
 	$(OBJDIR)/ulmem.o
 
 STR_OBJS = \
+	$(OBJDIR)/ulstr_access.o \
 	$(OBJDIR)/ulstr_getlen.o
 
 WIN_OBJS = \

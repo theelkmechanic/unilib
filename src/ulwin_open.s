@@ -9,7 +9,7 @@
 ;       r1H             Number of lines inside the window
 ;       r2L             Foreground color
 ;       r2H             Background color
-;       r3/r4L          Pointer to window title (UTF-16; r3 = address, r4L = RAM bank (if needed))
+;       r3              Window title string
 ;       r4H             Flags:
 ;                           0x80 = border
 ;  Out: A               Window handle ($FF = failure)
@@ -87,7 +87,7 @@
 @find_empty_slot:       stz @winhandle
                         ldx ULW_winlist
                         ldy ULW_winlist+1
-@access_next:           jsr ULM_access
+@access_next:           jsr ulmem_access
                         stx @listptr
                         sty @listptr+1
 
@@ -115,7 +115,7 @@
                         ldy #0
                         ldx #.sizeof(ULW_WINDOW)
                         sec ; clear the allocated memory
-                        jsr ULM_alloc
+                        jsr ulmem_alloc
                         bcc @out_of_memory
 
                         ; Okay, need to save the window structure BRP in the right slot,
@@ -139,30 +139,53 @@
 
                         ; Get our window structure into the scratch pointer
                         ldy ULW_newwin_brp+1
-                        jsr ULM_access
+                        jsr ulmem_access
                         stx ULW_scratch_fptr
                         sty ULW_scratch_fptr+1
 
-                        ; Allocate a buffer for the window contents, should be lines * columns * 3
+                        ; Allocate a buffer for the window colors, should be lines * columns
+                        ; (add 2 to lines and columns if there's a border), and for the window
+                        ; characters, which should be colors buffer size * 3
                         ldx @new_nlin
-                        lda #3
-                        jsr ulmath_umul8_8
                         lda @new_ncol
-                        jsr ulmath_umul8_8
+                        bit @new_flags
+                        bpl :+
+                        inx
+                        inx
+                        inc
+                        inc
+:                       jsr ulmath_umul8_8
+                        phx
+                        phy
                         clc
-                        jsr ULM_alloc
-                        bcs :+
-                        lda ULW_newwin_handle
+                        jsr ulmem_alloc
+                        bcs :++
+                        pla
+                        pla
+:                       lda ULW_newwin_handle
                         jsr ulwin_close
                         bra @out_of_memory
-
-                        ; Initialize the new window structure
 :                       tya
-                        ldy #ULW_WINDOW::buf_ptr+1
+                        ldy #ULW_WINDOW::colorbuf+1
                         sta (ULW_scratch_fptr),y
                         dey
                         txa
                         sta (ULW_scratch_fptr),y
+                        ply
+                        plx
+                        lda #3
+                        jsr ulmath_umul16_8
+                        clc
+                        jsr ulmem_alloc
+                        bcc :--
+                        tya
+                        ldy #ULW_WINDOW::charbuf+1
+                        sta (ULW_scratch_fptr),y
+                        dey
+                        txa
+                        sta (ULW_scratch_fptr),y
+
+                        ; Initialize the new window structure
                         lda ULW_newwin_handle
                         sta (ULW_scratch_fptr)
                         ldy #ULW_WINDOW::flags
@@ -188,15 +211,12 @@
                         lda @new_ecol
                         sta (ULW_scratch_fptr),y
 
-                        ; Save the title address/bank
-                        ldy #ULW_WINDOW::title_addr
+                        ; Save the title string
+                        ldy #ULW_WINDOW::title
                         lda @new_title
                         sta (ULW_scratch_fptr),y
                         iny
                         lda @new_title+1
-                        sta (ULW_scratch_fptr),y
-                        iny
-                        lda @new_title+2
                         sta (ULW_scratch_fptr),y
 
                         ; Set current window as previous to our new one, and next as null

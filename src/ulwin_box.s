@@ -75,14 +75,15 @@
 ;       ULW_boxtop/bottom/left/right                  - Box coordinates
 .proc ULW_box
                         ; Box characters are as follows from Unicode:
-                        ;   - Horizontal line     = $2501
-                        ;   - Vertical line       = $2503
-                        ;   - Top-left corner     = $250f
-                        ;   - Top-right corner    = $2513
-                        ;   - Bottom-left corner  = $2517
-                        ;   - Bottom-right corner = $251b
+                        ;   - Horizontal line     = $002501
+                        ;   - Vertical line       = $002503
+                        ;   - Top-left corner     = $00250f
+                        ;   - Top-right corner    = $002513
+                        ;   - Bottom-left corner  = $002517
+                        ;   - Bottom-right corner = $00251b
 
                         ; Fill top/bottom lines with horizontal character
+                        stz ULWR_char+2
                         lda #$25
                         sta ULWR_char+1
                         lda #$01

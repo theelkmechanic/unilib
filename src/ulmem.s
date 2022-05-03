@@ -91,7 +91,20 @@
 
                         ; Okay, number of slots is in range, see if we have a "smallest" slot that will fit it exactly
                         cmp #8
-                        bcc @check_small_blocks
+                        bcs @need_scan
+
+                        ; For small numbers, we have the index of a matching slot count saved in the corresponding byte of
+                        ; each page; scan the pages to see if there's one there
+@check_small_blocks:    ldy #1
+                        sty BANKSEL::RAM
+                        tax
+:                       lda BANK::RAM,x
+                        beq :+
+                        jmp @found_slot
+:                       iny
+                        sty BANKSEL::RAM
+                        cpy ULM_numbanks
+                        bne :--
 
                         ; Need to scan for a chunk of slots; first look for an exact match, and also save the first bank
                         ; with enough room along the way
@@ -136,6 +149,19 @@
                         lda @chunkstart
                         bra @found_slot
 
+                        ; Return NULL
+@failed:                lda #0
+                        tax
+                        tay
+                        plp
+                        clc
+
+                        ; Restore bank and return
+@done:                  pla
+                        sta BANKSEL::RAM
+                        pla
+                        rts
+
                         ; If it's greater than we're scanning for, save as roomy bank if we don't have one yet
 @check_max_chunk:       bcc @check_if_at_end
                         lda @roomybank
@@ -172,32 +198,7 @@
                         ; unless it's not big enough, in which case fail
                         ldy @roomybank
                         bne @take_chunk
-
-                        ; Return NULL
-@failed:                lda #0
-                        tax
-                        tay
-                        plp
-                        clc
-
-                        ; Restore bank and return
-@done:                  pla
-                        sta BANKSEL::RAM
-                        pla
-                        rts
-
-                        ; For small numbers, we have the index of a matching slot count saved in the corresponding byte of
-                        ; each page; scan the pages to see if there's one there
-@check_small_blocks:    ldy #1
-                        sty BANKSEL::RAM
-                        tax
-:                       lda BANK::RAM,x
-                        bne @found_slot
-                        iny
-                        sty BANKSEL::RAM
-                        cpy ULM_numbanks
-                        bne :-
-                        jmp @need_scan
+                        jmp @failed
 
                         ; Take chunk from start of bank with room
 @take_chunk:            lda @roomybankstart
@@ -431,6 +432,30 @@
 @restore_bank:          pla
                         sta BANKSEL::RAM
                         pla
+                        rts
+.endproc
+
+.proc ULM_init
+                        ; Initialize the banked RAM so it's ready for memory allocations; see how many RAM banks we have to work with
+                        sec
+                        jsr MEMTOP
+                        sta ULM_numbanks
+
+                        ; First page of each bank is slot tracking. First byte is # of free slots, then the next 7 are
+                        ; the index of the first free entry that is exactly 1 slot, 2 slots, etc., or 0 if there is no
+                        ; exact match. Since there isn't to begin with, the whole first page gets set to 0, and the first
+                        ; byte is set to 248 (since the slots for the first page are in use for the bitmap).
+@init_bank:             lda #0
+                        tax
+:                       inx
+                        sta BANK::RAM,x
+                        bne :-
+                        lda #248
+                        sta BANK::RAM
+                        inc BANKSEL::RAM
+                        lda BANKSEL::RAM
+                        cmp ULM_numbanks
+                        bne @init_bank
                         rts
 .endproc
 

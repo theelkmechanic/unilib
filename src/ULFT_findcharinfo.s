@@ -16,7 +16,7 @@ ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 4)
                         ldx #<(ULFT_CACHE_SIZE * 5)
                         ldy #>(ULFT_CACHE_SIZE * 5)
                         sec
-                        jsr ULM_alloc
+                        jsr ulmem_alloc
 
                         ; Clear the flags page with #$10 to indicate empty cache slots
                         lda #$10
@@ -55,6 +55,7 @@ ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 4)
                         bne @need_scan
 
                         ; Found match, so just return it
+                        lda ULFT_fontcache_flags,x
                         sta ULFT_charflags
                         lda ULFT_fontcache_base,x
                         sta ULFT_baseglyph
@@ -111,11 +112,11 @@ ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 4)
                         ; ascending order.
                         lda ULFT_scanchar+2
                         cmp ULFT_mapstart+2
-                        bcc @next_map
-                        bne @not_found
-                        bcc @next_map
+                        bcc @not_found
+                        bne @next_map
                         cpy ULFT_mapstart+1
-                        bne @not_found
+                        bcc @not_found
+                        bne @next_map
                         cpx ULFT_mapstart
                         bcs @in_range_low
 
@@ -131,6 +132,25 @@ ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 4)
                         sta BANKSEL::RAM
                         lda ULFT_fontcache_flags,x
                         rts
+
+                        ; Jump to the next map (advance len*3 bytes)
+@next_map:              phx
+                        phy
+                        lda ULFT_maplen
+                        ldx #3
+                        jsr ulmath_umul8_8
+                        stx ULFT_mapstart
+                        sty ULFT_mapstart+1
+                        ply
+                        plx
+                        lda VERA::ADDR
+                        clc
+                        adc ULFT_mapstart
+                        sta VERA::ADDR
+                        lda VERA::ADDR+1
+                        adc ULFT_mapstart+1
+                        sta VERA::ADDR+1
+                        jmp @scan_maps
 
                         ; Check that starting char + size > our char
 @in_range_low:          lda ULFT_mapstart
@@ -185,34 +205,16 @@ ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 4)
 
                         ; And we're done--is it a valid glyph?
 @have_glyph:            bit #$40
-                        bne @not_found
-                        pha
+                        beq :+
+                        jmp @not_found
+:                       pha
                         lda ULFT_baseglyph
                         sta ULFT_fontcache_base,x
                         lda ULFT_extraglyph
                         sta ULFT_fontcache_overlay,x
                         pla
                         sec
-                        bra @restoreandexit
-
-                        ; Jump to the next map (advance len*3 bytes)
-@next_map:              phx
-                        phy
-                        lda ULFT_maplen
-                        ldx #3
-                        jsr ulmath_umul8_8
-                        stx ULFT_mapstart
-                        sty ULFT_mapstart+1
-                        ply
-                        plx
-                        lda VERA::ADDR
-                        clc
-                        adc ULFT_mapstart
-                        sta VERA::ADDR
-                        lda VERA::ADDR+1
-                        adc ULFT_mapstart+1
-                        sta VERA::ADDR+1
-                        jmp @scan_maps
+                        jmp @restoreandexit
 .endproc
 
 .bss
