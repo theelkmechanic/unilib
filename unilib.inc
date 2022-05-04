@@ -19,19 +19,20 @@
 .global ulmem_free          ; YX = BRP to free
 .global ulmem_access        ; YX BRP -> RAM bank selected, YX = 16-bit memory address of data
 
-; Unicode string functions - Work on UTF-8 BRP immutable string objects
-.global ulstr_access        ; YX = string; returns address of NUL-terminated UTF-8 string data in YX (copies to $400-7ff low RAM scratch buffer if in non-current RAM bank)
-.global ulstr_fromPETSCII   ; YX = address of PETSCII character data, A=length; returns string in YX
-.global ulstr_fromUtf8      ; YX = address of NUL-terminated UTF-8 character data; returns string in YX
-.global ulstr_getlen        ; YX = string; returns length in characters in YX
-.global ulstr_getprintlen   ; YX = string; returns length in printable characters in YX
-.global ulstr_getrawlen     ; YX = string; returns length in bytes in YX
+; Unicode string functions - Work on UTF-8 BRP immutable string objects (max length = 252 bytes)
+.global ulstr_access        ; YX = string; returns address of UTF-8 string data in YX (copied to $400-4ff low RAM scratch buffer if in non-current RAM bank)
+.global ulstr_fromPETSCII   ; YX = address of PETSCII character data, A=byte length (0=NUL-terminated); returns string in YX
+.global ulstr_fromUtf8      ; YX = address of UTF-8 character data, A=char length (0=NUL-terminated); returns string in YX
+.global ulstr_getlen        ; YX = string; returns length in characters in A
+.global ulstr_getprintlen   ; YX = string; returns length in printable characters in A
+.global ulstr_getrawlen     ; YX = string; returns length in bytes in A
 
 ; Unicode string iteration/manipulation functions - operate on ulstr_current
 .global ulstr_current       ; carry set = set current string to YX; clear = get current string in YX
 .global ulstr_append        ; YX = string to append to current
 .global ulstr_begin         ; move iterator to beginning of current string
 .global ulstr_char          ; get character at current iterator in AYX
+.global ulstr_charnext      ; get character at current iterator in AYX and step iterator to next character; carry set if at end of string
 .global ulstr_next          ; step iterator to next character; carry set if at end of string
 
 ; Window functions
@@ -87,6 +88,7 @@
     OUT_OF_MEMORY
     OUT_OF_RESOURCES
     STRING_TOO_LONG
+    INVALID_UTF8
     LOAD_FAILED
 .endenum
 

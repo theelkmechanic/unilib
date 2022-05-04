@@ -164,6 +164,20 @@
 .endproc
 a_handy_rts:            rts
 
+; ULW_clearrect - clear a rectangle in a window with a specific color
+;   In: ULW_scratch_fptr/BANKSEL::RAM/ULW_WINDOW_COPY - Window structure
+;       ULWR_dest       - Top/left in window contents (L=column, H=line)
+;       ULWR_size       - Size in window contents (L=columns, H=lines)
+;       ULWR_color      - Color (fg=low nibble, bg=high nibble)
+.proc ULW_clearrect
+                        ; This is just a fillrect with a space
+                        lda #' '
+                        sta ULWR_char
+                        stz ULWR_char+1
+                        stz ULWR_char+2
+                        bra ULW_fillrect
+.endproc
+
 ; ULW_drawborder - (re)draw the border/title for the window
 ;   In: ULW_scratch_fptr/BANKSEL::RAM/ULW_WINDOW_COPY - Window structure
 .proc ULW_drawborder
@@ -226,22 +240,9 @@ a_handy_rts:            rts
                         sta ULWR_char
                         stz ULWR_char+1
                         stz ULWR_char+2
-                        jmp ULW_drawchar
 .endproc
 
-; ULW_clearrect - clear a rectangle in a window with a specific color
-;   In: ULW_scratch_fptr/BANKSEL::RAM/ULW_WINDOW_COPY - Window structure
-;       ULWR_dest       - Top/left in window contents (L=column, H=line)
-;       ULWR_size       - Size in window contents (L=columns, H=lines)
-;       ULWR_color      - Color (fg=low nibble, bg=high nibble)
-.proc ULW_clearrect
-                        ; This is just a fillrect with a space
-                        lda #' '
-                        sta ULWR_char
-                        stz ULWR_char+1
-                        stz ULWR_char+2
-                        bra ULW_fillrect
-.endproc
+; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
 
 ; ULW_drawchar - draw a UTF-16 character into a window at a specific location in a specific color
 ;   In: ULW_scratch_fptr/BANKSEL::RAM/ULW_WINDOW_COPY - Window structure
@@ -382,10 +383,9 @@ linefill_cmp:           cpy #$00
 ;       ULWR_dest       - Top/left in window contents (L=column, H=line)
 ;       ULWR_size       - Low byte = max length in characters (0 = whole string)
 ;       ULWR_color      - Color (fg=low nibble, bg=high nibble)
-;       AYX             - Far pointer to string (A=RAM bank, YX=address)
+;       YX              - String BRP
 ;  Out: A               - Number of characters drawn
 .proc ULW_drawstring
-
                         ; Draw string characters to window; need pointer we can increment
                         jsr ulstr_access
                         stx ULS_scratch_fptr
@@ -405,35 +405,22 @@ linefill_cmp:           cpy #$00
                         sta @startcol
 
                         ; Write our string characters/color to the line
-                        ldy #0
-:                       lda (ULS_scratch_fptr),y
-                        tax
-                        iny
-                        lda (ULS_scratch_fptr),y
-                        iny
+:                       jsr ULS_nextchar
 
-                        ; Check for NUL-terminator
-                        cmp #0
-                        bne :+
-                        cpx #0
-                        bne :+
-                        dey
-                        dey
-                        bra @written
+                        ; Check for end of string
+                        bcs @written
 
                         ; Try to print the character
-:                       stx ULWR_char
-                        sta ULWR_char+1
-                        stz ULWR_char+2
-                        phy
+                        stx ULWR_char
+                        sty ULWR_char+1
+                        sta ULWR_char+2
                         jsr ULW_drawchar
-                        ply
 
                         ; Step ahead one cell if we printed something
-                        bcc :--
+                        bcc :-
                         inc ULWR_dest
                         cmp @lastcol
-                        bcc :--
+                        bcc :-
 
                         ; Number of characters printed is ULWR_dest-@startcol
 @written:               lda ULWR_dest
@@ -462,5 +449,3 @@ ULWR_color:             .res    1
 .segment "EXTZP": zeropage
 
 ULW_winbufptr:          .res    2
-
-ULS_scratch_fptr:       .res    3

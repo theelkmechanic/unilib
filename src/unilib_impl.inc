@@ -26,6 +26,14 @@
 .global ULM_init
 .global ULM_slot2addr
 
+; String utilities
+.global ULS_length ; Get NUL-terminated UTF-8 sequence length
+.global     ULS_bytelen ; resulting length (in bytes)
+.global     ULS_charlen ; resulting length (in characters)
+.global     ULS_printlen ; resulting length (in printable characters)
+.global ULS_nextchar
+.globalzp ULS_scratch_fptr
+
 ; VERA utilities
 .global ULV_init
 .global ULV_setpaletteentry

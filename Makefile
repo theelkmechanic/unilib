@@ -12,7 +12,8 @@ FLAGS = -t cx16 --cpu 65c02 -g
 
 CORE_OBJS = \
 	$(OBJDIR)/ul_init.o \
-	$(OBJDIR)/ul_geterror.o
+	$(OBJDIR)/ul_geterror.o \
+	$(OBJDIR)/ul_isprint.o
 
 MATH_OBJS = \
 	$(OBJDIR)/ulmath_idiv.o \
@@ -23,6 +24,7 @@ MEM_OBJS = \
 
 STR_OBJS = \
 	$(OBJDIR)/ulstr_access.o \
+	$(OBJDIR)/ulstr_fromUtf8.o \
 	$(OBJDIR)/ulstr_getlen.o
 
 WIN_OBJS = \
@@ -63,19 +65,20 @@ WIN_OBJS = \
 	$(OBJDIR)/ulwin_puttitle.o \
 	$(OBJDIR)/ulwin_refresh.o \
 	$(OBJDIR)/ulwin_scroll.o \
-	$(OBJDIR)/ulwin_select.o \
-	$(OBJDIR)/ULW_map.o \
-	$(OBJDIR)/ULW_utils.o
+	$(OBJDIR)/ulwin_select.o
 
 INTERNAL_OBJS = \
 	$(OBJDIR)/ULF_readblock.o \
 	$(OBJDIR)/ULFT_findcharinfo.o \
+	$(OBJDIR)/ULS_utils.o \
 	$(OBJDIR)/ULV_blt.o \
 	$(OBJDIR)/ULV_copy.o \
 	$(OBJDIR)/ULV_fill.o \
 	$(OBJDIR)/ULV_glyphcolor.o \
 	$(OBJDIR)/ULV_setpaletteentry.o \
-	$(OBJDIR)/ULV_swap.o
+	$(OBJDIR)/ULV_swap.o \
+	$(OBJDIR)/ULW_map.o \
+	$(OBJDIR)/ULW_utils.o
 
 OBJECTS = $(CORE_OBJS) $(MATH_OBJS) $(MEM_OBJS) $(STR_OBJS) $(WIN_OBJS) $(INTERNAL_OBJS)
 
@@ -100,7 +103,7 @@ $(OBJDIR):
 	mkdir -p $@
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.s $(HEADERS) | $(OBJDIR)
-	ca65 $(FLAGS) -I. -o $@ $<
+	ca65 $(FLAGS) -I. -I.. -o $@ $<
 
 .PHONY: all clean
 clean:

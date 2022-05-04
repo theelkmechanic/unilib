@@ -220,6 +220,11 @@ start:
 
 
    ; Open a white-on-blue window at 5,5-15x70 with a border and title
+   ldx #<wintitle
+   ldy #>wintitle
+   jsr ulstr_fromUtf8
+   stx gREG::r3L
+   sty gREG::r3H
    lda #5
    sta gREG::r0L
    sta gREG::r0H
@@ -231,10 +236,6 @@ start:
    sta gREG::r2L
    lda #ULCOLOR::BLUE
    sta gREG::r2H
-   lda #<wintitle
-   sta gREG::r3L
-   lda #>wintitle
-   sta gREG::r3H
    stz gREG::r4L
    lda #$80
    sta gREG::r4H
@@ -243,11 +244,11 @@ start:
 
 @loop: bra @loop
 
-wintitle:   .word $0160, $014d, $006d, $0117
-            .word $0020, $0168, $014b, $012f
-            .word $0107, $0153, $010f, $0119
-            .word $0020, $012a, $0020, $0136
-            .word $0148, $0151, $0175, $0000
+wintitle:
+   .byte $48, $65, $72, $65, $27, $73, $20, $53
+   .byte $6f, $6d, $65, $20, $c5, $a8, $c5, $89
+   .byte $c3, $ae, $c2, $a9, $c3, $b6, $c3, $b0
+   .byte $c3, $a9, $20, $49, $20, $4b, $6e, $6f, $77, $00
 
 ;   ; Test memory alloc/free
 ;memhammer:   ldx #0
