@@ -259,6 +259,7 @@
                         jsr ULW_putcolor
                         jsr ULW_clear
                         jsr ULW_drawborder
+                        lda ULW_current_handle
 
                         ; Restore X/Y/bank/r5 and exit (A should already be set)
 @exit:                  plx

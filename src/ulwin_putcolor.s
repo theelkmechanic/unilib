@@ -7,9 +7,8 @@
 ;       X               - Foreground color
 ;       Y               - Background color
 .proc ulwin_putcolor
-@handle = gREG::r11L
                         ; Treat 0 as black (1), clip fg to $f
-                        sta @handle
+                        sta @get_handle+1
                         lda BANKSEL::RAM
                         pha
                         txa
@@ -23,7 +22,7 @@
 :                       pha
 
                         ; Access the window structure
-                        lda @handle
+@get_handle:            lda #$00
                         jsr ULW_getwinptr
                         stx ULW_scratch_fptr
                         sty ULW_scratch_fptr+1
@@ -36,7 +35,7 @@
                         ; Exit
 @exit:                  pla
                         sta BANKSEL::RAM
-                        lda @handle
+                        lda @get_handle+1
                         rts
 .endproc
 

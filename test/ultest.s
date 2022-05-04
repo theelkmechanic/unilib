@@ -2,14 +2,8 @@
 .include "cx16.inc"
 .include "cbm_kernal.inc"
 
-.global ULV_plotchar
-.global ULV_copyrect
 .global ULV_backbuf_offset
 .global ULV_setdirtylines
-.global ULVR_srcpos
-.global ULVR_destpos
-.global ULVR_size
-.global ULVR_color
 
 .segment "EXEHDR"
 
@@ -183,41 +177,6 @@ start:
    jsr ULV_setdirtylines
    jsr ulwin_refresh
 
-   ; Draw some test characters
-   lda #(ULCOLOR::BLACK << 4) | ULCOLOR::WHITE
-   sta ULVR_color
-
-   stz ULVR_destpos
-   stz ULVR_destpos+1
-   ldx #0
-   ldy #0
-@charloop:
-   lda #0
-   jsr ULV_plotchar
-   bcc @incchar
-   inc ULVR_destpos
-   lda ULVR_destpos
-   cmp #80
-   bne @incchar
-   stz ULVR_destpos
-   inc ULVR_destpos+1
-   jsr ulwin_refresh
-@incchar:
-   inx
-   bne @charloop
-   iny
-   cpy #3
-   bne :+
-   ldy #$1f
-   bra @charloop
-:  cpy #$27
-   bne :+
-   ldy #$df
-   bra @charloop
-:  cpy #$e1
-   bne @charloop
-   jsr ulwin_refresh
-
 
    ; Open a white-on-blue window at 5,5-15x70 with a border and title
    ldx #<wintitle
@@ -227,10 +186,11 @@ start:
    sty gREG::r3H
    lda #5
    sta gREG::r0L
+   lda #2
    sta gREG::r0H
    lda #70
    sta gREG::r1L
-   lda #15
+   lda #10
    sta gREG::r1H
    lda #ULCOLOR::WHITE
    sta gREG::r2L
@@ -240,6 +200,30 @@ start:
    lda #$80
    sta gREG::r4H
    jsr ulwin_open
+
+   ; Draw some test characters
+   stz gREG::r0L
+   stz gREG::r0H
+   stz gREG::r1L
+@charloop:
+   jsr ulwin_putchar
+   jsr ulwin_refresh
+   inc gREG::r0L
+   bne @charloop
+   inc gREG::r0H
+   ldy gREG::r0H
+   cpy #3
+   bne :+
+   ldy #$1f
+   sty gREG::r0H
+   bra @charloop
+:  cpy #$27
+   bne :+
+   ldy #$df
+   sty gREG::r0H
+   bra @charloop
+:  cpy #$e1
+   bne @charloop
    jsr ulwin_refresh
 
 @loop: bra @loop

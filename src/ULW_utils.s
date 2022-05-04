@@ -295,7 +295,7 @@ a_handy_rts:            rts
                         sta ULVR_color
                         ldx ULWR_char
                         ldy ULWR_char+1
-                        lda #0
+                        lda ULWR_char+2
                         jmp ULV_fillrect
 
                         ; The window is occluded, so we need to walk the window map and mark any blocks in the rectangle
