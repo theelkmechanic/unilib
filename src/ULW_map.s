@@ -34,6 +34,23 @@ ULW_temp_tilecount_hi   = $7c0
                         bra UL_map_exit
 .endproc
 
+; ulwin_force - Force the next refresh to completely repaint all windows to the display
+.proc ulwin_force
+                        ; Set the whole screen dirty
+                        pha
+                        lda #$ff
+                        sta ULW_WINDOW_COPY::handle
+                        stz ULWR_dest
+                        stz ULWR_dest+1
+                        lda #80
+                        sta ULWR_size
+                        lda #30
+                        sta ULWR_size+1
+                        .byte $24 ; skip pha at start of next function
+.endproc
+
+; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE ***
+
 ; ULW_set_dirty_rect - Mark a screen rectangle as dirty in the map
 ;   In: ULW_WINDOW_COPY::handle - Handle to match (0-63, negative=force dirty)
 ;       ULWR_dest       - Top/left of screen rectangle (L=column, H=line)
@@ -66,25 +83,55 @@ ULW_temp_tilecount_hi   = $7c0
 
 ; ULW_set_dirty_cell - Set the dirty bit for the cell if the window handle matches
 ;   In: A               - Map cell value (high bit = dirty flag, low 6 bits = window handle)
-;       ULW_temp_handle - Set dirty bit if window handle matches (negative = always set dirty bit)
+;       X               - Map cell screen column
+;       Y               - Map cell screen line
+;       ULW_WINDOW_COPY::handle - Set dirty bit if window handle matches (negative = always set dirty bit)
 .proc ULW_set_dirty_cell
+                        ; If dirty bit already set, just leave
+                        bit #$80
+                        bne @exit
+
                         ; Are we forcing?
                         bit ULW_WINDOW_COPY::handle
                         bmi @setit
 
                         ; Does the handle match?
-                        tax
-                        and #$3f
                         cmp ULW_WINDOW_COPY::handle
-                        beq @setit
-
-                        ; Keep the dirty bit
-@keepit:                txa
-                        .byte $2c
+                        bne @exit
 
                         ; Set the dirty bit
 @setit:                 ora #$80
-                        rts
+                        pha
+
+                        ; Add this cell to our dirty rect
+                        lda ULW_dirty
+                        bne @calc_mbr
+
+                        ; First dirty cell, so just use it
+                        dec ULW_dirty
+                        stx ULW_dirtyrect
+                        stx ULW_dirtyrect+2
+                        sty ULW_dirtyrect+1
+                        sty ULW_dirtyrect+3
+                        bra @restoreandexit
+
+                        ; Calculate the minimum bounding rectangle for the current dirty rect and our new cell
+@calc_mbr:              cpx ULW_dirtyrect
+                        bcs :+
+                        stx ULW_dirtyrect
+:                       cpx ULW_dirtyrect+2
+                        bcc :+
+                        stx ULW_dirtyrect+2
+:                       cpy ULW_dirtyrect+1
+                        bcs :+
+                        sty ULW_dirtyrect+1
+:                       cpy ULW_dirtyrect+3
+                        bcc @restoreandexit
+                        sty ULW_dirtyrect+3
+
+                        ; Restore the map cell result and exit
+@restoreandexit:        pla
+@exit:                  rts
 .endproc
 
 ; ULW_fill_map_and_count - Fill the scratch window rect in the map and update the counts
@@ -144,7 +191,10 @@ ULW_temp_tilecount_hi   = $7c0
 ; ULW_maprect_loop - Loop over a rectangle in the window map, calling a function for each cell
 ;   In: ULWR_dest       - Top/left of screen rectangle (L=column, H=line)
 ;       ULWR_size       - Size of screen rectangle (L=columns, H=lines)
-;       YX              - Function address to call for each cell
+;       YX              - Function address to call for each cell; passes the following:
+;                           * A = cell value
+;                           * X = cell column
+;                           * Y = cell line
 .proc ULW_maprect_loop
                         ; Update callback address
                         stx @cell_callback+1
@@ -158,44 +208,48 @@ ULW_temp_tilecount_hi   = $7c0
                         lda ULWR_dest+1
                         ldx #80
                         jsr ulmath_umul8_8
-                        txa
-                        clc
-                        adc ULWR_dest
-                        sta @column_loop+1
-                        sta @column_store+1
+                        stx @column_loop+1
+                        stx @column_store+1
                         tya
+                        clc
                         adc #>ULW_WINMAP
                         sta @column_loop+2
                         sta @column_store+2
 
-                        ; Start each line at last column, and loop over all lines
-                        lda ULWR_size
-                        dec
-                        sta @line_loop+1
-                        lda ULWR_size+1
-                        sta @line_count
+                        ; Calculate our end column index
+                        lda ULWR_dest
+                        clc
+                        adc ULWR_size
+                        sta @column_endcheck+1
+                        lda ULWR_dest+1
+                        clc
+                        adc ULWR_size+1
+                        sta @line_endcheck+1
 
-                        ; Initialize Y for each line 
-@line_loop:             ldy #$00
+                        ; Initialize X for each line
+                        ldy ULWR_dest+1
+@line_loop:             ldx ULWR_dest
 
                         ; Read the existing value in the map
-@column_loop:           lda ULW_WINMAP,y
+@column_loop:           lda ULW_WINMAP,x
 
-                        ; Call the function to modify the value (save/restore Y because we need it)
+                        ; Call the function to modify the value
+                        phx
                         phy
 @cell_callback:         jsr $0000
                         ply
+                        plx
 
                         ; Store the updated value and step to the next column
-@column_store:          sta ULW_WINMAP,y
-                        dey
-                        bpl @column_loop
+@column_store:          sta ULW_WINMAP,x
+                        inx
+@column_endcheck:       cpx #$00
+                        bne @column_loop
 
                         ; Check if done
-                        dec @line_count
-                        bne :+
-                        rts
-@line_count:            .byte   $00
+                        iny
+@line_endcheck:         cpy #$00
+                        beq somebodys_rts
 
                         ; Add one line
 :                       lda @column_loop+1
@@ -238,8 +292,8 @@ ULW_temp_tilecount_hi   = $7c0
 :                       pla
                         and #$c0
                         ora ULW_WINDOW_COPY::handle
-                        rts
 .endproc
+somebodys_rts:          rts
 
 ; ULW_update_coverflags - Update window occluded/covered status based on tile count results
 ;   In: BANKSEL::RAM/ULW_scratch_fptr - Address/bank of window structure
@@ -340,3 +394,8 @@ ULW_temp_tilecount_hi   = $7c0
                         sta ULW_scratch_fptr
                         bra @winlist_loop
 .endproc
+
+.bss
+
+ULW_dirty:              .res    1   ; Dirty flag (set if there is a dirty rect)
+ULW_dirtyrect:          .res    4   ; Dirty rectangle (top/left/bottom/right cell)

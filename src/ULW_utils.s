@@ -273,9 +273,8 @@ a_handy_rts:            rts
                         ;   - visible, we can fill it in the screen backbuffer immediately
                         ;   - occluded, we mark the visible portions of the rectangle as dirty
                         ;   - covered, we don't need to do anything
-                        lda #$01
-                        bit ULW_WINDOW_COPY::flags
-                        bne @done
+                        bit ULW_WINDOW_COPY::status
+                        bmi @done
                         bvs @occluded
 
                         ; The window is visible, so we can fill the rectangle immediately in the backbuffer

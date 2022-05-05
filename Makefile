@@ -40,7 +40,6 @@ WIN_OBJS = \
 	$(OBJDIR)/ulwin_errorcfg.o \
 	$(OBJDIR)/ulwin_flash.o \
 	$(OBJDIR)/ulwin_flashwait.o \
-	$(OBJDIR)/ulwin_force.o \
 	$(OBJDIR)/ulwin_getchar.o \
 	$(OBJDIR)/ulwin_getcolor.o \
 	$(OBJDIR)/ulwin_getcolumn.o \

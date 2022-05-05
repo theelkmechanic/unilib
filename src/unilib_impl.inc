@@ -155,6 +155,8 @@ ULWS_COVERED    = $80
 .global ULW_maprect_loop
 .global ULW_update_occlusion
 .global ULW_set_dirty_rect
+.global ULW_dirty
+.global ULW_dirtyrect
 ULW_WINMAP = $AE00
 
 .global ULW_getwinbufptr

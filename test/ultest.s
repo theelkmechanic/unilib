@@ -177,14 +177,39 @@ start:
    jsr ULV_setdirtylines
    jsr ulwin_refresh
 
-
-   ; Open a white-on-blue window at 5,5-15x70 with a border and title
+   ; Allocate our title string
    ldx #<wintitle
    ldy #>wintitle
    jsr ulstr_fromUtf8
-   stx gREG::r3L
-   sty gREG::r3H
-   lda #5
+   stx titlestr
+   sty titlestr+1
+
+   ; Open a yellow-on-brown window at 8,2-10x70 with a border and title
+   lda #2
+   sta gREG::r0L
+   lda #8
+   sta gREG::r0H
+   lda #70
+   sta gREG::r1L
+   lda #10
+   sta gREG::r1H
+   lda #ULCOLOR::YELLOW
+   sta gREG::r2L
+   lda #ULCOLOR::BROWN
+   sta gREG::r2H
+   lda titlestr
+   sta gREG::r3L
+   lda titlestr+1
+   sta gREG::r3H
+   stz gREG::r4L
+   lda #$80
+   sta gREG::r4H
+   jsr ulwin_open
+   sta window1
+
+
+   ; Open a white-on-blue window at 2,8-10x70 with a border and title
+   lda #8
    sta gREG::r0L
    lda #2
    sta gREG::r0H
@@ -196,43 +221,59 @@ start:
    sta gREG::r2L
    lda #ULCOLOR::BLUE
    sta gREG::r2H
+   lda titlestr
+   sta gREG::r3L
+   lda titlestr+1
+   sta gREG::r3H
    stz gREG::r4L
    lda #$80
    sta gREG::r4H
    jsr ulwin_open
+   sta window2
 
-   ; Draw some test characters
+   ; Draw chars in top window
+   jsr dumpchars
+
+   ; Draw chars in occluded window
+   lda window1
+   jsr dumpchars
+
+@loop: bra @loop
+
+dumpchars:
+   ; Draw some test characters in a window
    stz gREG::r0L
    stz gREG::r0H
    stz gREG::r1L
-@charloop:
+@charloop2:
    jsr ulwin_putchar
-   jsr ulwin_refresh
    inc gREG::r0L
-   bne @charloop
+   bne @charloop2
    inc gREG::r0H
    ldy gREG::r0H
    cpy #3
    bne :+
    ldy #$1f
    sty gREG::r0H
-   bra @charloop
+   bra @charloop2
 :  cpy #$27
    bne :+
    ldy #$df
    sty gREG::r0H
-   bra @charloop
+   bra @charloop2
 :  cpy #$e1
-   bne @charloop
-   jsr ulwin_refresh
-
-@loop: bra @loop
+   bne @charloop2
+   jmp ulwin_refresh
 
 wintitle:
    .byte $48, $65, $72, $65, $27, $73, $20, $53
    .byte $6f, $6d, $65, $20, $c5, $a8, $c5, $89
    .byte $c3, $ae, $c2, $a9, $c3, $b6, $c3, $b0
    .byte $c3, $a9, $20, $49, $20, $4b, $6e, $6f, $77, $00
+
+titlestr:   .word 0
+window1: .byte 0
+window2: .byte 0
 
 ;   ; Test memory alloc/free
 ;memhammer:   ldx #0

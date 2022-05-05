@@ -66,20 +66,18 @@
                         dec
 :                       tax
                         bmi @bad_params
-                        ldy #ULW_WINDOW::elin
                         lda @new_elin
                         bit @new_flags
-                        bpl :+
-                        inc
-:                       inc
+                        bmi :+
+                        dec
+:                       ldy #ULW_WINDOW::elin
                         cmp (ULW_screen_fptr),y
                         bcs @bad_params
-                        ldy #ULW_WINDOW::ecol
                         lda @new_ecol
                         bit @new_flags
-                        bpl :+
-                        inc
-:                       inc
+                        bmi :+
+                        dec
+:                       ldy #ULW_WINDOW::ecol
                         cmp (ULW_screen_fptr),y
                         bcs @bad_params
 
@@ -139,6 +137,7 @@
 
                         ; Get our window structure into the scratch pointer
                         ldy ULW_newwin_brp+1
+                        sty ULW_scratch_fptr+2
                         jsr ulmem_access
                         stx ULW_scratch_fptr
                         sty ULW_scratch_fptr+1
@@ -230,13 +229,29 @@
                         lda ULW_current_fptr+2
                         sta (ULW_scratch_fptr),y
 
+                        ; And set new window as next to our current one (if there is a current one)
+                        lda ULW_current_fptr+2
+                        beq :+
+                        sta BANKSEL::RAM
+                        iny
+                        iny
+                        lda ULW_scratch_fptr
+                        sta (ULW_current_fptr),y
+                        iny
+                        lda ULW_scratch_fptr+1
+                        sta (ULW_current_fptr),y
+                        iny
+                        lda ULW_scratch_fptr+2
+                        sta (ULW_current_fptr),y
+
                         ; Then set new window as current (and as screen if it's the first),
                         ; and fill in the window map
-                        lda ULW_scratch_fptr
+:                       lda ULW_scratch_fptr
                         sta ULW_current_fptr
                         ldy ULW_scratch_fptr+1
                         sty ULW_current_fptr+1
-                        lda BANKSEL::RAM
+                        lda ULW_scratch_fptr+2
+                        sta BANKSEL::RAM
                         sta ULW_current_fptr+2
                         lda ULW_newwin_handle
                         ldx ULW_screen_fptr+2
