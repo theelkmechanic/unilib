@@ -43,9 +43,9 @@ ULW_temp_tilecount_hi   = $7c0
                         stz ULWR_dest
                         stz ULWR_dest+1
                         lda #80
-                        sta ULWR_size
+                        sta ULWR_destsize
                         lda #30
-                        sta ULWR_size+1
+                        sta ULWR_destsize+1
                         .byte $24 ; skip pha at start of next function
 .endproc
 
@@ -54,7 +54,7 @@ ULW_temp_tilecount_hi   = $7c0
 ; ULW_set_dirty_rect - Mark a screen rectangle as dirty in the map
 ;   In: ULW_WINDOW_COPY::handle - Handle to match (0-63, negative=force dirty)
 ;       ULWR_dest       - Top/left of screen rectangle (L=column, H=line)
-;       ULWR_size       - Size of screen rectangle (L=columns, H=lines)
+;       ULWR_destsize   - Size of screen rectangle (L=columns, H=lines)
 .proc ULW_set_dirty_rect
                         ; Save A/X/Y/bank
                         pha
@@ -138,11 +138,7 @@ ULW_temp_tilecount_hi   = $7c0
 ;   In: BANKSEL::RAM/ULW_scratch_fptr - Address/bank of window structure
 .proc ULW_fill_map_and_count
                         ; Save the window info we need
-                        ldy #ULW_WINDOW::ccol
-:                       lda (ULW_scratch_fptr),y
-                        sta ULW_WINDOW_COPY::handle,y
-                        dey
-                        bpl :-
+                        jsr ULW_copywinstruct
 
                         ; Adjust for border
                         ldy ULW_WINDOW_COPY::scol
@@ -160,8 +156,8 @@ ULW_temp_tilecount_hi   = $7c0
                         inc
 :                       
                         sty ULWR_dest+1
-                        stx ULWR_size+1
-                        sta ULWR_size
+                        stx ULWR_destsize+1
+                        sta ULWR_destsize
 
                         ; Calculate the total number of tiles for the window
                         jsr ulmath_umul8_8
@@ -169,9 +165,7 @@ ULW_temp_tilecount_hi   = $7c0
                         phx
 
                         ; Save the window handle
-                        lda (ULW_scratch_fptr)
-                        sta ULW_WINDOW_COPY::handle
-                        tax
+                        ldx ULW_WINDOW_COPY::handle
 
                         ; Store the total number of tiles for this window, and clear the count
                         pla
@@ -190,7 +184,7 @@ ULW_temp_tilecount_hi   = $7c0
 
 ; ULW_maprect_loop - Loop over a rectangle in the window map, calling a function for each cell
 ;   In: ULWR_dest       - Top/left of screen rectangle (L=column, H=line)
-;       ULWR_size       - Size of screen rectangle (L=columns, H=lines)
+;       ULWR_destsize   - Size of screen rectangle (L=columns, H=lines)
 ;       YX              - Function address to call for each cell; passes the following:
 ;                           * A = cell value
 ;                           * X = cell column
@@ -219,11 +213,11 @@ ULW_temp_tilecount_hi   = $7c0
                         ; Calculate our end column index
                         lda ULWR_dest
                         clc
-                        adc ULWR_size
+                        adc ULWR_destsize
                         sta @column_endcheck+1
                         lda ULWR_dest+1
                         clc
-                        adc ULWR_size+1
+                        adc ULWR_destsize+1
                         sta @line_endcheck+1
 
                         ; Initialize X for each line
@@ -252,7 +246,7 @@ ULW_temp_tilecount_hi   = $7c0
                         beq somebodys_rts
 
                         ; Add one line
-:                       lda @column_loop+1
+                        lda @column_loop+1
                         clc
                         adc #80
                         sta @column_loop+1

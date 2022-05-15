@@ -44,16 +44,3 @@
                         lda @handle
                         rts
 .endproc
-
-.proc ULW_putcursor
-                        ; Set cursor line
-                        tya
-                        ldy #ULW_WINDOW::clin
-                        sta (ULW_scratch_fptr),y
-
-                        ; Set cursor column
-                        txa
-                        ldy #ULW_WINDOW::ccol
-                        sta (ULW_scratch_fptr),y
-                        rts
-.endproc

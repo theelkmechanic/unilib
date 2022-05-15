@@ -238,6 +238,62 @@ start:
    lda window1
    jsr dumpchars
 
+   ; Scroll top window
+   lda window2
+   ldy #$ff
+   ldx #0
+   jsr ulwin_scroll
+   ;jsr ulwin_refresh
+   jsr ulwin_scroll
+   ;jsr ulwin_refresh
+   jsr ulwin_scroll
+   ;jsr ulwin_refresh
+   ldy #1
+   jsr ulwin_scroll
+   ;jsr ulwin_refresh
+   jsr ulwin_scroll
+   ;jsr ulwin_refresh
+   ldy #0
+   ldx #3
+   jsr ulwin_scroll
+   ;jsr ulwin_refresh
+   jsr ulwin_scroll
+   ;jsr ulwin_refresh
+   jsr ulwin_scroll
+   ;jsr ulwin_refresh
+   ldx #$fd
+   jsr ulwin_scroll
+   ;jsr ulwin_refresh
+   jsr ulwin_scroll
+   ;jsr ulwin_refresh
+
+   ; Scroll occluded window
+   lda window1
+   ldy #$1
+   ldx #0
+   jsr ulwin_scroll
+   jsr ulwin_refresh
+   jsr ulwin_scroll
+   jsr ulwin_refresh
+   jsr ulwin_scroll
+   jsr ulwin_refresh
+   jsr ulwin_scroll
+   jsr ulwin_refresh
+   ldy #$ff
+   jsr ulwin_scroll
+   jsr ulwin_refresh
+   ldy #0
+   ldx #$fa
+   jsr ulwin_scroll
+   jsr ulwin_refresh
+   jsr ulwin_scroll
+   jsr ulwin_refresh
+   jsr ulwin_scroll
+   jsr ulwin_refresh
+   ldx #2
+   jsr ulwin_scroll
+   jsr ulwin_refresh
+
 @loop: bra @loop
 
 dumpchars:
@@ -247,6 +303,7 @@ dumpchars:
    stz gREG::r1L
 @charloop2:
    jsr ulwin_putchar
+;   jsr ulwin_refresh
    inc gREG::r0L
    bne @charloop2
    inc gREG::r0H
@@ -263,7 +320,8 @@ dumpchars:
    bra @charloop2
 :  cpy #$e1
    bne @charloop2
-   jmp ulwin_refresh
+   rts
+;   jmp ulwin_refresh
 
 wintitle:
    .byte $48, $65, $72, $65, $27, $73, $20, $53

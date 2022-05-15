@@ -26,22 +26,3 @@
                         pla
                         rts
 .endproc
-
-; ULW_getloc - Internal get location helper
-;   In: BANKSEL::RAM/ULW_scratch_fptr - pointer to window structure
-;  Out: X               - Start column
-;       Y               - Start line
-.proc ULW_getloc
-                        ; Start column
-                        pha
-                        ldy #ULW_WINDOW::scol
-                        lda (ULW_scratch_fptr),y
-                        tax
-
-                        ; Start line
-                        ldy #ULW_WINDOW::slin
-                        lda (ULW_scratch_fptr),y
-                        tay
-                        pla
-                        rts
-.endproc

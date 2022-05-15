@@ -88,7 +88,7 @@
                         sta ULWR_char+1
                         lda #$01
                         sta ULWR_char
-                        sta ULWR_size+1
+                        sta ULWR_destsize+1
                         lda ULW_boxleft
                         inc
                         sta ULWR_dest
@@ -96,7 +96,7 @@
                         sec
                         sbc ULW_boxleft
                         dec
-                        sta ULWR_size
+                        sta ULWR_destsize
                         lda ULW_WINDOW_COPY::color
                         sta ULWR_color
                         lda ULW_boxtop
@@ -110,12 +110,12 @@
                         lda #$03
                         sta ULWR_char
                         lda #1
-                        sta ULWR_size
+                        sta ULWR_destsize
                         lda ULW_boxbottom
                         sec
                         sbc ULW_boxtop
                         dec
-                        sta ULWR_size+1
+                        sta ULWR_destsize+1
                         lda ULW_boxtop
                         inc
                         sta ULWR_dest+1

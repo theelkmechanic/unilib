@@ -22,12 +22,12 @@
                         inc
                         sec
                         sbc ULW_dirtyrect
-                        sta ULWR_size
+                        sta ULWR_destsize
                         lda ULW_dirtyrect+3
                         inc
                         sec
                         sbc ULW_dirtyrect+1
-                        sta ULWR_size+1
+                        sta ULWR_destsize+1
                         ldx #<ULW_drawdirty
                         ldy #>ULW_drawdirty
                         stz ULW_WINDOW_COPY::handle

@@ -66,14 +66,14 @@
 .struct ULW_WINDOW
 handle      .byte   ; Window handle
 flags       .byte   ; Flags: 0x80 - border, 0x40 - occluded, 0x01 - completely covered
-slin        .byte   ; Start screen line of the inside of the window
-nlin        .byte   ; Number of lines in the window
-elin        .byte   ; Start screen line of the inside of the window + number of lines in the window
-clin        .byte   ; Current cursor line inside the window
 scol        .byte   ; Start screen column of the inside of the window
+slin        .byte   ; Start screen line of the inside of the window
 ncol        .byte   ; Number of columns in the window
+nlin        .byte   ; Number of lines in the window
 ecol        .byte   ; Start screen column of the inside of the window + number of columns in the window
+elin        .byte   ; Start screen line of the inside of the window + number of lines in the window
 ccol        .byte   ; Current cursor column inside the window
+clin        .byte   ; Current cursor line inside the window
 color       .byte   ; Normal text color (low nibble = foreground, high nibble = background)
 emcolor     .byte   ; Emphasis text color (low nibble = foreground, high nibble = background)
 charbuf     .word   ; BRP to window character buffer (3 bytes for each tile in the window)
@@ -94,14 +94,14 @@ next_bank   .byte   ; Bank RAM page of next window structure (0 if none)
             .org $06e0
 handle      .byte   ; Window handle
 flags       .byte   ; Flags: 0x80 - border
-slin        .byte   ; Start screen line of the inside of the window
-nlin        .byte   ; Number of lines in the window
-elin        .byte   ; Start screen line of the inside of the window + number of lines in the window
-clin        .byte   ; Current cursor line inside the window
 scol        .byte   ; Start screen column of the inside of the window
+slin        .byte   ; Start screen line of the inside of the window
 ncol        .byte   ; Number of columns in the window
+nlin        .byte   ; Number of lines in the window
 ecol        .byte   ; Start screen column of the inside of the window + number of columns in the window
+elin        .byte   ; Start screen line of the inside of the window + number of lines in the window
 ccol        .byte   ; Current cursor column inside the window
+clin        .byte   ; Current cursor line inside the window
 color       .byte   ; Normal text color (low nibble = foreground, high nibble = background)
 emcolor     .byte   ; Emphasis text color (low nibble = foreground, high nibble = background)
 charbuf     .word   ; BRP to window character buffer (3 bytes for each tile in the window)
@@ -128,11 +128,17 @@ ULWS_COVERED    = $80
 .global ULW_drawstring
 .global ULW_fillrect
 .global ULW_clearrect
+.global ULW_copyrect
 .global ULWR_src
+.global ULWR_srcsize
 .global ULWR_dest
-.global ULWR_size
+.global ULWR_destsize
 .global ULWR_char
 .global ULWR_color
+
+.global ULW_intersectsrc
+.global ULW_intersectdest
+.global ULW_intersectrect
 
 .global ULW_box
 .global ULW_boxtop
@@ -163,6 +169,7 @@ ULW_WINMAP = $AE00
 .global ULW_linelen
 .global ULW_linestride
 .globalzp ULW_winbufptr
+.globalzp ULW_winsrcptr
 
 .globalzp ULW_screen_fptr
 .globalzp ULW_current_fptr

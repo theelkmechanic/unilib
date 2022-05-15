@@ -77,7 +77,7 @@
                         bit @new_flags
                         bmi :+
                         dec
-:                       ldy #ULW_WINDOW::ecol
+:                       dey
                         cmp (ULW_screen_fptr),y
                         bcs @bad_params
 
@@ -191,23 +191,22 @@
                         lda @new_flags
                         sta (ULW_scratch_fptr),y
                         iny
-                        lda @new_slin
-                        sta (ULW_scratch_fptr),y
-                        iny
-                        lda @new_nlin
-                        sta (ULW_scratch_fptr),y
-                        iny
-                        lda @new_elin
-                        sta (ULW_scratch_fptr),y
-                        iny
-                        iny
                         lda @new_scol
+                        sta (ULW_scratch_fptr),y
+                        iny
+                        lda @new_slin
                         sta (ULW_scratch_fptr),y
                         iny
                         lda @new_ncol
                         sta (ULW_scratch_fptr),y
                         iny
+                        lda @new_nlin
+                        sta (ULW_scratch_fptr),y
+                        iny
                         lda @new_ecol
+                        sta (ULW_scratch_fptr),y
+                        iny
+                        lda @new_elin
                         sta (ULW_scratch_fptr),y
 
                         ; Save the title string

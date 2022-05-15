@@ -17,7 +17,8 @@ CORE_OBJS = \
 
 MATH_OBJS = \
 	$(OBJDIR)/ulmath_idiv.o \
-	$(OBJDIR)/ulmath_imul.o
+	$(OBJDIR)/ulmath_imul.o \
+	$(OBJDIR)/ulmath_signed.o
 
 MEM_OBJS = \
 	$(OBJDIR)/ulmem.o

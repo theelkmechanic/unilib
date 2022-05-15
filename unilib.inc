@@ -4,10 +4,13 @@
 .global ul_isprint          ; AYX = Unicode character; carry set if printable (i.e., ulwin_putchar will advance cursor)
 
 ; Integer math functions
-.global ulmath_udiv8_8        ; X / A => X, remainder => A
-.global ulmath_udiv16_8       ; YX / A => YX, remainder => A
-.global ulmath_umul8_8        ; X * A => YX
-.global ulmath_umul16_8       ; YX * A => AYX
+.global ulmath_abs_8        ; A => |A|
+.global ulmath_negate_8     ; A => -A
+.global ulmath_scmp8_8      ; A < X => carry clear, A >= X => carry set
+.global ulmath_udiv8_8      ; X / A => X, remainder => A
+.global ulmath_udiv16_8     ; YX / A => YX, remainder => A
+.global ulmath_umul8_8      ; X * A => YX
+.global ulmath_umul16_8     ; YX * A => AYX
 
 ; Banked RAM allocation functions - work on banked RAM "pointers" (BRPs), which are two bytes:
 ;  - High byte = RAM bank

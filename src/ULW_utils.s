@@ -4,6 +4,78 @@
 
 .code
 
+; ULW_getend - Internal get end line/column helper
+;   In: BANKSEL::RAM/ULW_scratch_fptr - pointer to window structure
+;  Out: X               - End column (start column + number of columns)
+;       Y               - End line (start line + number of lines)
+.proc ULW_getend
+                        ; End column
+                        ldy #ULW_WINDOW::ecol
+                        .byte $2c ; skip next instruction
+.endproc
+
+; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
+
+; ULW_getcursor - Internal get cursor line/column helper
+;   In: BANKSEL::RAM/ULW_scratch_fptr - pointer to window structure
+;  Out: X               - Cursor column
+;       Y               - Cursor line
+.proc ULW_getcursor
+                        ; Cursor column
+                        ldy #ULW_WINDOW::ccol
+                        .byte $2c ; skip next instruction
+.endproc
+
+; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
+
+; ULW_getsize - Internal get size helper
+;   In: BANKSEL::RAM/ULW_scratch_fptr - pointer to window structure
+;  Out: X               - Number of columns
+;       Y               - Number of lines
+.proc ULW_getsize
+                        ; Number of columns
+                        ldy #ULW_WINDOW::ncol
+                        .byte $2c ; skip next instruction
+.endproc
+
+; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
+
+; ULW_getloc - Internal get location helper
+;   In: BANKSEL::RAM/ULW_scratch_fptr - pointer to window structure
+;  Out: X               - Start column
+;       Y               - Start line
+.proc ULW_getloc
+                        ; Start column
+                        ldy #ULW_WINDOW::scol
+                        pha
+                        lda (ULW_scratch_fptr),y
+                        tax
+
+                        ; And next value
+                        iny
+                        lda (ULW_scratch_fptr),y
+                        tay
+                        pla
+                        rts
+.endproc
+
+; ULW_putcursor - Internal put cursor line/column helper
+;   In: BANKSEL::RAM/ULW_scratch_fptr - pointer to window structure
+;       X               - Cursor column
+;       Y               - Cursor line
+.proc ULW_putcursor
+                        ; Set cursor line
+                        tya
+                        ldy #ULW_WINDOW::clin
+ULW_putpair:            sta (ULW_scratch_fptr),y
+
+                        ; And set previous entry
+                        txa
+                        dey
+                        sta (ULW_scratch_fptr),y
+                        rts
+.endproc
+
 ; ULW_getwinstruct - access window structure and copy to known location
 ;   In: A               - Window handle
 ;  Out: ULW_scratch_ptr - Pointer to actual window structure
@@ -79,6 +151,133 @@
                         jmp UL_terminate
 .endproc
 
+; ULW_intersectsrc - Intersect ULWR_src with the window content area
+;   In: ULW_WINDOW_COPY - Window structure
+;       ULW_src         - Rectangle to intersect
+;  Out: ULW_src         - Updated to intersection rectangle
+.proc ULW_intersectsrc
+                        ; Store ULW_dest pointer in r11
+                        lda #<ULWR_dest
+                        sta gREG::r11L
+                        lda #>ULWR_dest
+                        sta gREG::r11H
+                        bra ULW_intersectwindow
+.endproc
+
+; ULW_intersectdest - Intersect ULWR_dest with the window content area
+;   In: ULW_WINDOW_COPY - Window structure
+;       ULW_dest        - Rectangle to intersect
+;  Out: ULW_dest        - Updated to intersection rectangle
+.proc ULW_intersectdest
+                        ; Store ULW_dest pointer in r11
+                        lda #<ULWR_dest
+                        sta gREG::r11L
+                        lda #>ULWR_dest
+                        sta gREG::r11H
+.endproc
+
+; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
+
+                        ; Store ULW_WINDOW_COPY rect pointer in r12
+ULW_intersectwindow:    lda #<ULW_WINDOW_COPY::scol
+                        sta gREG::r12L
+                        lda #>ULW_WINDOW_COPY::scol
+                        sta gREG::r12H
+
+; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
+
+; ULW_intersectrect - Intersect two rectangles
+;   In: r11             - Pointer to first rectangle (top/left/height/width)
+;       r12             - Pointer to second rectangle (top/left/height/width)
+;  Out: (r11)           - Updated to intersection rectangle
+.proc ULW_intersectrect
+                        ; Convert rectangles to start/end format
+                        ldy #2
+                        lda (gREG::r11)
+                        clc
+                        adc (gREG::r11),y
+                        dec
+                        sta (gREG::r11),y
+                        lda (gREG::r12)
+                        clc
+                        adc (gREG::r12),y
+                        dec
+                        sta (gREG::r12),y
+                        dey
+                        lda (gREG::r11),y
+                        iny
+                        iny
+                        clc
+                        adc (gREG::r11),y
+                        dec
+                        sta (gREG::r11),y
+                        dey
+                        dey
+                        lda (gREG::r12),y
+                        iny
+                        iny
+                        clc
+                        adc (gREG::r12),y
+                        dec
+                        
+                        ; If we don't sta (gREG::r12),y here, we don't have to restore it later
+
+                        ; Intersection is the max of the mins and the min of the maxes; start with end cols and work backwards
+                        ; NOTE: Have to do signed comparisons here or scrolling will break badly
+                        pha
+                        lda (gREG::r11),y
+                        tax
+                        pla
+                        jsr ulmath_scmp8_8
+                        bcs :+
+                        sta (gREG::r11),y
+:                       dey
+                        lda (gREG::r11),y
+                        tax
+                        lda (gREG::r12),y
+                        jsr ulmath_scmp8_8
+                        bcs :+
+                        sta (gREG::r11),y
+:                       dey
+                        lda (gREG::r11),y
+                        tax
+                        lda (gREG::r12),y
+                        jsr ulmath_scmp8_8
+                        bcc :+
+                        sta (gREG::r11),y
+:                       dey
+                        lda (gREG::r11),y
+                        tax
+                        lda (gREG::r12),y
+                        jsr ulmath_scmp8_8
+                        bcc :+
+                        sta (gREG::r11),y
+
+                        ; Convert rectangles back to start/size format (never stored r12H so don't need to fix it)
+:                       ldy #2
+                        lda (gREG::r11),y
+                        sec
+                        sbc (gREG::r11)
+                        inc
+                        sta (gREG::r11),y
+                        lda (gREG::r12),y
+                        sec
+                        sbc (gREG::r12)
+                        inc
+                        sta (gREG::r12),y
+                        iny
+                        lda (gREG::r11),y
+                        dey
+                        dey
+                        sec
+                        sbc (gREG::r11),y
+                        inc
+                        iny
+                        iny
+                        sta (gREG::r11),y
+                        rts
+.endproc
+
 ; ULW_getwinbufptr - access the scratch window buffer pointer for a given location in the window (and calculate line length/stride)
 ;   In: ULW_scratch_fptr/BANKSEL::RAM/ULW_WINDOW_COPY - Window structure
 ;       X                               - Column in window contents
@@ -150,6 +349,7 @@
                         sta ULW_winbufptr+1
                         pla
                         beq a_handy_rts
+                        ldy #0
                         bit ULW_carryflag
                         bmi :+
                         ldx #3
@@ -161,13 +361,16 @@
                         tya
                         adc ULW_winbufptr+1
                         sta ULW_winbufptr+1
+
+                        ; Take the char/color flag back out of ULW_carryflag
+                        rol ULW_carryflag
 .endproc
 a_handy_rts:            rts
 
 ; ULW_clearrect - clear a rectangle in a window with a specific color
 ;   In: ULW_scratch_fptr/BANKSEL::RAM/ULW_WINDOW_COPY - Window structure
 ;       ULWR_dest       - Top/left in window contents (L=column, H=line)
-;       ULWR_size       - Size in window contents (L=columns, H=lines)
+;       ULWR_destsize   - Size in window contents (L=columns, H=lines)
 ;       ULWR_color      - Color (fg=low nibble, bg=high nibble)
 .proc ULW_clearrect
                         ; This is just a fillrect with a space
@@ -227,7 +430,7 @@ a_handy_rts:            rts
 
                         ; Print the title string
                         pla
-                        sta ULWR_size
+                        sta ULWR_destsize
                         ldx ULW_WINDOW_COPY::title
                         ldy ULW_WINDOW_COPY::title+1
                         jsr ULW_drawstring
@@ -252,8 +455,8 @@ a_handy_rts:            rts
 .proc ULW_drawchar
                         ; This is just a fillrect with size 1x1
                         lda #1
-                        sta ULWR_size
-                        sta ULWR_size+1
+                        sta ULWR_destsize
+                        sta ULWR_destsize+1
 .endproc
 
 ; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
@@ -261,7 +464,7 @@ a_handy_rts:            rts
 ; ULW_fillrect - fill a rectangle in a window with a specific character/color
 ;   In: ULW_scratch_fptr/BANKSEL::RAM/ULW_WINDOW_COPY - Window structure
 ;       ULWR_dest       - Top/left in window contents (L=column, H=line)
-;       ULWR_size       - Size in window contents (L=columns, H=lines)
+;       ULWR_destsize   - Size in window contents (L=columns, H=lines)
 ;       ULWR_char       - UTF-16 character
 ;       ULWR_color      - Color (fg=low nibble, bg=high nibble)
 .proc ULW_fillrect
@@ -286,9 +489,9 @@ a_handy_rts:            rts
                         clc
                         adc ULW_WINDOW_COPY::slin
                         sta ULVR_destpos+1
-                        lda ULWR_size
+                        lda ULWR_destsize
                         sta ULVR_size
-                        lda ULWR_size+1
+                        lda ULWR_destsize+1
                         sta ULVR_size+1
                         lda ULWR_color
                         sta ULVR_color
@@ -340,9 +543,9 @@ ULW_fillrect_charorcolor:
                         jsr ULW_getwinbufptr
 
                         ; Need to fill nlin lines with our character/color pattern
-                        lda ULWR_size+1
+                        lda ULWR_destsize+1
                         sta ULW_linecount
-                        ldx ULWR_size
+                        ldx ULWR_destsize
                         bit ULW_carryflag
                         bmi :+
                         lda #3
@@ -380,7 +583,7 @@ linefill_cmp:           cpy #$00
 ; ULW_drawstring - draw a string into a window at a specific location in a specific color
 ;   In: ULW_scratch_fptr/BANKSEL::RAM/ULW_WINDOW_COPY - Window structure
 ;       ULWR_dest       - Top/left in window contents (L=column, H=line)
-;       ULWR_size       - Low byte = max length in characters (0 = whole string)
+;       ULWR_destsize   - Low byte = max length in characters (0 = whole string)
 ;       ULWR_color      - Color (fg=low nibble, bg=high nibble)
 ;       YX              - String BRP
 ;  Out: A               - Number of characters drawn
@@ -394,14 +597,14 @@ linefill_cmp:           cpy #$00
                         lda ULW_WINDOW_COPY::ncol
                         sec
                         sbc ULWR_dest
-                        cmp ULWR_size
+                        cmp ULWR_destsize
                         bcc :+
-                        lda ULWR_size
+                        lda ULWR_destsize
 :                       clc
                         adc ULWR_dest
-                        sta @lastcol
+                        sta @lastcol_check+1
                         lda ULWR_dest
-                        sta @startcol
+                        sta @startcol_sub+1
 
                         ; Write our string characters/color to the line
 :                       jsr ULS_nextchar
@@ -418,18 +621,198 @@ linefill_cmp:           cpy #$00
                         ; Step ahead one cell if we printed something
                         bcc :-
                         inc ULWR_dest
-                        cmp @lastcol
+@lastcol_check:         cmp #$00
                         bcc :-
 
                         ; Number of characters printed is ULWR_dest-@startcol
 @written:               lda ULWR_dest
                         sec
-                        sbc @startcol
-                        ldx @startcol
+@startcol_sub:          sbc #$00
+                        ldx @startcol_sub+1
                         stx ULWR_dest
                         rts
-@startcol:              .byte $00
-@lastcol:               .byte $00
+.endproc
+
+; ULW_copyrect - Copy a rectangle within window contents to a new location in the window
+;   In: ULW_scratch_fptr/BANKSEL::RAM/ULW_WINDOW_COPY - Window structure
+;       ULWR_src        - Top/left of source (L=column, H=line)
+;       ULWR_dest       - Top/left of destination (L=column, H=line)
+;       ULWR_destsize   - Size of rectangle (L=columns, H=lines)
+.proc ULW_copyrect
+                        ; Save the src/dest/size for later
+                        lda ULWR_src
+                        sta ULVR_srcpos
+                        lda ULWR_src+1
+                        sta ULVR_srcpos+1
+                        lda ULWR_dest
+                        sta ULVR_destpos
+                        lda ULWR_dest+1
+                        sta ULVR_destpos+1
+                        lda ULWR_destsize
+                        sta ULVR_size
+                        lda ULWR_destsize+1
+                        sta ULVR_size+1
+
+                        ; Moving left or right? (ULW_carryflag:$80 will be set if moving right)
+                        lda ULWR_dest
+                        cmp ULWR_src
+                        ror ULW_carryflag
+
+                        ; Moving up or down? (Store appropriate line advance instructions)
+                        lda ULWR_src+1
+                        cmp ULWR_dest+1
+                        bcs :+
+
+                        ; When moving down, need to start at last line
+                        clc
+                        adc ULWR_destsize+1
+                        dec
+                        sta ULWR_src+1
+                        lda ULWR_dest+1
+                        clc
+                        adc ULWR_destsize+1
+                        dec
+                        sta ULWR_dest+1
+
+                        ; Moving down, so need dec instructions (opcode=$xx)
+                        lda #$CE
+                        .byte $2c ; skip next instruction
+
+                        ; Moving up, so need inc instructions (opcode=$xx)
+:                       lda #$EE
+                        sta @stepsrc
+                        sta @stepdest
+
+                        ; Loop over lines; copy the character data
+@line_loop:             lda ULWR_destsize
+                        ldx #3
+                        jsr ulmath_umul8_8
+                        txa
+                        clc
+                        ror ULW_carryflag
+                        clc
+                        ror ULW_carryflag
+                        jsr ULW_copylinehelper
+
+                        ; Then copy the color data
+                        lda ULWR_destsize
+                        sec
+                        ror ULW_carryflag
+                        sec
+                        ror ULW_carryflag
+                        jsr ULW_copylinehelper
+
+                        ; Done with one line, was it the last
+                        dec ULWR_destsize+1
+                        beq @check_occlusion
+
+                        ; Step to next line
+@stepsrc:               inc ULWR_src+1
+@stepdest:              inc ULWR_dest+1
+                        bra @line_loop
+
+                        ; Okay, window backbuffer is filled; restore the input parameters and
+                        ; check occlusion, if the window is:
+                        ;   - visible, we can copy it in the screen backbuffer immediately
+                        ;   - occluded, we mark the visible portions of the destination as dirty
+                        ;   - covered, we don't need to do anything
+@check_occlusion:       lda ULVR_srcpos
+                        sta ULWR_src
+                        clc
+                        adc ULW_WINDOW_COPY::scol
+                        sta ULVR_srcpos
+                        lda ULVR_srcpos+1
+                        sta ULWR_src+1
+                        clc
+                        adc ULW_WINDOW_COPY::slin
+                        sta ULVR_srcpos+1
+                        lda ULVR_destpos
+                        sta ULWR_dest
+                        clc
+                        adc ULW_WINDOW_COPY::scol
+                        sta ULVR_destpos
+                        lda ULVR_destpos+1
+                        sta ULWR_dest+1
+                        clc
+                        adc ULW_WINDOW_COPY::slin
+                        sta ULVR_destpos+1
+                        lda ULVR_size
+                        sta ULWR_destsize
+                        lda ULVR_size+1
+                        sta ULWR_destsize+1
+
+                        bit ULW_WINDOW_COPY::status
+                        bmi @done
+                        bvs @occluded
+
+                        ; The window is visible, so we can copy the rectangle immediately in the backbuffer
+                        jmp ULV_copyrect
+
+                        ; The window is occluded, so we need to walk the window map and mark any blocks in the destination
+                        ; for this window as dirty
+@occluded:              lda ULWR_dest
+                        pha
+                        lda ULWR_dest+1
+                        pha
+                        lda ULVR_destpos
+                        sta ULWR_dest
+                        lda ULVR_destpos+1
+                        sta ULWR_dest+1
+                        jsr ULW_set_dirty_rect
+                        pla
+                        sta ULWR_dest+1
+                        pla
+                        sta ULWR_dest
+@done:                  rts
+.endproc
+
+; Helper to copy a line of character/color data
+;   In: ULW_carryflag   - Bit $C0 set = color data, clear = character data (will get shifted out)
+;                         Bit $20 set = move right, clear = move left
+;       A               - Bytes to copy
+.proc ULW_copylinehelper
+                        ; Save bytes to copy
+                        sta @lencheck+1
+                        sta @moveright+1
+
+                        ; Load source/dest addresses
+                        lda ULW_WINDOW_COPY::handle
+                        ldx ULWR_src
+                        ldy ULWR_src+1
+                        rol ULW_carryflag
+                        jsr ULW_getwinbufptr
+                        lda ULW_winbufptr
+                        sta ULW_winsrcptr
+                        lda ULW_winbufptr+1
+                        sta ULW_winsrcptr+1
+                        lda ULW_WINDOW_COPY::handle
+                        ldx ULWR_dest
+                        ldy ULWR_dest+1
+                        rol ULW_carryflag
+                        jsr ULW_getwinbufptr
+
+                        ; Are we copying left or right?
+                        bit ULW_carryflag
+                        bmi @moveright
+
+                        ; Copy left (start 0, done at size)
+                        ldy #0
+:                       lda (ULW_winsrcptr),y
+                        sta (ULW_winbufptr),y
+                        iny
+@lencheck:              cpy #$00
+                        bne :-
+                        rts
+
+                        ; Copy right (start size-1, done at -1)
+@moveright:             ldy #$00
+                        dey
+:                       lda (ULW_winsrcptr),y
+                        sta (ULW_winbufptr),y
+                        dey
+                        cpy #$ff
+                        bne :-
+                        rts
 .endproc
 
 .bss
@@ -437,14 +820,17 @@ linefill_cmp:           cpy #$00
 ULW_linecount:          .res    1
 ULW_linelen:            .res    1
 ULW_linestride:         .res    1
+ULW_srcstride:          .res    1
 ULW_carryflag:          .res    1
 
 ULWR_src:               .res    2
+ULWR_srcsize:           .res    2
 ULWR_dest:              .res    2
-ULWR_size:              .res    2
+ULWR_destsize:          .res    2
 ULWR_char:              .res    3
 ULWR_color:             .res    1
 
 .segment "EXTZP": zeropage
 
 ULW_winbufptr:          .res    2
+ULW_winsrcptr:          .res    2

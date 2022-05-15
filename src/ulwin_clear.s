@@ -42,9 +42,9 @@ a_nearby_rts:           rts
                         stz ULWR_dest
                         stz ULWR_dest+1
                         lda ULW_WINDOW_COPY::ncol
-                        sta ULWR_size
+                        sta ULWR_destsize
                         lda ULW_WINDOW_COPY::nlin
-                        sta ULWR_size+1
+                        sta ULWR_destsize+1
                         lda ULW_WINDOW_COPY::color
                         sta ULWR_color
                         jmp ULW_clearrect
