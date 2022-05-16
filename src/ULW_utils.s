@@ -395,6 +395,7 @@ a_handy_rts:            rts
                         sta ULWR_char
                         stz ULWR_char+1
                         stz ULWR_char+2
+                        clc
                         bra ULW_fillrect
 .endproc
 
@@ -475,6 +476,7 @@ a_handy_rts:            rts
                         lda #1
                         sta ULWR_destsize
                         sta ULWR_destsize+1
+                        clc
 .endproc
 
 ; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
@@ -485,10 +487,17 @@ a_handy_rts:            rts
 ;       ULWR_destsize   - Size in window contents (L=columns, H=lines)
 ;       ULWR_char       - UTF-16 character
 ;       ULWR_color      - Color (fg=low nibble, bg=high nibble)
+;       carry           - If set, just fill window color
 .proc ULW_fillrect
+                        ; Save carry flag and if set, skip character fill
+                        php
+                        ror @onlycolor_check+1
+                        plp
+                        bcs :+
+
                         ; Fill the characters, then the colors
                         jsr ULW_fillrect_char
-                        jsr ULW_fillrect_color
+:                       jsr ULW_fillrect_color
 
                         ; Okay, window backbuffer is filled; check occlusion, if the window is:
                         ;   - visible, we can fill it in the screen backbuffer immediately
@@ -497,6 +506,10 @@ a_handy_rts:            rts
                         bit ULW_WINDOW_COPY::status
                         bmi @done
                         bvs @occluded
+
+                        ; Visible windows need to get redrawn when recoloring
+@onlycolor_check:       lda #$00
+                        bmi @occluded
 
                         ; The window is visible, so we can fill the rectangle immediately in the backbuffer
                         lda ULWR_dest

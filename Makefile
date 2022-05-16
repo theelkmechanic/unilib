@@ -31,7 +31,6 @@ STR_OBJS = \
 WIN_OBJS = \
 	$(OBJDIR)/ulwin_box.o \
 	$(OBJDIR)/ulwin_busy.o \
-	$(OBJDIR)/ulwin_changecolor.o \
 	$(OBJDIR)/ulwin_clear.o \
 	$(OBJDIR)/ulwin_close.o \
 	$(OBJDIR)/ulwin_delchar.o \

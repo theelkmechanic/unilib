@@ -41,7 +41,6 @@
 ; Window functions
 .global ulwin_box           ; A = window, r0 = top left, r1 = bottom right; draws box in window
 .global ulwin_busy          ; YX = Busy string to display (0 = default "Busy..."); display "Busy" window
-.global ulwin_changecolor   ; A = window, X = foreground, Y = background; change color of entire window
 .global ulwin_clear         ; A = window; clear the window contents
 .global ulwin_close         ; A = window; close the window
 .global ulwin_delchar       ; A = window; delete character at current position
@@ -72,7 +71,7 @@
 .global ulwin_move          ; A = window, X = new screen start column of window content area, Y = new screen start line of window content area; move a window (must be fully onscreen including border, carry set on success)
 .global ulwin_open          ; r0 = top left of window content area, r1 = size of window content area, r2 = colors (r2L = foreground, r2H = background), r3/r4L = title pointer, r4H = flags (0x80 = has border); open a new window, returns handle in A
 .global ulwin_putchar       ; A = window, r0/r1L = Unicode character; put character at current position
-.global ulwin_putcolor      ; A = window, X = foreground, Y = background; put color for future window output
+.global ulwin_putcolor      ; A = window, X = foreground, Y = background, carry set updates entire window immediately; put color for future window output
 .global ulwin_putcursor     ; A = window, X = column, Y = line; put window cursor at location
 .global ulwin_putloc        ; A = window, r0 = string, X = column, Y = line, carry set for autowrap/scroll; put string at specified position (updates cursor position)
 .global ulwin_putstr        ; A = window, r0 = string, carry set for autowrap/scroll; put string at current position

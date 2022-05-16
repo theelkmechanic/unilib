@@ -31,10 +31,10 @@
 @openbusywindow:        jsr ulstr_getprintlen
                         beq @exit
 
-                        ; We need at least 6 extra characters for borders/margins, so max length is 74
-                        cmp #74
+                        ; We need at least 7 extra characters for borders/margins, so max length is 73
+                        cmp #73
                         bcc :+
-                        lda #74
+                        lda #73
 :                       sta @getmsglen+1
 
                         ; Window width is length + 2
@@ -44,8 +44,8 @@
                         lda #1
                         sta gREG::r1H
 
-                        ; Window left is 76 - length
-                        lda #76
+                        ; Window left is 75 - length
+                        lda #75
                         sec
 @getmsglen:             sbc #$00
                         sta gREG::r0L

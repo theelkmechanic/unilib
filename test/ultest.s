@@ -312,6 +312,21 @@ start:
    jsr ulwin_scroll
    jsr ulwin_refresh
 
+   ; Change top window color
+   lda window2
+   ldx #ULCOLOR::YELLOW
+   ldy #ULCOLOR::GREEN
+   sec
+   jsr ulwin_putcolor
+
+   ; Change the occluded window color
+   lda window1
+   ldx #ULCOLOR::BLACK
+   ldy #ULCOLOR::WHITE
+   sec
+   jsr ulwin_putcolor
+   jsr ulwin_refresh
+
 @loop: bra @loop
 
 dumpchars:

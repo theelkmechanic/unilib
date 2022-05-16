@@ -56,7 +56,6 @@
 .global ULV_copyrect
 .global ULV_clearrect
 .global ULV_fillrect
-.global ULV_changerectcolor
 .global ULVR_srcpos
 .global ULVR_destpos
 .global ULVR_size

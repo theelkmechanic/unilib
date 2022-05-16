@@ -101,9 +101,11 @@
                         sta ULWR_color
                         lda ULW_boxtop
                         sta ULWR_dest+1
+                        clc
                         jsr ULW_fillrect
                         lda ULW_boxbottom
                         sta ULWR_dest+1
+                        clc
                         jsr ULW_fillrect
 
                         ; Fill left/right lines with vertical character
@@ -121,9 +123,11 @@
                         sta ULWR_dest+1
                         lda ULW_boxleft
                         sta ULWR_dest
+                        clc
                         jsr ULW_fillrect
                         lda ULW_boxright
                         sta ULWR_dest
+                        clc
                         jsr ULW_fillrect
 
                         ; Plot the corner characters
@@ -139,6 +143,7 @@
                         sta ULWR_char
                         lda ULW_boxbottom
                         sta ULWR_dest+1
+                        clc
                         jsr ULW_fillrect
 
                         ; Bottom left
@@ -146,6 +151,7 @@
                         sta ULWR_char
                         lda ULW_boxleft
                         sta ULWR_dest
+                        clc
                         jsr ULW_fillrect
 
                         ; Top left
@@ -153,6 +159,7 @@
                         sta ULWR_char
                         lda ULW_boxtop
                         sta ULWR_dest+1
+                        clc
                         jmp ULW_fillrect
 .endproc
 

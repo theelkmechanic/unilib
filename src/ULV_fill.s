@@ -89,10 +89,10 @@
                         sta VERA::ADDR
                         ldx ULV_basecolor
                         lda ULFT_baseglyph
-@inner_loop_base:       sta VERA::DATA0
+:                       sta VERA::DATA0
                         stx VERA::DATA0
                         dey
-                        bne @inner_loop_base
+                        bne :-
 
                         ; Switch to overlay page, loop numcolumns writing overlay glyph/color
                         ldy ULVR_size
@@ -103,10 +103,10 @@
                         sta VERA::ADDR
                         ldx ULV_extracolor
                         lda ULFT_extraglyph
-@inner_loop_overlay:    sta VERA::DATA0
+:                       sta VERA::DATA0
                         stx VERA::DATA0
                         dey
-                        bne @inner_loop_overlay
+                        bne :-
 
                         ; Switch back to base page, step to next line
                         lda VERA::ADDR+1

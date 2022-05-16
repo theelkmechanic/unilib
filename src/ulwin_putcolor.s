@@ -6,8 +6,10 @@
 ;   In: A               - Window handle
 ;       X               - Foreground color
 ;       Y               - Background color
+;       carry           - If set, entire window will be recolored; if clear, will only affect new output
 .proc ulwin_putcolor
                         ; Treat 0 as black (1), clip fg to $f
+                        ror @recolor_check+1
                         sta @get_handle+1
                         lda BANKSEL::RAM
                         pha
@@ -31,6 +33,28 @@
                         ply
                         plx
                         jsr ULW_putcolor
+
+                        ; Do we need to recolor the window?
+@recolor_check:         lda #$00
+                        bpl @exit
+
+                        ; Get easy access to window structure
+                        jsr ULW_copywinstruct
+
+                        ; Update the window contents color
+                        stz ULWR_dest
+                        stz ULWR_dest+1
+                        lda ULW_WINDOW_COPY::ncol
+                        sta ULWR_destsize
+                        lda ULW_WINDOW_COPY::nlin
+                        sta ULWR_destsize+1
+                        lda ULW_WINDOW_COPY::color
+                        sta ULWR_color
+                        sec
+                        jsr ULW_fillrect
+
+                        ; And if there's a border, redraw it as well
+                        jsr ULW_drawborder
 
                         ; Exit
 @exit:                  pla
