@@ -5,6 +5,8 @@
 .global ULV_backbuf_offset
 .global ULV_setdirtylines
 
+.import __BSS_RUN__, __BSS_SIZE__
+
 .segment "EXEHDR"
 
     ; Stub launcher
@@ -20,6 +22,18 @@ font_fn: .byte "unilib.ulf"
 end_filenames:
 
 start:
+   ; Zero the BSS
+   lda #<__BSS_RUN__
+   sta gREG::r0L
+   lda #>__BSS_RUN__
+   sta gREG::r0H
+   lda #<__BSS_SIZE__
+   sta gREG::r1L
+   lda #>__BSS_SIZE__
+   sta gREG::r1H
+   lda #0
+   jsr MEMORY_FILL
+
    ; Set font name in r0 and length/device in r1
    lda #(end_filenames-font_fn)
    sta gREG::r1L

@@ -16,6 +16,15 @@ ULW_scratch_fptr:       .res    3       ; current window handle
 ;       r2H             Initial screen background color
 ;  Out: A               Error code (0 = OK)
 .proc ul_init
+                        ; Initialize our zeropage
+                        ldx #ULW_screen_fptr
+:                       stz $00,x
+                        inx
+                        bne :-
+                        dex
+                        stx ULW_screen_handle
+                        stx ULW_current_handle
+
                         ; Save whatever bank we were on and switch to bank 1
                         lda BANKSEL::RAM
                         pha
@@ -162,14 +171,6 @@ ULW_scratch_fptr:       .res    3       ; current window handle
                         jsr ulmem_alloc
                         stx ULW_winlist
                         sty ULW_winlist+1
-
-                        ; Clear our zeropage pointers
-                        ldx #(3 * .sizeof(ULW_screen_fptr)) - 1
-:                       stz ULW_screen_fptr,x
-                        dex
-                        bpl :-
-                        stx ULW_screen_handle
-                        stx ULW_current_handle
 
                         ; Open a window for the screen (color params are already in the right register)
                         stz gREG::r0L
