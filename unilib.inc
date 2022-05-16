@@ -40,7 +40,7 @@
 
 ; Window functions
 .global ulwin_box           ; A = window, r0 = top left, r1 = bottom right; draws box in window
-.global ulwin_busy          ; display "Busy" window
+.global ulwin_busy          ; YX = Busy string to display (0 = default "Busy..."); display "Busy" window
 .global ulwin_changecolor   ; A = window, X = foreground, Y = background; change color of entire window
 .global ulwin_clear         ; A = window; clear the window contents
 .global ulwin_close         ; A = window; close the window
@@ -60,6 +60,7 @@
 .global ulwin_getkey        ; get a keystroke translated to Unicode in AYX
 .global ulwin_getline       ; A = window; get window cursor line in A
 .global ulwin_getloc        ; A = window, X = column, Y = line; return remainder of line at specified position as string in YX
+.global ulwin_getpos        ; A = window; get position of window (X = start column, Y = start line)
 .global ulwin_getsize       ; A = window; get size of window (X = columns, Y = lines)
 .global ulwin_getstr        ; A = window; return remainder of line at current position as string in YX
 .global ulwin_getwin        ; get current window in A
@@ -73,8 +74,8 @@
 .global ulwin_putchar       ; A = window, r0/r1L = Unicode character; put character at current position
 .global ulwin_putcolor      ; A = window, X = foreground, Y = background; put color for future window output
 .global ulwin_putcursor     ; A = window, X = column, Y = line; put window cursor at location
-.global ulwin_putloc        ; A = window, r0 = string, X = column, Y = line; put string at specified position
-.global ulwin_putstr        ; A = window, r0 = string; put string at current position
+.global ulwin_putloc        ; A = window, r0 = string, X = column, Y = line, carry set for autowrap/scroll; put string at specified position (updates cursor position)
+.global ulwin_putstr        ; A = window, r0 = string, carry set for autowrap/scroll; put string at current position
 .global ulwin_puttitle      ; A = window, r0 = title string; update window title
 .global ulwin_refresh       ; refresh the screen with any updated window contents
 .global ulwin_resize        ; A = window, X = new content area width, Y = new content area height; resize a window (must be fully onscreen including border, carry set on success)
@@ -116,3 +117,101 @@
 .enum ULWIN_FLAGS
     BORDER     = $80
 .endenum
+
+; Undo any PETSCII character maps
+.charmap $20, $20
+.charmap $21, $21
+.charmap $22, $22
+.charmap $23, $23
+.charmap $24, $24
+.charmap $25, $25
+.charmap $26, $26
+.charmap $27, $27
+.charmap $28, $28
+.charmap $29, $29
+.charmap $2a, $2a
+.charmap $2b, $2b
+.charmap $2c, $2c
+.charmap $2d, $2d
+.charmap $2e, $2e
+.charmap $2f, $2f
+.charmap $30, $30
+.charmap $31, $31
+.charmap $32, $32
+.charmap $33, $33
+.charmap $34, $34
+.charmap $35, $35
+.charmap $36, $36
+.charmap $37, $37
+.charmap $38, $38
+.charmap $39, $39
+.charmap $3a, $3a
+.charmap $3b, $3b
+.charmap $3c, $3c
+.charmap $3d, $3d
+.charmap $3e, $3e
+.charmap $3f, $3f
+.charmap $40, $40
+.charmap $41, $41
+.charmap $42, $42
+.charmap $43, $43
+.charmap $44, $44
+.charmap $45, $45
+.charmap $46, $46
+.charmap $47, $47
+.charmap $48, $48
+.charmap $49, $49
+.charmap $4a, $4a
+.charmap $4b, $4b
+.charmap $4c, $4c
+.charmap $4d, $4d
+.charmap $4e, $4e
+.charmap $4f, $4f
+.charmap $50, $50
+.charmap $51, $51
+.charmap $52, $52
+.charmap $53, $53
+.charmap $54, $54
+.charmap $55, $55
+.charmap $56, $56
+.charmap $57, $57
+.charmap $58, $58
+.charmap $59, $59
+.charmap $5a, $5a
+.charmap $5b, $5b
+.charmap $5c, $5c
+.charmap $5d, $5d
+.charmap $5e, $5e
+.charmap $5f, $5f
+.charmap $60, $60
+.charmap $61, $61
+.charmap $62, $62
+.charmap $63, $63
+.charmap $64, $64
+.charmap $65, $65
+.charmap $66, $66
+.charmap $67, $67
+.charmap $68, $68
+.charmap $69, $69
+.charmap $6a, $6a
+.charmap $6b, $6b
+.charmap $6c, $6c
+.charmap $6d, $6d
+.charmap $6e, $6e
+.charmap $6f, $6f
+.charmap $70, $70
+.charmap $71, $71
+.charmap $72, $72
+.charmap $73, $73
+.charmap $74, $74
+.charmap $75, $75
+.charmap $76, $76
+.charmap $77, $77
+.charmap $78, $78
+.charmap $79, $79
+.charmap $7a, $7a
+.charmap $7b, $7b
+.charmap $7c, $7c
+.charmap $7d, $7d
+.charmap $7e, $7e
+.charmap $7f, $7f

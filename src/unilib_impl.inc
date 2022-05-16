@@ -148,8 +148,9 @@ ULWS_COVERED    = $80
 
 .global ULW_clear
 .global ULW_drawborder
-.global ULW_getloc
+.global ULW_getpos
 .global ULW_getsize
+.global ULW_getcursor
 .global ULW_putcolor
 .global ULW_putcursor
 
@@ -174,3 +175,4 @@ ULW_WINMAP = $AE00
 .globalzp ULW_screen_fptr
 .globalzp ULW_current_fptr
 .globalzp ULW_scratch_fptr
+.global ULW_scratchtocurrent

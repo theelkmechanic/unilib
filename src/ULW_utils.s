@@ -4,6 +4,23 @@
 
 .code
 
+; ULW_scratchtocurrent - Set window at ULW_scratch_fptr into current
+;   In: ULW_scratch_fptr - Far pointer to a window structure
+;  Out: ULW_current_fptr - Set to value in ULW_scratch_fptr
+;       A/ULW_current_handle - Set to handle at (ULW_scratch_fptr)
+.proc ULW_scratchtocurrent
+                        lda ULW_scratch_fptr+2
+                        sta BANKSEL::RAM
+                        sta ULW_current_fptr+2
+                        lda ULW_scratch_fptr+1
+                        sta ULW_current_fptr+1
+                        lda ULW_scratch_fptr
+                        sta ULW_current_fptr
+                        lda (ULW_scratch_fptr)
+                        sta ULW_current_handle
+                        rts
+.endproc
+
 ; ULW_getend - Internal get end line/column helper
 ;   In: BANKSEL::RAM/ULW_scratch_fptr - pointer to window structure
 ;  Out: X               - End column (start column + number of columns)
@@ -40,11 +57,11 @@
 
 ; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
 
-; ULW_getloc - Internal get location helper
+; ULW_getpos - Internal get location helper
 ;   In: BANKSEL::RAM/ULW_scratch_fptr - pointer to window structure
 ;  Out: X               - Start column
 ;       Y               - Start line
-.proc ULW_getloc
+.proc ULW_getpos
                         ; Start column
                         ldy #ULW_WINDOW::scol
                         pha
@@ -433,6 +450,7 @@ a_handy_rts:            rts
                         sta ULWR_destsize
                         ldx ULW_WINDOW_COPY::title
                         ldy ULW_WINDOW_COPY::title+1
+                        jsr ulstr_access
                         jsr ULW_drawstring
                         clc
                         adc ULWR_dest
@@ -585,14 +603,9 @@ linefill_cmp:           cpy #$00
 ;       ULWR_dest       - Top/left in window contents (L=column, H=line)
 ;       ULWR_destsize   - Low byte = max length in characters (0 = whole string)
 ;       ULWR_color      - Color (fg=low nibble, bg=high nibble)
-;       YX              - String BRP
+;       ULS_scratch_fptr - String address (must be accessible from current bank)
 ;  Out: A               - Number of characters drawn
 .proc ULW_drawstring
-                        ; Draw string characters to window; need pointer we can increment
-                        jsr ulstr_access
-                        stx ULS_scratch_fptr
-                        sty ULS_scratch_fptr+1
-
                         ; Get the max length to write (but not more than to the end of our line)
                         lda ULW_WINDOW_COPY::ncol
                         sec

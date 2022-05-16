@@ -39,143 +39,147 @@ start:
    ; Initialize the Unilib library
    jsr ul_init
 
-   ; Draw our character set onto the bottom of the screen
+;   ; Draw our character set onto the bottom of the screen
+;
+;   ; Make sure $20000 screen is displaying
+;   lda ULV_backbuf_offset
+;   beq :+
+;   jsr ulwin_refresh
+;
+;   ; First do colors: white on black/dgrey for base set, then white on dgrey/mgrey/dgrey/mgrey for overlays
+;:  lda VERA::CTRL
+;   and #$fe
+;   sta VERA::CTRL
+;   lda #VERA::INC2
+;   sta VERA::ADDR+2
+;   lda #14
+;   sta VERA::ADDR+1
+;@next_line:
+;   lda #1
+;   sta VERA::ADDR
+;   bit VERA::ADDR+1
+;   beq :+
+;   lda #(ULCOLOR::BLUE << 4) | ULCOLOR::WHITE
+;   .byte $2c
+;:  lda #(ULCOLOR::DGREY << 4) | ULCOLOR::WHITE
+;:  eor #$80
+;@next_cell:
+;   sta VERA::DATA0
+;   ldx VERA::ADDR
+;   cpx #33
+;   bcc :-
+;   lda VERA::ADDR
+;   tay
+;   lsr
+;   eor VERA::ADDR+1
+;   pha
+;   tya
+;   lsr
+;   lsr
+;   lsr
+;   lsr
+;   lsr
+;   tay
+;   pla
+;   lsr
+;   tya
+;   rol
+;   and #$03
+;   beq :++
+;   dec
+;   beq :+++
+;   dec
+;   bne :+++
+;:  lda #(ULCOLOR::BLACK << 4) | ULCOLOR::YELLOW
+;   .byte $2c
+;:  lda #(ULCOLOR::BROWN << 4) | ULCOLOR::YELLOW
+;   .byte $2c
+;:  lda #(ULCOLOR::DGREY << 4) | ULCOLOR::YELLOW
+;   cpx #160
+;   bcc @next_cell
+;   ldx VERA::ADDR+1
+;   inx
+;   stx VERA::ADDR+1
+;   cpx #30
+;   bcc @next_line
+;
+;   ; Next set overlay bits in $40000 screen so correct characters will be displayed
+;   lda #14 + 64
+;   sta VERA::ADDR+1
+;:  lda #33
+;   sta VERA::ADDR
+;   lda VERA::ADDR+1
+;   sec
+;   sbc #14 + 64
+;   lsr
+;   lsr
+;   ora #$d0
+;:  sta VERA::DATA0
+;   ldx VERA::ADDR
+;   cpx #160
+;   bcc :-
+;   ldx VERA::ADDR+1
+;   inx
+;   stx VERA::ADDR+1
+;   cpx #30 + 64
+;   bcc :--
+;
+;   ; Now do characters; first, base in first 16 columns
+;   lda #14
+;   sta VERA::ADDR+1
+;:  stz VERA::ADDR
+;   lda VERA::ADDR+1
+;   sec
+;   sbc #14
+;   asl
+;   asl
+;   asl
+;   asl
+;:  sta VERA::DATA0
+;   inc
+;   ldx VERA::ADDR
+;   cpx #32
+;   bcc :-
+;   ldx VERA::ADDR+1
+;   inx
+;   stx VERA::ADDR+1
+;   cpx #30
+;   bcc :--
+;
+;   ; Then overlay in last 64
+;   lda #14 + 64
+;   sta VERA::ADDR+1
+;:  lda #32
+;   sta VERA::ADDR
+;   lda VERA::ADDR+1
+;   sec
+;   sbc #14 + 64
+;   asl
+;   asl
+;   asl
+;   asl
+;   asl
+;   asl
+;:  sta VERA::DATA0
+;   inc
+;   ldx VERA::ADDR
+;   cpx #160
+;   bcc :-
+;   ldx VERA::ADDR+1
+;   inx
+;   stx VERA::ADDR+1
+;   cpx #30 + 64
+;   bcc :--
+;
+;   ; Mark bottom rows as dirty so they persist
+;   ldx #14
+;   ldy #29
+;   jsr ULV_setdirtylines
+;   jsr ulwin_refresh
 
-   ; Make sure $20000 screen is displaying
-   lda ULV_backbuf_offset
-   beq :+
-   jsr ulwin_refresh
-
-   ; First do colors: white on black/dgrey for base set, then white on dgrey/mgrey/dgrey/mgrey for overlays
-:  lda VERA::CTRL
-   and #$fe
-   sta VERA::CTRL
-   lda #VERA::INC2
-   sta VERA::ADDR+2
-   lda #14
-   sta VERA::ADDR+1
-@next_line:
-   lda #1
-   sta VERA::ADDR
-   bit VERA::ADDR+1
-   beq :+
-   lda #(ULCOLOR::BLUE << 4) | ULCOLOR::WHITE
-   .byte $2c
-:  lda #(ULCOLOR::DGREY << 4) | ULCOLOR::WHITE
-:  eor #$80
-@next_cell:
-   sta VERA::DATA0
-   ldx VERA::ADDR
-   cpx #33
-   bcc :-
-   lda VERA::ADDR
-   tay
-   lsr
-   eor VERA::ADDR+1
-   pha
-   tya
-   lsr
-   lsr
-   lsr
-   lsr
-   lsr
-   tay
-   pla
-   lsr
-   tya
-   rol
-   and #$03
-   beq :++
-   dec
-   beq :+++
-   dec
-   bne :+++
-:  lda #(ULCOLOR::BLACK << 4) | ULCOLOR::YELLOW
-   .byte $2c
-:  lda #(ULCOLOR::BROWN << 4) | ULCOLOR::YELLOW
-   .byte $2c
-:  lda #(ULCOLOR::DGREY << 4) | ULCOLOR::YELLOW
-   cpx #160
-   bcc @next_cell
-   ldx VERA::ADDR+1
-   inx
-   stx VERA::ADDR+1
-   cpx #30
-   bcc @next_line
-
-   ; Next set overlay bits in $40000 screen so correct characters will be displayed
-   lda #14 + 64
-   sta VERA::ADDR+1
-:  lda #33
-   sta VERA::ADDR
-   lda VERA::ADDR+1
-   sec
-   sbc #14 + 64
-   lsr
-   lsr
-   ora #$d0
-:  sta VERA::DATA0
-   ldx VERA::ADDR
-   cpx #160
-   bcc :-
-   ldx VERA::ADDR+1
-   inx
-   stx VERA::ADDR+1
-   cpx #30 + 64
-   bcc :--
-
-   ; Now do characters; first, base in first 16 columns
-   lda #14
-   sta VERA::ADDR+1
-:  stz VERA::ADDR
-   lda VERA::ADDR+1
-   sec
-   sbc #14
-   asl
-   asl
-   asl
-   asl
-:  sta VERA::DATA0
-   inc
-   ldx VERA::ADDR
-   cpx #32
-   bcc :-
-   ldx VERA::ADDR+1
-   inx
-   stx VERA::ADDR+1
-   cpx #30
-   bcc :--
-
-   ; Then overlay in last 64
-   lda #14 + 64
-   sta VERA::ADDR+1
-:  lda #32
-   sta VERA::ADDR
-   lda VERA::ADDR+1
-   sec
-   sbc #14 + 64
-   asl
-   asl
-   asl
-   asl
-   asl
-   asl
-:  sta VERA::DATA0
-   inc
-   ldx VERA::ADDR
-   cpx #160
-   bcc :-
-   ldx VERA::ADDR+1
-   inx
-   stx VERA::ADDR+1
-   cpx #30 + 64
-   bcc :--
-
-   ; Mark bottom rows as dirty so they persist
-   ldx #14
-   ldy #29
-   jsr ULV_setdirtylines
-   jsr ulwin_refresh
+   ; Draw a busy window
+   clc
+   jsr ulwin_busy
 
    ; Allocate our title string
    ldx #<wintitle

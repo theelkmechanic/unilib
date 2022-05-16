@@ -217,7 +217,7 @@
                         lda @new_title+1
                         sta (ULW_scratch_fptr),y
 
-                        ; Set current window as previous to our new one, and next as null
+                        ; Set current window as previous to our new one
                         iny
                         lda ULW_current_fptr
                         sta (ULW_scratch_fptr),y
@@ -245,21 +245,15 @@
 
                         ; Then set new window as current (and as screen if it's the first),
                         ; and fill in the window map
-:                       lda ULW_scratch_fptr
-                        sta ULW_current_fptr
-                        ldy ULW_scratch_fptr+1
-                        sty ULW_current_fptr+1
-                        lda ULW_scratch_fptr+2
-                        sta BANKSEL::RAM
-                        sta ULW_current_fptr+2
-                        lda ULW_newwin_handle
+:                       jsr ULW_scratchtocurrent
                         ldx ULW_screen_fptr+2
                         bne :+
+                        ldx ULW_scratch_fptr+2
+                        stx ULW_screen_fptr+2
+                        ldx ULW_scratch_fptr+1
+                        stx ULW_screen_fptr+1
                         ldx ULW_scratch_fptr
                         stx ULW_screen_fptr
-                        sty ULW_screen_fptr+1
-                        ldx BANKSEL::RAM
-                        stx ULW_screen_fptr+2
                         sta ULW_screen_handle
 :                       sta ULW_current_handle
                         jsr ULW_update_occlusion
@@ -284,6 +278,7 @@
                         stx BANKSEL::RAM
                         ply
                         plx
+                        and #$ff
                         rts
 .endproc
 

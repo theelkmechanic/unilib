@@ -44,14 +44,12 @@ WIN_OBJS = \
 	$(OBJDIR)/ulwin_getchar.o \
 	$(OBJDIR)/ulwin_getcolor.o \
 	$(OBJDIR)/ulwin_getcolumn.o \
-	$(OBJDIR)/ulwin_getcursor.o \
 	$(OBJDIR)/ulwin_gethit.o \
 	$(OBJDIR)/ulwin_getkey.o \
 	$(OBJDIR)/ulwin_getline.o \
-	$(OBJDIR)/ulwin_getloc.o \
-	$(OBJDIR)/ulwin_getsize.o \
 	$(OBJDIR)/ulwin_getstr.o \
 	$(OBJDIR)/ulwin_getwin.o \
+	$(OBJDIR)/ulwin_getwinfields.o \
 	$(OBJDIR)/ulwin_idlecfg.o \
 	$(OBJDIR)/ulwin_inschar.o \
 	$(OBJDIR)/ulwin_insline.o \
@@ -61,7 +59,6 @@ WIN_OBJS = \
 	$(OBJDIR)/ulwin_putcolor.o \
 	$(OBJDIR)/ulwin_putcursor.o \
 	$(OBJDIR)/ulwin_putloc.o \
-	$(OBJDIR)/ulwin_putstr.o \
 	$(OBJDIR)/ulwin_puttitle.o \
 	$(OBJDIR)/ulwin_refresh.o \
 	$(OBJDIR)/ulwin_scroll.o \
