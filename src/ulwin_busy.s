@@ -41,7 +41,7 @@
                         inc
                         inc
                         sta gREG::r1L
-                        lda #3
+                        lda #1
                         sta gREG::r1H
 
                         ; Window left is 76 - length
@@ -49,7 +49,7 @@
                         sec
 @getmsglen:             sbc #$00
                         sta gREG::r0L
-                        lda #25
+                        lda #27
                         sta gREG::r0H
 
                         ; Color is error window color
@@ -70,14 +70,13 @@
                         jsr ulwin_open
                         bmi @exit
 
-                        ; Put the string in our window at 1,1
+                        ; Put the string in our window at one space over
                         stx gREG::r0L
                         sty gREG::r0H
                         ldx #1
-                        ldy #1
-                        jsr ulwin_putcursor
+                        ldy #0
                         clc
-                        jsr ulwin_putstr
+                        jsr ulwin_putloc
 
                         ; Refresh the screen
                         jsr ulwin_refresh
