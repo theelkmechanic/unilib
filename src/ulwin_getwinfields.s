@@ -59,3 +59,47 @@ getfields_call:         jsr $FFFF
                         sta BANKSEL::RAM
                         pla
                         rts
+
+; ulwin_getline - Get the current cursor line
+;   In: A               - Window handle
+;  Out: A               - Window cursor line
+.proc ulwin_getline
+                        ; Save Y and retrieve cursor line
+                        phy
+                        ldy #ULW_WINDOW::clin
+                        bra ULW_getlc
+.endproc
+
+; ulwin_getcolumn - Get the current cursor column
+;   In: A               - Window handle
+;  Out: A               - Window cursor column
+.proc ulwin_getcolumn
+                        ; Save Y and retrieve cursor column
+                        phy
+                        ldy #ULW_WINDOW::ccol
+.endproc
+
+; FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
+
+ULW_getlc:
+                        ; Save handle/bank/X
+                        phx
+                        ldx BANKSEL::RAM
+                        phx
+
+                        ; Get the window structure address
+                        phy
+                        jsr ULW_getwinptr
+                        stx ULW_scratch_fptr
+                        sty ULW_scratch_fptr+1
+
+                        ; Read value
+                        ply
+                        lda (ULW_scratch_fptr),y
+
+                        ; Restore X/bank/Y, result in A
+                        plx
+                        stx BANKSEL::RAM
+                        plx
+                        ply
+                        rts

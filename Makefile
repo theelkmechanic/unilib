@@ -33,25 +33,18 @@ WIN_OBJS = \
 	$(OBJDIR)/ulwin_busy.o \
 	$(OBJDIR)/ulwin_clear.o \
 	$(OBJDIR)/ulwin_close.o \
-	$(OBJDIR)/ulwin_delchar.o \
-	$(OBJDIR)/ulwin_delline.o \
-	$(OBJDIR)/ulwin_eraseeol.o \
+	$(OBJDIR)/ulwin_csredit.o \
 	$(OBJDIR)/ulwin_error.o \
 	$(OBJDIR)/ulwin_errorcfg.o \
 	$(OBJDIR)/ulwin_flash.o \
 	$(OBJDIR)/ulwin_flashwait.o \
-	$(OBJDIR)/ulwin_getchar.o \
 	$(OBJDIR)/ulwin_getcolor.o \
-	$(OBJDIR)/ulwin_getcolumn.o \
 	$(OBJDIR)/ulwin_gethit.o \
 	$(OBJDIR)/ulwin_getkey.o \
-	$(OBJDIR)/ulwin_getline.o \
 	$(OBJDIR)/ulwin_getstr.o \
 	$(OBJDIR)/ulwin_getwin.o \
 	$(OBJDIR)/ulwin_getwinfields.o \
 	$(OBJDIR)/ulwin_idlecfg.o \
-	$(OBJDIR)/ulwin_inschar.o \
-	$(OBJDIR)/ulwin_insline.o \
 	$(OBJDIR)/ulwin_move.o \
 	$(OBJDIR)/ulwin_open.o \
 	$(OBJDIR)/ulwin_putchar.o \

@@ -1,5 +1,3 @@
-; w_putchar - Write a UTF-16 character to a window at the current cursor position
-
 .include "unilib_impl.inc"
 
 .code
@@ -7,11 +5,14 @@
 ; ulwin_putchar - Write a character to a window at the current cursor
 ;   In: A               - Window handle
 ;       r0/r1L          - Unicode character to write
+;  Out: carry           - Set if character was printed
 .proc ulwin_putchar
-                        ; Save the bank
+                        ; Save A/X/Y/RAM bank
                         sta @get_handle+1
                         lda BANKSEL::RAM
                         pha
+                        phx
+                        phy
 
                         ; See if the character is printable
                         ldx gREG::r0L
@@ -62,9 +63,12 @@
 :                       txa
                         ldy #ULW_WINDOW::ccol
                         sta (ULW_scratch_fptr),y
+                        sec
 
                         ; Exit
-@exit:                  pla
+@exit:                  ply
+                        plx
+                        pla
                         sta BANKSEL::RAM
                         lda @get_handle+1
                         rts

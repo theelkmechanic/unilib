@@ -256,75 +256,124 @@ start:
    lda window1
    jsr dumpchars
 
-   ; Scroll top window
+;   ; Scroll top window
+;   lda window2
+;   ldy #$ff
+;   ldx #0
+;   jsr ulwin_scroll
+;   ;jsr ulwin_refresh
+;   jsr ulwin_scroll
+;   ;jsr ulwin_refresh
+;   jsr ulwin_scroll
+;   ;jsr ulwin_refresh
+;   ldy #1
+;   jsr ulwin_scroll
+;   ;jsr ulwin_refresh
+;   jsr ulwin_scroll
+;   ;jsr ulwin_refresh
+;   ldy #0
+;   ldx #3
+;   jsr ulwin_scroll
+;   ;jsr ulwin_refresh
+;   jsr ulwin_scroll
+;   ;jsr ulwin_refresh
+;   jsr ulwin_scroll
+;   ;jsr ulwin_refresh
+;   ldx #$fd
+;   jsr ulwin_scroll
+;   ;jsr ulwin_refresh
+;   jsr ulwin_scroll
+;   ;jsr ulwin_refresh
+;
+;   ; Scroll occluded window
+;   lda window1
+;   ldy #$1
+;   ldx #0
+;   jsr ulwin_scroll
+;   jsr ulwin_refresh
+;   jsr ulwin_scroll
+;   jsr ulwin_refresh
+;   jsr ulwin_scroll
+;   jsr ulwin_refresh
+;   jsr ulwin_scroll
+;   jsr ulwin_refresh
+;   ldy #$ff
+;   jsr ulwin_scroll
+;   jsr ulwin_refresh
+;   ldy #0
+;   ldx #$fa
+;   jsr ulwin_scroll
+;   jsr ulwin_refresh
+;   jsr ulwin_scroll
+;   jsr ulwin_refresh
+;   jsr ulwin_scroll
+;   jsr ulwin_refresh
+;   ldx #2
+;   jsr ulwin_scroll
+;   jsr ulwin_refresh
+;
+;   ; Change top window color
+;   lda window2
+;   ldx #ULCOLOR::YELLOW
+;   ldy #ULCOLOR::GREEN
+;   sec
+;   jsr ulwin_putcolor
+;
+;   ; Change the occluded window color
+;   lda window1
+;   ldx #ULCOLOR::BLACK
+;   ldy #ULCOLOR::WHITE
+;   sec
+;   jsr ulwin_putcolor
+;   jsr ulwin_refresh
+;
+;   ; Erase line 6 from column 30 to eol
+;   lda window2
+;   ldx #40
+;   ldy #5
+;   jsr ulwin_putcursor
+;   jsr ulwin_eraseeol
+;   lda window1
+;   ldx #40
+;   ldy #5
+;   jsr ulwin_putcursor
+;   jsr ulwin_eraseeol
+;   jsr ulwin_refresh
+
+   ; Insert/delete line
    lda window2
-   ldy #$ff
-   ldx #0
-   jsr ulwin_scroll
-   ;jsr ulwin_refresh
-   jsr ulwin_scroll
-   ;jsr ulwin_refresh
-   jsr ulwin_scroll
-   ;jsr ulwin_refresh
-   ldy #1
-   jsr ulwin_scroll
-   ;jsr ulwin_refresh
-   jsr ulwin_scroll
-   ;jsr ulwin_refresh
-   ldy #0
-   ldx #3
-   jsr ulwin_scroll
-   ;jsr ulwin_refresh
-   jsr ulwin_scroll
-   ;jsr ulwin_refresh
-   jsr ulwin_scroll
-   ;jsr ulwin_refresh
-   ldx #$fd
-   jsr ulwin_scroll
-   ;jsr ulwin_refresh
-   jsr ulwin_scroll
-   ;jsr ulwin_refresh
-
-   ; Scroll occluded window
-   lda window1
-   ldy #$1
-   ldx #0
-   jsr ulwin_scroll
-   jsr ulwin_refresh
-   jsr ulwin_scroll
-   jsr ulwin_refresh
-   jsr ulwin_scroll
-   jsr ulwin_refresh
-   jsr ulwin_scroll
-   jsr ulwin_refresh
-   ldy #$ff
-   jsr ulwin_scroll
-   jsr ulwin_refresh
-   ldy #0
-   ldx #$fa
-   jsr ulwin_scroll
-   jsr ulwin_refresh
-   jsr ulwin_scroll
-   jsr ulwin_refresh
-   jsr ulwin_scroll
-   jsr ulwin_refresh
-   ldx #2
-   jsr ulwin_scroll
-   jsr ulwin_refresh
-
-   ; Change top window color
+   ldx #40
+   ldy #5
+   jsr ulwin_putcursor
    lda window2
-   ldx #ULCOLOR::YELLOW
-   ldy #ULCOLOR::GREEN
-   sec
-   jsr ulwin_putcolor
-
-   ; Change the occluded window color
-   lda window1
-   ldx #ULCOLOR::BLACK
-   ldy #ULCOLOR::WHITE
-   sec
-   jsr ulwin_putcolor
+   jsr ulwin_getline
+   lda window2
+   jsr ulwin_getcolumn
+   lda window2
+   jsr ulwin_insline
+   jsr ulwin_refresh
+   jsr ulwin_delline
+   jsr ulwin_refresh
+   jsr ulwin_delchar
+   jsr ulwin_refresh
+   jsr ulwin_delchar
+   jsr ulwin_refresh
+   jsr ulwin_delchar
+   jsr ulwin_refresh
+   jsr ulwin_delchar
+   jsr ulwin_refresh
+   jsr ulwin_delchar
+   jsr ulwin_refresh
+   jsr ulwin_delchar
+   jsr ulwin_refresh
+   lda #'A'
+   sta gREG::r0L
+   stz gREG::r0H
+   stz gREG::r1L
+   lda window2
+   jsr ulwin_inschar
+   jsr ulwin_refresh
+   jsr ulwin_inschar
    jsr ulwin_refresh
 
 @loop: bra @loop
