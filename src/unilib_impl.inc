@@ -32,6 +32,7 @@
 .global     ULS_charlen ; resulting length (in characters)
 .global     ULS_printlen ; resulting length (in printable characters)
 .global ULS_nextchar
+.global ULS_copystrdata
 .globalzp ULS_scratch_fptr
 
 ; VERA utilities
@@ -155,8 +156,11 @@ ULWS_COVERED    = $80
 
 .global ULW_winlist_loop
 .global ULW_winlist
-.global ULW_screen_handle
 .global ULW_current_handle
+
+.global ULW_screen_handle
+.global ULW_screen_size
+.global ULW_screen_fptr
 
 .global ULW_maprect_loop
 .global ULW_update_occlusion
@@ -171,7 +175,6 @@ ULW_WINMAP = $AE00
 .globalzp ULW_winbufptr
 .globalzp ULW_winsrcptr
 
-.globalzp ULW_screen_fptr
 .globalzp ULW_current_fptr
 .globalzp ULW_scratch_fptr
 .global ULW_scratchtocurrent

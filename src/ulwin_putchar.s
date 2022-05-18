@@ -47,22 +47,18 @@
                         jsr ULW_drawchar
                         bcc @exit
                         ldx ULW_WINDOW_COPY::ccol
+                        ldy ULW_WINDOW_COPY::clin
                         inx
                         cpx ULW_WINDOW_COPY::ncol
                         bcc :+
-                        ldy ULW_WINDOW_COPY::clin
                         iny
                         cpy ULW_WINDOW_COPY::nlin
                         bcs @exit
                         ldx #0
 
                         ; Store the new cursor position
-                        tya
-                        ldy #ULW_WINDOW::clin
-                        sta (ULW_scratch_fptr),y
-:                       txa
-                        ldy #ULW_WINDOW::ccol
-                        sta (ULW_scratch_fptr),y
+:                       lda @get_handle+1
+                        jsr ulwin_putcursor
                         sec
 
                         ; Exit

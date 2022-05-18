@@ -8,10 +8,12 @@
 ;       Y               - New cursor line
 .proc ulwin_putcursor
 @handle = gREG::r11L
-                        ; Save bank
+                        ; Save bank/A/X/Y
                         sta @handle
                         lda BANKSEL::RAM
                         pha
+                        phx
+                        phy
 
                         ; Access the window structure
                         lda @handle
@@ -39,7 +41,9 @@
 :                       jsr ULW_putcursor
 
                         ; Exit
-@exit:                  pla
+@exit:                  ply
+                        plx
+                        pla
                         sta BANKSEL::RAM
                         lda @handle
                         rts

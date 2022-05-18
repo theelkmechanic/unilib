@@ -91,7 +91,9 @@
                         bra @printstr
 
                         ; Update the cursor to the end of whatever we printed
-@updatecursor:          ldx ULWR_dest
+@updatecursor:          clc
+                        adc ULWR_dest
+			tax
                         ldy ULWR_dest+1
                         jsr ULW_putcursor
 

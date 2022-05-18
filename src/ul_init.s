@@ -2,7 +2,6 @@
 
 .segment "EXTZP": zeropage
 
-ULW_screen_fptr:        .res    3       ; screen window handle
 ULW_current_fptr:       .res    3       ; current window handle
 ULW_scratch_fptr:       .res    3       ; current window handle
 
@@ -17,7 +16,7 @@ ULW_scratch_fptr:       .res    3       ; current window handle
 ;  Out: A               Error code (0 = OK)
 .proc ul_init
                         ; Initialize our zeropage
-                        ldx #ULW_screen_fptr
+                        ldx #ULW_current_fptr
 :                       stz $00,x
                         inx
                         bne :-
@@ -87,9 +86,25 @@ ULW_scratch_fptr:       .res    3       ; current window handle
                         sta UL_lasterr
                         jmp @init_done
 
-                        ; Configure the display compositor
+                        ; Clear screen memory
 :                       lda VERA::CTRL
-                        and #<(~VERA::DISP::SELECT1)
+                        and #$fe
+                        sta VERA::CTRL
+                        lda #VERA::INC1
+                        sta VERA::ADDR+2
+                        stz VERA::ADDR+1
+                        stz VERA::ADDR
+                        lda #' '
+:                       sta VERA::DATA0
+                        bit VERA::ADDR+1
+                        bvc :-
+:                       stz VERA::DATA0
+                        bit VERA::ADDR+1
+                        bpl :-
+
+                        ; Configure the display compositor
+                        lda VERA::CTRL
+                        and #<(~(VERA::DISP::SELECT1))
                         sta VERA::CTRL
                         lda VERA::DISP::VIDEO
                         and #<(~VERA::DISP::ENABLE::SPRITES)
@@ -149,18 +164,9 @@ ULW_scratch_fptr:       .res    3       ; current window handle
                         dex
                         bne :-
 
-                        ; Clear layer 0 with fg-on-bg spaces and layer 1 with fg-on-0 NULs
-;                        stz ULV_backbuf_offset
-;                        stz ULVR_destpos
-;                        stz ULVR_destpos+1
-;                        lda #80
-;                        sta ULVR_size
-;                        lda #30
-;                        sta ULVR_size+1
-;                        lda #(ULCOLOR::DGREY << 4) |ULCOLOR::WHITE
-;                        sta ULVR_color
-;                        jsr ULV_clearrect
-;                        jsr ULV_swap
+                        ; Initialize double buffering
+                        stz ULV_backbuf_offset
+                        jsr ULV_swap
 
                         ; Lastly, initialize the windowing system; first we need our array of window BRPs,
                         ; so allocate an array to hold 64 BRPs (128 bytes); window handle will be 0-based
@@ -228,11 +234,13 @@ ULV_colors:
 
 ULW_keyfg:              .byte   ULCOLOR::WHITE      ; keyboard entry window foreground color
 ULW_keybg:              .byte   ULCOLOR::BLUE       ; keyboard entry window background color
+ULW_screen_size:        .byte   80, 30              ; Size of screen (lo=columns, hi=lines)
 
 .bss
 
 ULW_keyidle:            .res    2       ; keyboard idle routine address
 
+ULW_screen_fptr:        .res    3       ; screen window handle
 ULW_screen_handle:      .res    1       ; Window handle of screen
 ULW_current_handle:     .res    1       ; Window handle of current topmost window
 

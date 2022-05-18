@@ -7,15 +7,11 @@
 ;  Out: YX              - String BRP
 ;       carry           - Set on success
 .proc ulstr_fromUtf8
+                        ; Save A
+                        pha
+
                         ; How many bytes are we copying?
                         jsr ULS_length
-
-                        ; Save the source address and copy length
-                        stx gREG::r0L
-                        sty gREG::r0H
-                        lda ULS_bytelen
-                        sta gREG::r2L
-                        stz gREG::r2H
 
                         ; Is the source in banked memory?
                         cpy #$A0
@@ -23,18 +19,18 @@
                         cpy #$C0
                         bcs @allocdest
 
-                        ; Allocation may be on a different page, so copy to $400 just in case
-                        stz gREG::r1L
-                        lda #$04
-                        sta gREG::r1H
-                        jsr MEMORY_COPY
-                        lda gREG::r1L
-                        sta gREG::r0L
-                        lda gREG::r1H
-                        sta gREG::r0H
+                        ; Allocation may be on a different page, so copy to $700 just in case
+                        stz ULS_scratch_fptr
+                        lda #$07
+                        sta ULS_scratch_fptr+1
+                        lda ULS_bytelen
+                        jsr ULS_copystrdata
 
-                        ; Okay, allocate enough memory for our string data plus 3 length bytes plus NUL-terminator
-@allocdest:             ldx ULS_bytelen
+                        ; Okay, save the address to copy from and allocate enough memory for our string data
+                        ; plus 3 length bytes plus NUL-terminator
+@allocdest:             stx @getcopysrclo+1
+                        sty @getcopysrchi+1
+                        ldx ULS_bytelen
                         ldy #0
                         inx
                         inx
@@ -45,11 +41,9 @@
 :                       jsr ulmem_alloc
                         bcc @done
 
-                        ; Save bank
+                        ; Save bank/BRP
                         lda BANKSEL::RAM
                         pha
-
-                        ; Save BRP
                         phx
                         phy
 
@@ -57,33 +51,32 @@
                         jsr ulmem_access
 
                         ; Set lengths in first three bytes(byte, char, print)
-                        stx gREG::r1L
-                        sty gREG::r1H
+                        stx ULS_scratch_fptr
+                        sty ULS_scratch_fptr+1
                         lda ULS_bytelen
-                        sta (gREG::r1)
-                        inc gREG::r1L
+                        sta (ULS_scratch_fptr)
+                        inc ULS_scratch_fptr
                         lda ULS_charlen
-                        sta (gREG::r1)
-                        inc gREG::r1L
+                        sta (ULS_scratch_fptr)
+                        inc ULS_scratch_fptr
                         lda ULS_printlen
-                        sta (gREG::r1)
-                        inc gREG::r1L
+                        sta (ULS_scratch_fptr)
+                        inc ULS_scratch_fptr
 
                         ; Copy the UTF-8 character sequence
-                        jsr MEMORY_COPY
+                        lda ULS_bytelen
+@getcopysrclo:          ldx #$00
+@getcopysrchi:          ldy #$00
+                        jsr ULS_copystrdata
 
-                        ; Stick a NUL-terminator on the end
-                        ldy ULS_bytelen
-                        lda #0
-                        sta (gREG::r1),y
-
-                        ; Restore BRP
+                        ; Restore BRP/bank and set success
                         ply
                         plx
-
-                        ; Restore bank
                         pla
                         sta BANKSEL::RAM
                         sec
-@done:                  rts
+
+                        ; Restore A
+@done:                  pla
+                        rts
 .endproc

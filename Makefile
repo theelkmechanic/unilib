@@ -35,7 +35,6 @@ WIN_OBJS = \
 	$(OBJDIR)/ulwin_close.o \
 	$(OBJDIR)/ulwin_csredit.o \
 	$(OBJDIR)/ulwin_error.o \
-	$(OBJDIR)/ulwin_errorcfg.o \
 	$(OBJDIR)/ulwin_flash.o \
 	$(OBJDIR)/ulwin_flashwait.o \
 	$(OBJDIR)/ulwin_getcolor.o \

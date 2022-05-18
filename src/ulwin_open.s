@@ -70,15 +70,13 @@
                         bit @new_flags
                         bmi :+
                         dec
-:                       ldy #ULW_WINDOW::elin
-                        cmp (ULW_screen_fptr),y
+:                       cmp ULW_screen_size+1
                         bcs @bad_params
                         lda @new_ecol
                         bit @new_flags
                         bmi :+
                         dec
-:                       dey
-                        cmp (ULW_screen_fptr),y
+:                       cmp ULW_screen_size
                         bcs @bad_params
 
                         ; Find an empty slot for a new window

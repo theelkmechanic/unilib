@@ -4,8 +4,7 @@
 
 ; ULS_nextchar - Get UTF-8 character at current scratch pointer and step to next character
 ;   In: ULS_scratch_fptr - Pointer to NUL-terminated UTF-8 character sequence
-;                          (NOTE: This will always be in low memory or the current bank)
-;  Out: AYX              - Unicode character (0 of at end of string)
+;  Out: AYX              - Unicode character (0 if at end of string)
 ;       ULS_scratch_fptr - Advanced to next character (or end of string)
 ;       carry            - Set if at end of string
 .proc ULS_nextchar
@@ -14,6 +13,8 @@
                         ; (so we can advance and exit)
                         ldx #0
                         ldy #0
+                        lda ULS_scratch_fptr+2
+                        sta BANKSEL::RAM
 @restart:               lda (ULS_scratch_fptr)
                         bmi @extended
 @failonzero:            sec
@@ -104,8 +105,8 @@
 ;       ULS_printlen    - Valid UTF-8 length (in printable characters)
 .proc ULS_length
                         ; Save the start pointer
-                        stx ULS_length_ptrsave
-                        sty ULS_length_ptrsave+1
+                        stx @restore_ptrlo+1
+                        sty @restore_ptrhi+1
                         stx ULS_scratch_fptr
                         sty ULS_scratch_fptr+1
 
@@ -127,7 +128,7 @@
 @prevptrsub:            sbc #$00
                         clc
                         adc ULS_bytelen
-                        cmp #252
+                        cmp #253
                         bcs @eos
                         sta ULS_bytelen
                         pla
@@ -143,14 +144,39 @@
 
                         ; Restore YX and return
 @eos:                   pla
-                        ldx ULS_length_ptrsave
-                        ldy ULS_length_ptrsave+1
+@restore_ptrlo:         ldx #$00
+@restore_ptrhi:         ldy #$00
+                        rts
+.endproc
+
+; ULS_copystrdata - Copy less than 255 bytes into ULS_scratch_fptr and NUL-terminate
+;   In: A               - Number of bytes to copy
+;       YX              - Source buffer pointer
+;       ULS_scratch_fptr - Destination buffer pointer
+;  Out: YX              - Destination buffer pointer
+.proc ULS_copystrdata
+                        ; Use ULS_scratch_char for the source pointer
+                        stx ULS_scratch_char
+                        sty ULS_scratch_char+1
+
+                        ; Copy A bytes from source to dest and NUL-terminate the dest
+                        tay
+                        lda #$00
+                        sta (ULS_scratch_fptr),y
+:                       dey
+                        lda (ULS_scratch_char),y
+                        sta (ULS_scratch_fptr),y
+                        cpy #$ff
+                        bne :-
+
+                        ; Return the dest pointer in YX
+                        ldx ULS_scratch_fptr
+                        ldy ULS_scratch_fptr+1
                         rts
 .endproc
 
 .bss
 
-ULS_length_ptrsave:     .res    2
 ULS_bytelen:            .res    1
 ULS_charlen:            .res    1
 ULS_printlen:           .res    1
