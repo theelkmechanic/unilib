@@ -2,10 +2,10 @@
 
 ; NOTE: UniLib functions may change the RAM bank. If you need it preserved, you should do it yourself. Or ignore
 ; it entirely and just use Unilib to deal with banked RAM.
+; NOTE: UniLib uses $400-$7ff as scratch space. Do not store data there, as it WILL be overwritten at some point.
 
 .global ul_init             ; r0 = font filename, r1L = font filename length, r1H = drive # to load from, r2 = screen colors (r2L = foreground, r2H = background); returns error code (ULERR::OK on success)
 .global ul_geterror         ; returns A = last error code
-.global ul_isprint          ; AYX = Unicode character; carry set if printable (i.e., ulwin_putchar will advance cursor)
 
 ; Banked RAM allocation functions - work on banked RAM "pointers" (BRPs), which are two bytes:
 ;  - High byte = RAM bank
@@ -27,8 +27,10 @@
 .global ulitr_fetch_and_dec ; YX = iterator; returns value at iterator as specified in formats and steps to previous value if successful (carry set if error, zero set if at start)
 .global ulitr_inc           ; YX = iterator; steps to next value (carry set if error, zero set if at end)
 .global ulitr_dec           ; YX = iterator; steps to previous value (carry set if error, zero set if at start)
-.global ulitr_adv           ; A = number of entries to advance, YX = iterator; advances A entries (carry set if error, zero set if at end)
-.global ulitr_rew           ; A = number of entries to rewind, YX = iterator; rewinds A entries (carry set if error, zero set if at start)
+.global ulitr_adv           ; YX = iterator, A = number of entries to advance; advances A entries (carry set if error, zero set if at end)
+.global ulitr_rew           ; YX = iterator, A = number of entries to rewind; rewinds A entries (carry set if error, zero set if at start)
+.global ulitr_atstart       ; YX = iterator; zero set if at start of range, carry set if error
+.global ulitr_atend         ; YX = iterator; zero set if at end of range, carry set if error (NOTE: cannot read/write/advance at end)
 
 ; Iterator type
 .enum ULITYP
@@ -48,14 +50,14 @@
                             ;     ROM boundary at $C000 (e.g., if pointer is $9E80 and is advanced 256 bytes, the
                             ;     iterator will stop at $9EFF; if it is $BF00 and is advanced 384 bytes, the new
                             ;     address will be $A080 and the RAM bank will be increased by 1, etc.)
-                            ;   - atstart is true when iterator points to $0000, $1A000, $C000, or anywhere in $9Fxx
-                            ;   - atend is true when iterator is at $9EFF, $3FBFFF (on 512MB machines) or $FFBFFF
-                            ;     (on 2MB machines), $FFFF, or anywhere in $9Fxx
+                            ;   - atstart/atend do not work
                             ;   - Fetches from $C000-$FFFF will read the current ROM bank; stores will do nothing
     MEM             = $01   ; Memory iterator
                             ;   - Call ulitr_create with the address in memory to start
                             ;   - Behaves like ZPPTR for the most part, except it allows you to use different
-                            ;     iterator formats
+                            ;     iterator formats, and atend is true when iterator is one entry past the range
+                            ;     where it was initialized (e.g., if initialized at $8000, atend will be true when
+                            ;     the iterator gets to $A000)
     BRP             = $02   ; Banked RAM pointer iterator
                             ;   - Call ulitr_create with the BRP of the object you wish to iterate on
                             ;   - atstart is true when at the beginning of the BRP object
@@ -65,7 +67,7 @@
                             ;   - Call ulitr_create with the low 16 bits of the VERA address in YX, and the high
                             ;     bit in the carry flag
                             ;   - atstart is true when at the beginning of VRAM
-                            ;   - atend is true when at the end of VRAM
+                            ;   - atend is true when just past the end of VRAM
 
     REVERSE         = $80   ; Reverse flag; if set, iterator is reversed (initialized to end of BRP instead of
                             ; start, inc/dec/adv/rew go in opposite directions, atstart/atend are at opposites)
@@ -81,41 +83,40 @@
                             ;   - Fetch/store values passed/returned in r0
                             ;   - Increment/decrement move two bytes
                             ;   - Advance/rewind move n*2 bytes
-    WORD            = $20   ; Word iterator
-                            ;   - Fetch/store values passed/returned in r0
-                            ;   - Increment/decrement move two bytes
-                            ;   - Advance/rewind move n*2 bytes
-    TBYTE           = $30   ; Triple-byte iterator
+    TBYTE           = $20   ; Triple-byte iterator
                             ;   - Fetch/store values passed/returned in r0/r1L
                             ;   - Increment/decrement move three bytes
                             ;   - Advance/rewind move n*3 bytes
-    DWORD           = $40   ; Doubleword iterator
+    DWORD           = $30   ; Doubleword iterator
                             ;   - Fetch/store values passed/returned in r0/r1
                             ;   - Increment/decrement move four bytes
                             ;   - Advance/rewind move n*4 bytes
-    FLOAT           = $50   ; Floating-point iterator (40-bit values as used by FP math routines)
+    FLOAT           = $40   ; Floating-point iterator (40-bit values as used by FP math routines)
                             ;   - Fetch/store values passed/returned in FACC
                             ;   - Increment/decrement move five bytes
                             ;   - Advance/rewind move n*5 bytes
-    UTF8            = $60   ; UTF-8 string iterator
+    UTF8            = $50   ; UTF-8 string iterator
                             ;   - Fetch/store values passed/returned in r0/r1L (Unicode character)
                             ;   - Increment/decrement move one UTF-8 character
                             ;   - Advance/rewind move n characters
                             ;   - Note that hitting an invalid UTF-8 byte or a NUL will be treated as start/
                             ;     end when iterating, so be careful when using MEM/VRAM iterators with this
-    STRINGTABLE     = $70   ; Stringtable iterator
-                            ;   - Can only fetch values (returned in YX), table must be created/modified with
-                            ;     stringtable methods
-                            ;   - Returned strings are still owned by the stringtable, so don't free them
+    STRINGTABLE     = $60   ; Stringtable iterator
+                            ;   - Fetch/store strings passed/returned in r0
+                            ;   - Increment/decrement move one string entry
+                            ;   - Advance/rewind move n string entries
+                            ;   - Stringtable size is fixed at creation
 .endenum
 
 ; Unicode string functions - Work on UTF-8 BRP immutable, reference-counted string objects (max length = 7,926 bytes)
 .global ulstr_fromUtf8      ; YX = address of NUL-terminated UTF-8 character data; creates new string object and returns in YX
 .global ulstr_fromPETSCII   ; YX = address of NUL-terminated PETSCII character data; creates new string object and returns in YX
+.global ulstr_fromISO8859   ; YX = address of NUL-terminated ISO-8859-15 character data; creates new string object and returns in YX
 
 .global ulstr_getlen        ; YX = string; returns length in characters in YX
 .global ulstr_getprintlen   ; YX = string; returns length in printable characters in YX
 .global ulstr_getrawlen     ; YX = string; returns length in bytes in YX
+.global ulstr_compare       ; r0 = first string, r1 = second string, A = comparison flags; returns negative if first string sorts before, 0 if strings equal, or positive if first string sorts after
 .global ulstr_find          ; r0 = string, r1 = start index, AYX = Unicode character to find; returns index of first occurrence of character in YX (-1 if not found)
 .global ulstr_rfind         ; r0 = string, r1 = start index, AYX = Unicode character to find; returns index of last occurrence of character in YX (-1 if not found)
 
@@ -124,6 +125,11 @@
 .global ulstr_format        ; r0 = format string, r1 = stringtable; creates new string from format string and returns in YX, carry set on error
                             ;   - {} will be replaced with successive entries in the stringtable
                             ;   - {#} will be replaced with that indexed entry in the stringtable
+.global ulstr_toUtf8        ; r0 = string, YX = byte iterator to copy UTF-8 string into (must have enough storage to hold ulstr_getrawlen bytes); carry set on error
+.global ulstr_toPETSCII     ; r0 = string, YX = byte iterator to copy string as PETSCII into (must have enough storage to hold ulstr_getlen bytes); carry set on error
+.global ulstr_toISO8859     ; r0 = string, YX = byte iterator to copy string as ISO-8859-15 into (must have enough storage to hold ulstr_getlen bytes); carry set on error
+
+.global ulstr_release       ; YX = string; releases the string (will free any underlying string buffer(s) that have no owners left)
 
 ; Unicode stringtable functions - Manage tables of Unicode strings
 .global ulstb_create        ; A = # of string slots (1-255); return stringtable BRP in YX
@@ -132,6 +138,9 @@
 .global ulstb_put           ; A = string index to set (1-based), YX = string BRP, r0 = stringtable BRP; carry set if error
 .global ulstb_build         ; YX = address of list of NUL-terminated UTF-8 strings; creates stringtable of up to 255 strings, stops at empty string
 .global ulstb_load          ; A = device number, YX = address of filename of NUL-terminated UTF-8 strings; reads from file and creates stringtable of up to 255 strings, stops at empty string or EOF
+
+; Unicode character type functions
+.global ul_isprint          ; AYX = Unicode character; carry set if printable (i.e., ulwin_putchar will advance cursor)
 
 ; Integer math functions
 .global ulmath_abs_8        ; A => |A|
