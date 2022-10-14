@@ -64,19 +64,9 @@
 
                         ; Free the backbuffers
                         ldy #ULW_WINDOW::charbuf
-                        lda (ULW_scratch_fptr),y
-                        tax
-                        iny
-                        lda (ULW_scratch_fptr),y
-                        tay
-                        jsr ulmem_free
+                        jsr ULW_freebuf
                         ldy #ULW_WINDOW::colorbuf
-                        lda (ULW_scratch_fptr),y
-                        tax
-                        iny
-                        lda (ULW_scratch_fptr),y
-                        tay
-                        jsr ulmem_free
+                        jsr ULW_freebuf
 
                         ; And free the window structure
                         plx
@@ -85,44 +75,27 @@
 
                         ; Our next goes in the previous window's next (there will always be a previous window
                         ; because you can't close or select the screen, so it's always at the bottom)
-                        lda ULW_WINDOW_COPY::prev_addr
-                        sta ULW_scratch_fptr
-                        lda ULW_WINDOW_COPY::prev_addr+1
-                        sta ULW_scratch_fptr+1
-                        lda ULW_WINDOW_COPY::prev_bank
-                        sta ULW_scratch_fptr+2
-                        sta BANKSEL::RAM
-                        ldy #ULW_WINDOW::next_addr
-                        lda ULW_WINDOW_COPY::next_addr
-                        sta (ULW_scratch_fptr),y
-                        iny
-                        lda ULW_WINDOW_COPY::next_addr+1
-                        sta (ULW_scratch_fptr),y
-                        iny
-                        lda ULW_WINDOW_COPY::next_bank
+                        lda ULW_WINDOW_COPY::prev_handle
+                        jsr ULW_getwinptr
+                        stx ULW_scratch_fptr
+                        sty ULW_scratch_fptr+1
+                        ldy #ULW_WINDOW::next_handle
+                        lda ULW_WINDOW_COPY::next_handle
                         sta (ULW_scratch_fptr),y
 
-                        ; And if next was empty, we must be the current window
-                        bne @setnextsprevious
-                        jsr ULW_scratchtocurrent
+                        ; And if next was empty, we must be the current window, so make the previous current
+                        bpl @setnextsprevious
+                        lda ULW_WINDOW_COPY::prev_handle
+                        sta ULW_current_handle
                         bra @updateocclusion
 
                         ; If it wasn't empty, we need to put our previous into the next window's previous
-@setnextsprevious:      lda ULW_WINDOW_COPY::next_addr
-                        sta ULW_scratch_fptr
-                        lda ULW_WINDOW_COPY::next_addr+1
-                        sta ULW_scratch_fptr+1
-                        lda ULW_WINDOW_COPY::next_bank
-                        sta ULW_scratch_fptr+2
-                        sta BANKSEL::RAM
-                        ldy #ULW_WINDOW::prev_addr
-                        lda ULW_WINDOW_COPY::prev_addr
-                        sta (ULW_scratch_fptr),y
-                        iny
-                        lda ULW_WINDOW_COPY::prev_addr+1
-                        sta (ULW_scratch_fptr),y
-                        iny
-                        lda ULW_WINDOW_COPY::prev_bank
+@setnextsprevious:      lda ULW_WINDOW_COPY::next_handle
+                        jsr ULW_getwinptr
+                        stx ULW_scratch_fptr
+                        sty ULW_scratch_fptr+1
+                        ldy #ULW_WINDOW::prev_handle
+                        lda ULW_WINDOW_COPY::prev_handle
                         sta (ULW_scratch_fptr),y
 
                         ; Update the window map and occlusion flags to remove the closed window

@@ -2,10 +2,10 @@
 
 .code
 
-; ulstr_access - Access the data in a string
+; ULS_access - Access the data in a string
 ;   In: YX              - String BRP
 ;  Out: YX/ULS_scratch_fptr - Address of NUL-terminated UTF-8 string data in YX (copies to $400 low RAM scratch buffer if not in current RAM bank)
-.proc ulstr_access
+.proc ULS_access
                         ; If the Y is the same as the current bank, just access it (data is 3 bytes in)
                         sty ULS_scratch_fptr+2
                         cpy BANKSEL::RAM

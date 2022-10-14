@@ -1,9 +1,6 @@
 .include "unilib_impl.inc"
 
-.segment "EXTZP": zeropage
-
-ULW_current_fptr:       .res    3       ; current window handle
-ULW_scratch_fptr:       .res    3       ; current window handle
+.import __EXTZP_RUN__, __EXTZP_SIZE__
 
 .code
 
@@ -16,11 +13,10 @@ ULW_scratch_fptr:       .res    3       ; current window handle
 ;  Out: A               Error code (0 = OK)
 .proc ul_init
                         ; Initialize our zeropage
-                        ldx #ULW_current_fptr
-:                       stz $00,x
-                        inx
-                        bne :-
+                        ldx #<(__EXTZP_SIZE__-1)
+:                       stz __EXTZP_RUN__,x
                         dex
+                        bpl :-
                         stx ULW_screen_handle
                         stx ULW_current_handle
 
@@ -199,17 +195,6 @@ ULW_scratch_fptr:       .res    3       ; current window handle
                         rts
 .endproc
 
-.proc UL_terminate
-                        ; Hit a fatal internal error, so die (TODO: print a nice message)
-                        lda #0
-                        clc
-                        jsr SCREEN_MODE
-                        lda #2
-                        jsr SCREEN_SET_CHARSET
-                        clc
-                        jmp ENTER_BASIC
-.endproc
-
 .rodata
 
 ULV_colors:
@@ -240,9 +225,5 @@ ULW_screen_size:        .byte   80, 30              ; Size of screen (lo=columns
 
 ULW_keyidle:            .res    2       ; keyboard idle routine address
 
-ULW_screen_fptr:        .res    3       ; screen window handle
 ULW_screen_handle:      .res    1       ; Window handle of screen
 ULW_current_handle:     .res    1       ; Window handle of current topmost window
-
-UL_temp_l:              .res    1
-UL_temp_h:              .res    1

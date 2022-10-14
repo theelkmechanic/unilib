@@ -284,34 +284,34 @@ start:
 ;   ;jsr ulwin_refresh
 ;   jsr ulwin_scroll
 ;   ;jsr ulwin_refresh
-;
-;   ; Scroll occluded window
-;   lda window1
-;   ldy #$1
-;   ldx #0
-;   jsr ulwin_scroll
-;   jsr ulwin_refresh
-;   jsr ulwin_scroll
-;   jsr ulwin_refresh
-;   jsr ulwin_scroll
-;   jsr ulwin_refresh
-;   jsr ulwin_scroll
-;   jsr ulwin_refresh
-;   ldy #$ff
-;   jsr ulwin_scroll
-;   jsr ulwin_refresh
-;   ldy #0
-;   ldx #$fa
-;   jsr ulwin_scroll
-;   jsr ulwin_refresh
-;   jsr ulwin_scroll
-;   jsr ulwin_refresh
-;   jsr ulwin_scroll
-;   jsr ulwin_refresh
-;   ldx #2
-;   jsr ulwin_scroll
-;   jsr ulwin_refresh
-;
+
+   ; Scroll occluded window
+   lda window1
+   ldy #$1
+   ldx #0
+   jsr ulwin_scroll
+   jsr ulwin_refresh
+   jsr ulwin_scroll
+   jsr ulwin_refresh
+   jsr ulwin_scroll
+   jsr ulwin_refresh
+   jsr ulwin_scroll
+   jsr ulwin_refresh
+   ldy #$ff
+   jsr ulwin_scroll
+   jsr ulwin_refresh
+   ldy #0
+   ldx #$fa
+   jsr ulwin_scroll
+   jsr ulwin_refresh
+   jsr ulwin_scroll
+   jsr ulwin_refresh
+   jsr ulwin_scroll
+   jsr ulwin_refresh
+   ldx #2
+   jsr ulwin_scroll
+   jsr ulwin_refresh
+
 ;   ; Change top window color
 ;   lda window2
 ;   ldx #ULCOLOR::YELLOW

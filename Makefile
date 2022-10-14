@@ -13,7 +13,18 @@ FLAGS = -t cx16 --cpu 65c02 -g
 CORE_OBJS = \
 	$(OBJDIR)/ul_init.o \
 	$(OBJDIR)/ul_geterror.o \
-	$(OBJDIR)/ul_isprint.o
+	$(OBJDIR)/ul_isprint.o \
+	$(OBJDIR)/UL_core.o
+
+FILE_OBJS = \
+	$(OBJDIR)/ULF_readblock.o
+
+FONT_OBJS = \
+	$(OBJDIR)/ULFT_findcharinfo.o \
+
+ITER_OBJS = \
+	$(OBJDIR)/ULI_core.o \
+	$(OBJDIR)/ulitr.o
 
 MATH_OBJS = \
 	$(OBJDIR)/ulmath_idiv.o \
@@ -24,11 +35,25 @@ MEM_OBJS = \
 	$(OBJDIR)/ulmem.o
 
 STR_OBJS = \
-	$(OBJDIR)/ulstr_access.o \
+	$(OBJDIR)/ULS_access.o \
+	$(OBJDIR)/ULS_utils.o \
 	$(OBJDIR)/ulstr_fromUtf8.o \
 	$(OBJDIR)/ulstr_getlen.o
 
+STBL_OBJS = \
+	$(OBJDIR)/ulstb.o
+
+VERA_OBJS = \
+	$(OBJDIR)/ULV_blt.o \
+	$(OBJDIR)/ULV_copy.o \
+	$(OBJDIR)/ULV_fill.o \
+	$(OBJDIR)/ULV_glyphcolor.o \
+	$(OBJDIR)/ULV_setpaletteentry.o \
+	$(OBJDIR)/ULV_swap.o
+
 WIN_OBJS = \
+	$(OBJDIR)/ULW_map.o \
+	$(OBJDIR)/ULW_utils.o \
 	$(OBJDIR)/ulwin_box.o \
 	$(OBJDIR)/ulwin_busy.o \
 	$(OBJDIR)/ulwin_clear.o \
@@ -55,20 +80,7 @@ WIN_OBJS = \
 	$(OBJDIR)/ulwin_scroll.o \
 	$(OBJDIR)/ulwin_select.o
 
-INTERNAL_OBJS = \
-	$(OBJDIR)/ULF_readblock.o \
-	$(OBJDIR)/ULFT_findcharinfo.o \
-	$(OBJDIR)/ULS_utils.o \
-	$(OBJDIR)/ULV_blt.o \
-	$(OBJDIR)/ULV_copy.o \
-	$(OBJDIR)/ULV_fill.o \
-	$(OBJDIR)/ULV_glyphcolor.o \
-	$(OBJDIR)/ULV_setpaletteentry.o \
-	$(OBJDIR)/ULV_swap.o \
-	$(OBJDIR)/ULW_map.o \
-	$(OBJDIR)/ULW_utils.o
-
-OBJECTS = $(CORE_OBJS) $(MATH_OBJS) $(MEM_OBJS) $(STR_OBJS) $(WIN_OBJS) $(INTERNAL_OBJS)
+OBJECTS = $(CORE_OBJS) $(FILE_OBJS) $(FONT_OBJS) $(ITER_OBJS) $(MATH_OBJS) $(MEM_OBJS) $(STR_OBJS) $(VERA_OBJS) $(WIN_OBJS)
 
 TEST_SOURCES = \
 	test/ultest.s

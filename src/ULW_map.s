@@ -337,56 +337,38 @@ somebodys_rts:          rts
 ;       carry           - Set to start at screen window and follow next, clear to start at current window and follow previous
 .proc ULW_winlist_loop
                         ; Update callback address
-                        stx @winlist_loop+1
-                        sty @winlist_loop+2
+                        stx @call_callback+1
+                        sty @call_callback+2
 
                         ; Where are we starting the list?
                         bcs :+
 
                         ; Start at the current window and follow the previous addresses
-                        lda #ULW_WINDOW::prev_addr
+                        lda #ULW_WINDOW::prev_handle
                         sta ULW_temp_ptroff
-                        ldx ULW_current_fptr
-                        ldy ULW_current_fptr+1
-                        lda ULW_current_fptr+2
-                        bra :++
+                        lda ULW_current_handle
+                        bra @winlist_loop
 
                         ; Start at the screen window and follow the next addresses
-:                       lda #ULW_WINDOW::next_addr
+:                       lda #ULW_WINDOW::next_handle
                         sta ULW_temp_ptroff
-                        ldx ULW_screen_fptr
-                        ldy ULW_screen_fptr+1
-                        lda ULW_screen_fptr+2
+                        lda ULW_screen_handle
 
-:                       stx ULW_scratch_fptr
+@winlist_loop:          jsr ULW_getwinptr
+                        stx ULW_scratch_fptr
                         sty ULW_scratch_fptr+1
                         sta ULW_scratch_fptr+2
-                        sta BANKSEL::RAM
 
                         ; Call a given function for each iteration of the loop
-@winlist_loop:          jsr $0000
+@call_callback:         jsr $0000
 
                         ; Step to the next window
                         lda ULW_scratch_fptr+2
                         sta BANKSEL::RAM
                         ldy ULW_temp_ptroff
                         lda (ULW_scratch_fptr),y
-                        pha
-                        iny
-                        lda (ULW_scratch_fptr),y
-                        pha
-                        iny
-                        lda (ULW_scratch_fptr),y
-                        bne :+
-                        pla
-                        pla
+                        bpl @winlist_loop
                         rts
-:                       sta BANKSEL::RAM
-                        pla
-                        sta ULW_scratch_fptr+1
-                        pla
-                        sta ULW_scratch_fptr
-                        bra @winlist_loop
 .endproc
 
 .bss

@@ -4,23 +4,6 @@
 
 .code
 
-; ULW_scratchtocurrent - Set window at ULW_scratch_fptr into current
-;   In: ULW_scratch_fptr - Far pointer to a window structure
-;  Out: ULW_current_fptr - Set to value in ULW_scratch_fptr
-;       A/ULW_current_handle - Set to handle at (ULW_scratch_fptr)
-.proc ULW_scratchtocurrent
-                        lda ULW_scratch_fptr+2
-                        sta BANKSEL::RAM
-                        sta ULW_current_fptr+2
-                        lda ULW_scratch_fptr+1
-                        sta ULW_current_fptr+1
-                        lda ULW_scratch_fptr
-                        sta ULW_current_fptr
-                        lda (ULW_scratch_fptr)
-                        sta ULW_current_handle
-                        rts
-.endproc
-
 ; ULW_getend - Internal get end line/column helper
 ;   In: BANKSEL::RAM/ULW_scratch_fptr - pointer to window structure
 ;  Out: X               - End column (start column + number of columns)
@@ -91,6 +74,18 @@ ULW_putpair:            sta (ULW_scratch_fptr),y
                         dey
                         sta (ULW_scratch_fptr),y
                         rts
+.endproc
+
+; ULW_freebuf - Free one of the window buffers
+;   In: ULW_scratch_ptr/BANKSEL::RAM - Pointer to window structure
+;       Y               - Offset to BRP to free
+.proc ULW_freebuf
+                        lda (ULW_scratch_fptr),y
+                        tax
+                        iny
+                        lda (ULW_scratch_fptr),y
+                        tay
+                        jmp ulmem_free
 .endproc
 
 ; ULW_getwinstruct - access window structure and copy to known location
@@ -297,12 +292,12 @@ ULW_intersectwindow:    lda #<ULW_WINDOW_COPY::scol
 
 ; ULW_getwinbufptr - access the scratch window buffer pointer for a given location in the window (and calculate line length/stride)
 ;   In: ULW_scratch_fptr/BANKSEL::RAM/ULW_WINDOW_COPY - Window structure
-;       X                               - Column in window contents
-;       Y                               - Line in window contents
-;       carry                           - Clear = character buffer, Set = color buffer
-;  Out: ULW_winbufptr/BANKSEL::RAM      - Window buffer pointer to line/column
-;       ULW_linelen                     - Length of window content line in buffer
-;       ULW_linestride                  - Length of full window line in buffer (including border)
+;       X               - Column in window contents
+;       Y               - Line in window contents
+;       carry           - Clear = character buffer, Set = color buffer
+;  Out: AYX/BANKSEL::RAM - Window buffer pointer to line/column
+;       ULW_linelen     - Length of window content line in buffer
+;       ULW_linestride  - Length of full window line in buffer (including border)
 .proc ULW_getwinbufptr
                         ; Save the charbuf/colorbuf option for later
                         ror ULW_carryflag
@@ -341,8 +336,8 @@ ULW_intersectwindow:    lda #<ULW_WINDOW_COPY::scol
                         lda ULW_WINDOW_COPY::charbuf+1,y
                         tay
                         jsr ulmem_access
-                        stx ULW_winbufptr
-                        sty ULW_winbufptr+1
+                        stx ULW_scratch_bufptr
+                        sty ULW_scratch_bufptr+1
 
                         ; If we have a border, we increment X and Y by 1 to compensate
                         ply
@@ -359,13 +354,13 @@ ULW_intersectwindow:    lda #<ULW_WINDOW_COPY::scol
                         jsr ulmath_umul8_8
                         txa
                         clc
-                        adc ULW_winbufptr
-                        sta ULW_winbufptr
+                        adc ULW_scratch_bufptr
+                        sta ULW_scratch_bufptr
                         tya
-                        adc ULW_winbufptr+1
-                        sta ULW_winbufptr+1
+                        adc ULW_scratch_bufptr+1
+                        sta ULW_scratch_bufptr+1
                         pla
-                        beq a_handy_rts
+                        beq :++
                         ldy #0
                         bit ULW_carryflag
                         bmi :+
@@ -373,14 +368,17 @@ ULW_intersectwindow:    lda #<ULW_WINDOW_COPY::scol
                         jsr ulmath_umul8_8
                         txa
 :                       clc
-                        adc ULW_winbufptr
-                        sta ULW_winbufptr
+                        adc ULW_scratch_bufptr
+                        sta ULW_scratch_bufptr
                         tya
-                        adc ULW_winbufptr+1
-                        sta ULW_winbufptr+1
+                        adc ULW_scratch_bufptr+1
+                        sta ULW_scratch_bufptr+1
 
-                        ; Take the char/color flag back out of ULW_carryflag
-                        rol ULW_carryflag
+                        ; Take the char/color flag back out of ULW_carryflag and load our return value
+:                       rol ULW_carryflag
+                        ldx ULW_scratch_bufptr
+                        ldy ULW_scratch_bufptr+1
+                        lda BANKSEL::RAM
 .endproc
 a_handy_rts:            rts
 
@@ -451,7 +449,7 @@ a_handy_rts:            rts
                         sta ULWR_destsize
                         ldx ULW_WINDOW_COPY::title
                         ldy ULW_WINDOW_COPY::title+1
-                        jsr ulstr_access
+                        jsr ULS_access
                         jsr ULW_drawstring
                         clc
                         adc ULWR_dest
@@ -572,6 +570,8 @@ ULW_fillrect_charorcolor:
                         ldy ULWR_dest+1
                         rol ULW_carryflag
                         jsr ULW_getwinbufptr
+                        stx UL_dst_fptr
+                        sty UL_dst_fptr+1
 
                         ; Need to fill nlin lines with our character/color pattern
                         lda ULWR_destsize+1
@@ -588,25 +588,25 @@ ULW_fillrect_charorcolor:
 :                       bit ULW_carryflag
                         bmi lastload
 charloload:             lda #$00
-                        sta (ULW_winbufptr),y
+                        sta (UL_dst_fptr),y
                         iny
 charhiload:             lda #$00
-                        sta (ULW_winbufptr),y
+                        sta (UL_dst_fptr),y
                         iny
 lastload:               lda #$00
-                        sta (ULW_winbufptr),y
+                        sta (UL_dst_fptr),y
                         iny
 linefill_cmp:           cpy #$00
                         bcc :-
 
                         ; Advance to the next line
-                        lda ULW_winbufptr
+                        lda UL_dst_fptr
                         clc
                         adc ULW_linestride
-                        sta ULW_winbufptr
-                        lda ULW_winbufptr+1
+                        sta UL_dst_fptr
+                        lda UL_dst_fptr+1
                         adc #0
-                        sta ULW_winbufptr+1
+                        sta UL_dst_fptr+1
                         dec ULW_linecount
                         bne :--
                         rts
@@ -807,15 +807,15 @@ linefill_cmp:           cpy #$00
                         ldy ULWR_src+1
                         rol ULW_carryflag
                         jsr ULW_getwinbufptr
-                        lda ULW_winbufptr
-                        sta ULW_winsrcptr
-                        lda ULW_winbufptr+1
-                        sta ULW_winsrcptr+1
+                        stx UL_src_fptr
+                        sty UL_src_fptr+1
                         lda ULW_WINDOW_COPY::handle
                         ldx ULWR_dest
                         ldy ULWR_dest+1
                         rol ULW_carryflag
                         jsr ULW_getwinbufptr
+                        stx UL_dst_fptr
+                        sty UL_dst_fptr+1
 
                         ; Are we copying left or right?
                         bit ULW_carryflag
@@ -823,8 +823,8 @@ linefill_cmp:           cpy #$00
 
                         ; Copy left (start 0, done at size)
                         ldy #0
-:                       lda (ULW_winsrcptr),y
-                        sta (ULW_winbufptr),y
+:                       lda (UL_src_fptr),y
+                        sta (UL_dst_fptr),y
                         iny
 @lencheck:              cpy #$00
                         bne :-
@@ -833,8 +833,8 @@ linefill_cmp:           cpy #$00
                         ; Copy right (start size-1, done at -1)
 @moveright:             ldy #$00
                         dey
-:                       lda (ULW_winsrcptr),y
-                        sta (ULW_winbufptr),y
+:                       lda (UL_src_fptr),y
+                        sta (UL_dst_fptr),y
                         dey
                         cpy #$ff
                         bne :-
@@ -848,6 +848,7 @@ ULW_linelen:            .res    1
 ULW_linestride:         .res    1
 ULW_srcstride:          .res    1
 ULW_carryflag:          .res    1
+ULW_scratch_bufptr:     .res    2
 
 ULWR_src:               .res    2
 ULWR_srcsize:           .res    2
@@ -855,8 +856,3 @@ ULWR_dest:              .res    2
 ULWR_destsize:          .res    2
 ULWR_char:              .res    3
 ULWR_color:             .res    1
-
-.segment "EXTZP": zeropage
-
-ULW_winbufptr:          .res    2
-ULW_winsrcptr:          .res    2

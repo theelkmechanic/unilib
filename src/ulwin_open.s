@@ -49,11 +49,10 @@
                         sta @new_elin
 
                         ; Have we initialized the screen yet?
-                        lda ULW_screen_fptr+2
-                        beq @find_empty_slot
+                        bit ULW_screen_handle
+                        bmi @find_empty_slot
 
                         ; Check that the new window fits on the screen
-                        sta BANKSEL::RAM
                         lda @new_slin
                         bit @new_flags
                         bpl :+
@@ -215,43 +214,28 @@
                         lda @new_title+1
                         sta (ULW_scratch_fptr),y
 
-                        ; Set current window as previous to our new one
+                        ; Current window is our previous, and our next is not present
                         iny
-                        lda ULW_current_fptr
+                        lda #$ff
                         sta (ULW_scratch_fptr),y
                         iny
-                        lda ULW_current_fptr+1
+                        lda ULW_current_handle
                         sta (ULW_scratch_fptr),y
-                        iny
-                        lda ULW_current_fptr+2
-                        sta (ULW_scratch_fptr),y
+                        bmi :+
 
-                        ; And set new window as next to our current one (if there is a current one)
-                        lda ULW_current_fptr+2
-                        beq :+
-                        sta BANKSEL::RAM
-                        iny
-                        iny
-                        lda ULW_scratch_fptr
-                        sta (ULW_current_fptr),y
-                        iny
-                        lda ULW_scratch_fptr+1
-                        sta (ULW_current_fptr),y
-                        iny
-                        lda ULW_scratch_fptr+2
-                        sta (ULW_current_fptr),y
+                        ; If there is a current window, need to set ourselves as its next
+                        jsr ULW_getwinptr
+                        stx ULW_scratch_fptr
+                        sty ULW_scratch_fptr+1
+                        ldy #ULW_WINDOW::next_handle
+                        lda ULW_newwin_handle
+                        sta (ULW_scratch_fptr),y
 
                         ; Then set new window as current (and as screen if it's the first),
                         ; and fill in the window map
-:                       jsr ULW_scratchtocurrent
-                        ldx ULW_screen_fptr+2
-                        bne :+
-                        ldx ULW_scratch_fptr+2
-                        stx ULW_screen_fptr+2
-                        ldx ULW_scratch_fptr+1
-                        stx ULW_screen_fptr+1
-                        ldx ULW_scratch_fptr
-                        stx ULW_screen_fptr
+:                       lda ULW_newwin_handle
+                        bit ULW_screen_handle
+                        bpl :+
                         sta ULW_screen_handle
 :                       sta ULW_current_handle
                         jsr ULW_update_occlusion

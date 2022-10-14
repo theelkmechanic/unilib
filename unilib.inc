@@ -14,11 +14,32 @@
 ;  - RAM bank selector <- hi
 ;  - 16-bit address    <- $A000 | (lo * 32)
 .global ulmem_alloc         ; YX = allocation size (max 7,936 bytes), carry set will clear the allocated memory; returns BPR in YX
+.global ulmem_realloc       ; r0 = BRP to reallocate, YX = new allocation size (max 7,936 bytes); returns new BPR in YX
 .global ulmem_free          ; YX = BRP to free
-.global ulmem_access        ; YX BRP -> RAM bank selected, YX = 16-bit memory address of data
+.global ulmem_access        ; YX = BRP; returns YX = 16-bit memory address of data with RAM bank selected
+.global ulmem_capacity      ; YX = BRP; returns YX = BRP capacity in bytes
+
+; Data blocks - Lets you reference-count BRPs for reuse
+.global uldb_create         ; YX = size; allocates and references new uninitialized BRP, returns data block handle in YX
+.global uldb_fromBRP        ; r0 = BRP, r1 = size; returns data block handle in YX, takes ownership of the passed BRP (will free it when reference count drops to 0)
+.global uldb_fromBuffer     ; r0 = pointer to memory, r1 = size to copy; returns data block handle in YX, allocates new data BRP and copies from pointer
+.global uldb_fromIter       ; r0 = iterator, r1 = size; returns data block handle in YX, allocates new data BRP and copies r1 entries from iterator
+.global uldb_getrefcount    ; YX = data block handle; returns reference count in YX
+.global uldb_addref         ; YX = data block handle; increments reference count
+.global uldb_release        ; YX = data block handle; decrements reference count, frees data block BRP and data BRP when it hits zero
+.global uldb_getsize        ; YX = data block handle; returns size of data in YX
+.global uldb_getrawbrp      ; YX = data block handle; returns data BRP in YX
+
+; Blocklists - Lets you organize data blocks into an iterable list of blocks
+.global ullist_create       ; YX = initial data block handle (0/0 means empty list); returns list handle in YX
+.global ullist_getrefcount  ; YX = list handle; returns reference count in YX
+.global ullist_addref       ; YX = list handle; increments reference count
+.global ullist_release      ; YX = list handle; decrements reference count, when count hits zero it releases all data blocks in the list and frees the list BRP
+.global ullist_insert       ; r0 = list handle, YX = data block handle, A = position; inserts data block in the list at the specified position (255=end)
+.global ullist_delete       ; r0 = list handle, YX = data block handle, A = position; removes the data block from the list at the specified position (255=end)
+.global ullist_getat        ; r0 = list handle, A = position
 
 ; Iterators - Let you step backward/forward through memory/strings/lists/stringtables/etc.
-
 .global ulitr_create        ; A = iterator type | Iterator format, YX = object to iterate over; returns iterator handle in YX
 .global ulitr_delete        ; YX = iterator; deletes iterator
 .global ulitr_fetch         ; YX = iterator; returns value at iterator as specified in formats (carry set if error)
@@ -41,14 +62,13 @@
                             ;   - The "object" to iterate over and the iterator handle will be the same:
                             ;       * X = zero-page address of the 24-bit pointer
                             ;       * Y = 0
-                            ;   - When pointer high byte is $9F, iterator functions will NOT move the pointer
-                            ;     (to facilitate reading/writing to VRAM)
+                            ;   - Pointer high byte of $9F is invalid and will return errors
                             ;   - When pointer high byte is $A0-BF, calling iterator functions will switch to
                             ;     the RAM bank in the pointer; otherwise pointer is treated as 16-bit and RAM
                             ;     bank will not be changed
                             ;   - Pointer increment/decrement will stop at the device region at $9Fxx and at the
-                            ;     ROM boundary at $C000 (e.g., if pointer is $9E80 and is advanced 256 bytes, the
-                            ;     iterator will stop at $9EFF; if it is $BF00 and is advanced 384 bytes, the new
+                            ;     ROM boundary at $C000 (e.g., if pointer is $9E80 and is advanced 192 bytes, the
+                            ;     iterator will stop at $9EFF; if it is $BFC0 and is advanced 192 bytes, the new
                             ;     address will be $A080 and the RAM bank will be increased by 1, etc.)
                             ;   - atstart/atend do not work
                             ;   - Fetches from $C000-$FFFF will read the current ROM bank; stores will do nothing
@@ -58,16 +78,21 @@
                             ;     iterator formats, and atend is true when iterator is one entry past the range
                             ;     where it was initialized (e.g., if initialized at $8000, atend will be true when
                             ;     the iterator gets to $A000)
-    BRP             = $02   ; Banked RAM pointer iterator
-                            ;   - Call ulitr_create with the BRP of the object you wish to iterate on
-                            ;   - atstart is true when at the beginning of the BRP object
-                            ;   - atend is true when one step past the last entry in the BRP object (fetch/store
-                            ;     will fail when at end)
-    VRAM            = $03   ; VERA video ram iterator
+    VRAM            = $02   ; VERA video ram iterator
                             ;   - Call ulitr_create with the low 16 bits of the VERA address in YX, and the high
                             ;     bit in the carry flag
                             ;   - atstart is true when at the beginning of VRAM
                             ;   - atend is true when just past the end of VRAM
+    BRP             = $03   ; Banked RAM pointer iterator
+                            ;   - Call ulitr_create with the BRP of the object you wish to iterate on
+                            ;   - atstart is true when at the beginning of the BRP object
+                            ;   - atend is true when one step past the last entry in the BRP object (fetch/store
+                            ;     will fail when at end)
+    LIST            = $04   ; Blocklist
+                            ;   - Call ulitr_create with the handle of the blocklist you wish to iterate on
+                            ;   - atstart is true when at the beginning of the first data block in the list
+                            ;   - atend is true when one step past the last entry in the last data block in the list
+                            ;     (fetch/store will fail when at end)
 
     REVERSE         = $80   ; Reverse flag; if set, iterator is reversed (initialized to end of BRP instead of
                             ; start, inc/dec/adv/rew go in opposite directions, atstart/atend are at opposites)
@@ -108,7 +133,7 @@
                             ;   - Stringtable size is fixed at creation
 .endenum
 
-; Unicode string functions - Work on UTF-8 BRP immutable, reference-counted string objects (max length = 7,926 bytes)
+; Unicode string functions - Work on UTF-8 BRP immutable, reference-counted string objects
 .global ulstr_fromUtf8      ; YX = address of NUL-terminated UTF-8 character data; creates new string object and returns in YX
 .global ulstr_fromPETSCII   ; YX = address of NUL-terminated PETSCII character data; creates new string object and returns in YX
 .global ulstr_fromISO8859   ; YX = address of NUL-terminated ISO-8859-15 character data; creates new string object and returns in YX

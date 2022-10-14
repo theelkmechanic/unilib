@@ -8,7 +8,3 @@
                         lda UL_lasterr
                         rts
 .endproc
-
-.bss
-
-UL_lasterr:             .res    1

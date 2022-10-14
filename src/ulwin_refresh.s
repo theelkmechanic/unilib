@@ -92,19 +92,23 @@
                         ; Find the character/color inside the window buffers and draw it to the screen
                         clc
                         jsr ULW_getwinbufptr
-                        lda (ULW_winbufptr)
+                        stx UL_dst_fptr
+                        sty UL_dst_fptr+1
+                        lda (UL_dst_fptr)
                         pha
                         ldy #1
-                        lda (ULW_winbufptr),y
+                        lda (UL_dst_fptr),y
                         pha
                         iny
-                        lda (ULW_winbufptr),y
+                        lda (UL_dst_fptr),y
                         pha
                         ldx ULW_dirtyrect+2
                         ldy ULW_dirtyrect+3
                         sec
                         jsr ULW_getwinbufptr
-                        lda (ULW_winbufptr)
+                        stx UL_dst_fptr
+                        sty UL_dst_fptr+1
+                        lda (UL_dst_fptr)
                         sta ULVR_color
                         lda ULW_dirtyrect
                         sta ULVR_destpos

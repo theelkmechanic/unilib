@@ -180,8 +180,3 @@
 ULS_bytelen:            .res    1
 ULS_charlen:            .res    1
 ULS_printlen:           .res    1
-
-.segment "EXTZP": zeropage
-
-ULS_scratch_fptr:       .res    3
-ULS_scratch_char:       .res    3

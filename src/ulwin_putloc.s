@@ -49,7 +49,7 @@
                         ; Access the string
                         ldx gREG::r0L
                         ldy gREG::r0H
-                        jsr ulstr_access
+                        jsr ULS_access
 
                         ; Make sure there's something to print
                         dec ULS_scratch_fptr
