@@ -121,9 +121,10 @@ ULM_multab_neg_hi = ULM_multab_neg_lo + $200
                         sty BANKSEL::RAM
 
                         ; Build the multab table
-                        ldx #$00
-                        txa
-                        .byte $c9   ; CMP #immediate - skip TYA and clear carry flag
+                        ldy #$00
+                        tya
+                        tax
+                        clc
 @table_loop:            tya
                         adc #$00
 @ml1:                   sta ULM_multab_hi,x

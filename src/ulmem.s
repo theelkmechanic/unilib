@@ -7,9 +7,7 @@
 ;  Out: BANKSEL::RAM    - Set to RAM bank from BRP
 ;       YX              - 16-bit address of memory
 .proc ulmem_access
-                        pha
                         sty BANKSEL::RAM
-                        .byte $24 ; skip the pha at the start of ULM_slot2addr
 .endproc
 
 ; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE

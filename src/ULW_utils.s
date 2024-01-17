@@ -11,7 +11,7 @@
 .proc ULW_getend
                         ; End column
                         ldy #ULW_WINDOW::ecol
-                        .byte $2c ; skip next instruction
+                        bra ULW_getwinxy_imp
 .endproc
 
 ; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
@@ -23,7 +23,7 @@
 .proc ULW_getcursor
                         ; Cursor column
                         ldy #ULW_WINDOW::ccol
-                        .byte $2c ; skip next instruction
+                        bra ULW_getwinxy_imp
 .endproc
 
 ; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
@@ -35,7 +35,7 @@
 .proc ULW_getsize
                         ; Number of columns
                         ldy #ULW_WINDOW::ncol
-                        .byte $2c ; skip next instruction
+                        bra ULW_getwinxy_imp
 .endproc
 
 ; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
@@ -47,6 +47,11 @@
 .proc ULW_getpos
                         ; Start column
                         ldy #ULW_WINDOW::scol
+.endproc
+
+; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
+
+.proc ULW_getwinxy_imp
                         pha
                         lda (ULW_scratch_fptr),y
                         tax
@@ -685,6 +690,7 @@ linefill_cmp:           cpy #$00
                         ror ULW_carryflag
 
                         ; Moving up or down? (Store appropriate line advance instructions)
+                        stz ULWR_dir
                         lda ULWR_src+1
                         cmp ULWR_dest+1
                         bcs :+
@@ -699,15 +705,7 @@ linefill_cmp:           cpy #$00
                         adc ULWR_destsize+1
                         dec
                         sta ULWR_dest+1
-
-                        ; Moving down, so need dec instructions (opcode=$xx)
-                        lda #$CE
-                        .byte $2c ; skip next instruction
-
-                        ; Moving up, so need inc instructions (opcode=$xx)
-:                       lda #$EE
-                        sta @stepsrc
-                        sta @stepdest
+                        dec ULWR_dir
 
                         ; Loop over lines; copy the character data
 @line_loop:             lda ULWR_destsize
@@ -733,8 +731,13 @@ linefill_cmp:           cpy #$00
                         beq @check_occlusion
 
                         ; Step to next line
-@stepsrc:               inc ULWR_src+1
-@stepdest:              inc ULWR_dest+1
+                        bit ULWR_dir
+                        bpl :+
+                        dec ULWR_src+1
+                        dec ULWR_dest+1
+                        bra @line_loop
+:                       inc ULWR_src+1
+                        inc ULWR_dest+1
                         bra @line_loop
 
                         ; Okay, window backbuffer is filled; restore the input parameters and
@@ -850,6 +853,7 @@ ULW_srcstride:          .res    1
 ULW_carryflag:          .res    1
 ULW_scratch_bufptr:     .res    2
 
+ULWR_dir:               .res    1
 ULWR_src:               .res    2
 ULWR_srcsize:           .res    2
 ULWR_dest:              .res    2

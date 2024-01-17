@@ -32,7 +32,8 @@ MATH_OBJS = \
 	$(OBJDIR)/ulmath_signed.o
 
 MEM_OBJS = \
-	$(OBJDIR)/ulmem.o
+	$(OBJDIR)/ulmem.o \
+	$(OBJDIR)/uldb.o
 
 STR_OBJS = \
 	$(OBJDIR)/ULS_access.o \

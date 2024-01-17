@@ -97,11 +97,11 @@
 
                         ; Failure returns 0
                         lda #ULERR::OUT_OF_RESOURCES
-                        .byte $2c
+                        bra @save_error_and_bail
 @bad_params:            lda #ULERR::INVALID_PARAMS
-                        .byte $2c
+                        bra @save_error_and_bail
 @out_of_memory:         lda #ULERR::OUT_OF_MEMORY
-                        sta UL_lasterr
+@save_error_and_bail:   sta UL_lasterr
                         lda #0
                         jmp @exit
 

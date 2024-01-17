@@ -8,7 +8,7 @@
 .proc ulstr_getlen
                         ; Want the string length in characters (BRP[1])
                         lda #1
-                        .byte $2c
+                        bra ulstr_getlen_imp
 .endproc
 
 ; FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
@@ -19,7 +19,7 @@
 .proc ulstr_getprintlen
                         ; Want the string length in printable characters (BRP[2])
                         lda #2
-                        .byte $2c
+                        bra ulstr_getlen_imp
 .endproc
 
 ; FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
@@ -30,6 +30,12 @@
 .proc ulstr_getrawlen
                         ; Want the string length in bytes (BRP[0])
                         lda #0
+.endproc
+
+; FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
+
+.proc ulstr_getlen_imp
+                        ; Store the offset we're getting
                         sta @getlenoffset+1
 
                         ; Save RAM bank/X/Y

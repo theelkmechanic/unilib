@@ -46,7 +46,7 @@ ULW_temp_tilecount_hi   = $7c0
                         sta ULWR_destsize
                         lda #30
                         sta ULWR_destsize+1
-                        .byte $24 ; skip pha at start of next function
+                        bra ULW_setdirty_imp
 .endproc
 
 ; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE ***
@@ -58,6 +58,11 @@ ULW_temp_tilecount_hi   = $7c0
 .proc ULW_set_dirty_rect
                         ; Save A/X/Y/bank
                         pha
+.endproc
+
+; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE ***
+
+.proc ULW_setdirty_imp
                         phx
                         phy
                         ldy BANKSEL::RAM
@@ -318,11 +323,12 @@ somebodys_rts:          rts
 
                         ; Window is covered, set both bits
 @covered:               lda #ULWS_OCCLUDED | ULWS_COVERED
-                        .byte $2c
+                        bra @storewinbits
 
                         ; Window is occluded, just set the occluded bit
 @occluded:              lda #ULWS_OCCLUDED
-                        sta ULW_WINDOW_COPY::status
+
+@storewinbits:          sta ULW_WINDOW_COPY::status
 
                         ; Store the correct status
 @store_status:          tya

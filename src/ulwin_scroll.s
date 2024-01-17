@@ -77,13 +77,13 @@
                         lda ULW_WINDOW_COPY::ncol
                         clc
                         adc @savedx+1
-                        .byte $2c
+                        bra @fillcolumns
 
                         ; Fill left columns
 @fillleft:              lda #0
 
                         ; Fill columns
-                        sta ULWR_dest
+@fillcolumns:           sta ULWR_dest
                         stx ULWR_destsize
                         lda ULW_WINDOW_COPY::nlin
                         sta ULWR_destsize+1
