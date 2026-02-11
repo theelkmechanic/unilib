@@ -17,10 +17,7 @@
 .globalzp UL_varptr
 .globalzp UL_var2ptr
 .globalzp UL_src_fptr
-.globalzp UL_src_rng
 .globalzp UL_dst_fptr
-.globalzp UL_dst_rng
-.globalzp UL_len
 
 ; File utilities
 .global ULF_readblock
@@ -49,9 +46,26 @@ capacity    .word       ; capacity (>= size)
 brps        .word       ; array of data block handles
 .endstruct
 
-; Iterators
-.global ULI_adv
-.global ULI_rew
+; Iterator internals
+.global ULI_load
+.global ULI_save_cur
+.global ULI_at_end
+.global ULI_at_start
+.global ULI_get_step
+.global ULI_inc_cur
+.global ULI_dec_cur
+.global ULI_scratch
+.globalzp ULI_ptr
+.globalzp ULI_cur
+.global ULI_cur_bank
+.global ULI_state_bank
+
+; Iterator state layout (stored in a BRP, 10 bytes)
+ULI_STATE_TYPE    = 0   ; type_format: bits 7=reverse, 6-4=format, 3-0=type
+ULI_STATE_CUR     = 1   ; current address lo, hi, bank (3 bytes)
+ULI_STATE_START   = 4   ; start address lo, hi, bank (3 bytes)
+ULI_STATE_END     = 7   ; end address lo, hi, bank (3 bytes)
+ULI_STATE_SIZE    = 10
 
 
 ; Math utilities

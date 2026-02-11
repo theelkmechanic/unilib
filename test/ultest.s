@@ -2,9 +2,6 @@
 .include "cx16.inc"
 .include "cbm_kernal.inc"
 
-.global ULV_backbuf_offset
-.global ULV_setdirtylines
-
 .import __BSS_RUN__, __BSS_SIZE__
 
 .segment "EXEHDR"
@@ -14,515 +11,494 @@
 
 .segment "LOWCODE"
 
-   jmp start
+    jmp start
 
 .code
 
-font_fn: .byte "unilib.ulf"
+; =========================================================================
+; String data
+; =========================================================================
+
+font_fn:        .byte "unilib.ulf"
 end_filenames:
 
+str_title:      .byte "UniLib Tests", 0
+
+str_t_alloc:    .byte "Alloc BRP + fill      ", 0
+str_t_create:   .byte "Create byte iterator  ", 0
+str_t_atstart:  .byte "atstart (initial)     ", 0
+str_t_notatend: .byte "not atend (initial)   ", 0
+str_t_fwd:      .byte "fetch_and_inc x8      ", 0
+str_t_atend:    .byte "atend (after forward) ", 0
+str_t_fai_end:  .byte "fetch_and_inc at end  ", 0
+str_t_dec:      .byte "dec x8 to start       ", 0
+str_t_dec_start:.byte "dec at start          ", 0
+str_t_store:    .byte "store + readback      ", 0
+str_t_adv:      .byte "adv 4, fetch=4        ", 0
+str_t_rew:      .byte "rew 4, fetch=0        ", 0
+str_t_delete:   .byte "delete iterator       ", 0
+
+str_pass:       .byte " OK", 0
+str_fail:       .byte " FAIL", 0
+str_summary:    .byte "Passed: ", 0
+str_of:         .byte " of ", 0
+str_exp:        .byte " exp:", 0
+str_got:        .byte " got:", 0
+
+; =========================================================================
+; Helpers
+; =========================================================================
+
+; putmsg - Write null-terminated ASCII string to the test window
+;   In: YX = pointer to null-terminated string
+.proc putmsg
+                        stx gREG::r5L
+                        sty gREG::r5H
+                        ldy #0
+@loop:                  lda (gREG::r5),y
+                        beq @done
+                        sta gREG::r0L
+                        stz gREG::r0H
+                        stz gREG::r1L
+                        phy
+                        lda win
+                        jsr ulwin_putchar
+                        ply
+                        iny
+                        bne @loop
+@done:                  rts
+.endproc
+
+; puthex - Write A as 2 hex digits to the test window
+;   In: A = byte value
+.proc puthex
+                        pha
+                        lsr
+                        lsr
+                        lsr
+                        lsr
+                        tax
+                        lda @hexchars,x
+                        sta gREG::r0L
+                        stz gREG::r0H
+                        stz gREG::r1L
+                        lda win
+                        jsr ulwin_putchar
+                        pla
+                        and #$0f
+                        tax
+                        lda @hexchars,x
+                        sta gREG::r0L
+                        stz gREG::r0H
+                        stz gREG::r1L
+                        lda win
+                        jmp ulwin_putchar
+@hexchars:              .byte "0123456789ABCDEF"
+.endproc
+
+; newline - Advance cursor to the start of the next line
+.proc newline
+                        lda win
+                        jsr ulwin_getline
+                        ina
+                        tay
+                        ldx #0
+                        lda win
+                        jmp ulwin_putcursor
+.endproc
+
+; pass - Print " OK" and increment pass counter
+.proc pass
+                        inc num_passed
+                        inc num_total
+                        ldx #<str_pass
+                        ldy #>str_pass
+                        jsr putmsg
+                        jmp newline
+.endproc
+
+; fail - Print " FAIL" and increment fail counter
+.proc fail
+                        inc num_total
+                        ldx #<str_fail
+                        ldy #>str_fail
+                        jsr putmsg
+                        jmp newline
+.endproc
+
+; =========================================================================
+; Main test program
+; =========================================================================
+
 start:
-   ; Zero the BSS
-   lda #<__BSS_RUN__
-   sta gREG::r0L
-   lda #>__BSS_RUN__
-   sta gREG::r0H
-   lda #<__BSS_SIZE__
-   sta gREG::r1L
-   lda #>__BSS_SIZE__
-   sta gREG::r1H
-   lda #0
-   jsr MEMORY_FILL
+                        ; Zero BSS
+                        lda #<__BSS_RUN__
+                        sta gREG::r0L
+                        lda #>__BSS_RUN__
+                        sta gREG::r0H
+                        lda #<__BSS_SIZE__
+                        sta gREG::r1L
+                        lda #>__BSS_SIZE__
+                        sta gREG::r1H
+                        lda #0
+                        jsr MEMORY_FILL
 
-   ; Set font name in r0 and length/device in r1
-   lda #(end_filenames-font_fn)
-   sta gREG::r1L
-   lda #8
-   sta gREG::r1H
-   lda #<font_fn
-   sta gREG::r0L
-   lda #>font_fn
-   sta gREG::r0H
+                        ; Initialize UniLib
+                        lda #(end_filenames-font_fn)
+                        sta gREG::r1L
+                        lda #8
+                        sta gREG::r1H
+                        lda #<font_fn
+                        sta gREG::r0L
+                        lda #>font_fn
+                        sta gREG::r0H
+                        lda #ULCOLOR::WHITE
+                        sta gREG::r2L
+                        lda #ULCOLOR::DGREY
+                        sta gREG::r2H
+                        jsr ul_init
 
-   ; Use white on dark grey by default
-   lda #ULCOLOR::WHITE
-   sta gREG::r2L
-   lda #ULCOLOR::DGREY
-   sta gREG::r2H
+                        ; Create title string
+                        ldx #<str_title
+                        ldy #>str_title
+                        jsr ulstr_fromUtf8
+                        stx titlebrp
+                        sty titlebrp+1
 
-   ; Initialize the Unilib library
-   jsr ul_init
+                        ; Open test window: position (1,1), size 78x26, white on blue, border
+                        lda #1
+                        sta gREG::r0L
+                        sta gREG::r0H
+                        lda #78
+                        sta gREG::r1L
+                        lda #26
+                        sta gREG::r1H
+                        lda #ULCOLOR::WHITE
+                        sta gREG::r2L
+                        lda #ULCOLOR::BLUE
+                        sta gREG::r2H
+                        lda titlebrp
+                        sta gREG::r3L
+                        lda titlebrp+1
+                        sta gREG::r3H
+                        stz gREG::r4L
+                        lda #ULWIN_FLAGS::BORDER
+                        sta gREG::r4H
+                        jsr ulwin_open
+                        sta win
+                        jsr ulwin_refresh
 
-;   ; Draw our character set onto the bottom of the screen
-;
-;   ; Make sure $20000 screen is displaying
-;   lda ULV_backbuf_offset
-;   beq :+
-;   jsr ulwin_refresh
-;
-;   ; First do colors: white on black/dgrey for base set, then white on dgrey/mgrey/dgrey/mgrey for overlays
-;:  lda VERA::CTRL
-;   and #$fe
-;   sta VERA::CTRL
-;   lda #VERA::INC2
-;   sta VERA::ADDR+2
-;   lda #14
-;   sta VERA::ADDR+1
-;@next_line:
-;   lda #1
-;   sta VERA::ADDR
-;   bit VERA::ADDR+1
-;   beq :+
-;   lda #(ULCOLOR::BLUE << 4) | ULCOLOR::WHITE
-;   .byte $2c
-;:  lda #(ULCOLOR::DGREY << 4) | ULCOLOR::WHITE
-;:  eor #$80
-;@next_cell:
-;   sta VERA::DATA0
-;   ldx VERA::ADDR
-;   cpx #33
-;   bcc :-
-;   lda VERA::ADDR
-;   tay
-;   lsr
-;   eor VERA::ADDR+1
-;   pha
-;   tya
-;   lsr
-;   lsr
-;   lsr
-;   lsr
-;   lsr
-;   tay
-;   pla
-;   lsr
-;   tya
-;   rol
-;   and #$03
-;   beq :++
-;   dec
-;   beq :+++
-;   dec
-;   bne :+++
-;:  lda #(ULCOLOR::BLACK << 4) | ULCOLOR::YELLOW
-;   .byte $2c
-;:  lda #(ULCOLOR::BROWN << 4) | ULCOLOR::YELLOW
-;   .byte $2c
-;:  lda #(ULCOLOR::DGREY << 4) | ULCOLOR::YELLOW
-;   cpx #160
-;   bcc @next_cell
-;   ldx VERA::ADDR+1
-;   inx
-;   stx VERA::ADDR+1
-;   cpx #30
-;   bcc @next_line
-;
-;   ; Next set overlay bits in $40000 screen so correct characters will be displayed
-;   lda #14 + 64
-;   sta VERA::ADDR+1
-;:  lda #33
-;   sta VERA::ADDR
-;   lda VERA::ADDR+1
-;   sec
-;   sbc #14 + 64
-;   lsr
-;   lsr
-;   ora #$d0
-;:  sta VERA::DATA0
-;   ldx VERA::ADDR
-;   cpx #160
-;   bcc :-
-;   ldx VERA::ADDR+1
-;   inx
-;   stx VERA::ADDR+1
-;   cpx #30 + 64
-;   bcc :--
-;
-;   ; Now do characters; first, base in first 16 columns
-;   lda #14
-;   sta VERA::ADDR+1
-;:  stz VERA::ADDR
-;   lda VERA::ADDR+1
-;   sec
-;   sbc #14
-;   asl
-;   asl
-;   asl
-;   asl
-;:  sta VERA::DATA0
-;   inc
-;   ldx VERA::ADDR
-;   cpx #32
-;   bcc :-
-;   ldx VERA::ADDR+1
-;   inx
-;   stx VERA::ADDR+1
-;   cpx #30
-;   bcc :--
-;
-;   ; Then overlay in last 64
-;   lda #14 + 64
-;   sta VERA::ADDR+1
-;:  lda #32
-;   sta VERA::ADDR
-;   lda VERA::ADDR+1
-;   sec
-;   sbc #14 + 64
-;   asl
-;   asl
-;   asl
-;   asl
-;   asl
-;   asl
-;:  sta VERA::DATA0
-;   inc
-;   ldx VERA::ADDR
-;   cpx #160
-;   bcc :-
-;   ldx VERA::ADDR+1
-;   inx
-;   stx VERA::ADDR+1
-;   cpx #30 + 64
-;   bcc :--
-;
-;   ; Mark bottom rows as dirty so they persist
-;   ldx #14
-;   ldy #29
-;   jsr ULV_setdirtylines
-;   jsr ulwin_refresh
+; ----- Test: Allocate BRP and fill with test pattern (0-7) -----
 
-   ; Draw a busy window
-   clc
-   jsr ulwin_busy
+                        ldx #<str_t_alloc
+                        ldy #>str_t_alloc
+                        jsr putmsg
 
-   ; Allocate our title string
-   ldx #<wintitle
-   ldy #>wintitle
-   jsr ulstr_fromUtf8
-   stx titlestr
-   sty titlestr+1
+                        ldx #8
+                        ldy #0
+                        sec
+                        jsr ulmem_alloc
+                        bcc @alloc_fail
+                        stx data_brp
+                        sty data_brp+1
 
-   ; Open a yellow-on-brown window at 8,2-10x70 with a border and title
-   lda #2
-   sta gREG::r0L
-   lda #8
-   sta gREG::r0H
-   lda #70
-   sta gREG::r1L
-   lda #10
-   sta gREG::r1H
-   lda #ULCOLOR::YELLOW
-   sta gREG::r2L
-   lda #ULCOLOR::BROWN
-   sta gREG::r2H
-   lda titlestr
-   sta gREG::r3L
-   lda titlestr+1
-   sta gREG::r3H
-   stz gREG::r4L
-   lda #$80
-   sta gREG::r4H
-   jsr ulwin_open
-   sta window1
+                        ; Fill BRP with 0,1,2,...,7
+                        jsr ulmem_access
+                        stx gREG::r5L
+                        sty gREG::r5H
+                        ldy #0
+:                       tya
+                        sta (gREG::r5),y
+                        iny
+                        cpy #8
+                        bne :-
 
+                        jsr pass
+                        bra @test_create
 
-   ; Open a white-on-blue window at 2,8-10x70 with a border and title
-   lda #8
-   sta gREG::r0L
-   lda #2
-   sta gREG::r0H
-   lda #70
-   sta gREG::r1L
-   lda #10
-   sta gREG::r1H
-   lda #ULCOLOR::WHITE
-   sta gREG::r2L
-   lda #ULCOLOR::BLUE
-   sta gREG::r2H
-   lda titlestr
-   sta gREG::r3L
-   lda titlestr+1
-   sta gREG::r3H
-   stz gREG::r4L
-   lda #$80
-   sta gREG::r4H
-   jsr ulwin_open
-   sta window2
+@alloc_fail:            jsr fail
+                        jmp @summary
 
-   ; Draw chars in top window
-   jsr dumpchars
+; ----- Test: Create byte iterator over the BRP -----
 
-   ; Draw chars in occluded window
-   lda window1
-   jsr dumpchars
+@test_create:           ldx #<str_t_create
+                        ldy #>str_t_create
+                        jsr putmsg
 
-;   ; Scroll top window
-;   lda window2
-;   ldy #$ff
-;   ldx #0
-;   jsr ulwin_scroll
-;   ;jsr ulwin_refresh
-;   jsr ulwin_scroll
-;   ;jsr ulwin_refresh
-;   jsr ulwin_scroll
-;   ;jsr ulwin_refresh
-;   ldy #1
-;   jsr ulwin_scroll
-;   ;jsr ulwin_refresh
-;   jsr ulwin_scroll
-;   ;jsr ulwin_refresh
-;   ldy #0
-;   ldx #3
-;   jsr ulwin_scroll
-;   ;jsr ulwin_refresh
-;   jsr ulwin_scroll
-;   ;jsr ulwin_refresh
-;   jsr ulwin_scroll
-;   ;jsr ulwin_refresh
-;   ldx #$fd
-;   jsr ulwin_scroll
-;   ;jsr ulwin_refresh
-;   jsr ulwin_scroll
-;   ;jsr ulwin_refresh
+                        lda #8
+                        sta gREG::r0L
+                        stz gREG::r0H
+                        lda #(ULITYP::BRP | ULIFMT::BYTE)
+                        ldx data_brp
+                        ldy data_brp+1
+                        jsr ulitr_create
+                        bcc @create_fail
+                        stx iter
+                        sty iter+1
 
-   ; Scroll occluded window
-   lda window1
-   ldy #$1
-   ldx #0
-   jsr ulwin_scroll
-   jsr ulwin_refresh
-   jsr ulwin_scroll
-   jsr ulwin_refresh
-   jsr ulwin_scroll
-   jsr ulwin_refresh
-   jsr ulwin_scroll
-   jsr ulwin_refresh
-   ldy #$ff
-   jsr ulwin_scroll
-   jsr ulwin_refresh
-   ldy #0
-   ldx #$fa
-   jsr ulwin_scroll
-   jsr ulwin_refresh
-   jsr ulwin_scroll
-   jsr ulwin_refresh
-   jsr ulwin_scroll
-   jsr ulwin_refresh
-   ldx #2
-   jsr ulwin_scroll
-   jsr ulwin_refresh
+                        jsr pass
+                        bra @test_atstart
 
-;   ; Change top window color
-;   lda window2
-;   ldx #ULCOLOR::YELLOW
-;   ldy #ULCOLOR::GREEN
-;   sec
-;   jsr ulwin_putcolor
-;
-;   ; Change the occluded window color
-;   lda window1
-;   ldx #ULCOLOR::BLACK
-;   ldy #ULCOLOR::WHITE
-;   sec
-;   jsr ulwin_putcolor
-;   jsr ulwin_refresh
-;
-;   ; Erase line 6 from column 30 to eol
-;   lda window2
-;   ldx #40
-;   ldy #5
-;   jsr ulwin_putcursor
-;   jsr ulwin_eraseeol
-;   lda window1
-;   ldx #40
-;   ldy #5
-;   jsr ulwin_putcursor
-;   jsr ulwin_eraseeol
-;   jsr ulwin_refresh
+@create_fail:           jsr fail
+                        jmp @summary
 
-   ; Insert/delete line
-   lda window2
-   ldx #40
-   ldy #5
-   jsr ulwin_putcursor
-   lda window2
-   jsr ulwin_getline
-   lda window2
-   jsr ulwin_getcolumn
-   lda window2
-   jsr ulwin_insline
-   jsr ulwin_refresh
-   jsr ulwin_delline
-   jsr ulwin_refresh
-   jsr ulwin_delchar
-   jsr ulwin_refresh
-   jsr ulwin_delchar
-   jsr ulwin_refresh
-   jsr ulwin_delchar
-   jsr ulwin_refresh
-   jsr ulwin_delchar
-   jsr ulwin_refresh
-   jsr ulwin_delchar
-   jsr ulwin_refresh
-   jsr ulwin_delchar
-   jsr ulwin_refresh
-   lda #'A'
-   sta gREG::r0L
-   stz gREG::r0H
-   stz gREG::r1L
-   lda window2
-   jsr ulwin_inschar
-   jsr ulwin_refresh
-   jsr ulwin_inschar
-   jsr ulwin_refresh
+; ----- Test: atstart is true initially -----
 
-@loop: bra @loop
+@test_atstart:          ldx #<str_t_atstart
+                        ldy #>str_t_atstart
+                        jsr putmsg
 
-dumpchars:
-   ; Draw some test characters in a window
-   stz gREG::r0L
-   stz gREG::r0H
-   stz gREG::r1L
-@charloop2:
-   jsr ulwin_putchar
-;   jsr ulwin_refresh
-   inc gREG::r0L
-   bne @charloop2
-   inc gREG::r0H
-   ldy gREG::r0H
-   cpy #3
-   bne :+
-   ldy #$1f
-   sty gREG::r0H
-   bra @charloop2
-:  cpy #$27
-   bne :+
-   ldy #$df
-   sty gREG::r0H
-   bra @charloop2
-:  cpy #$e1
-   bne @charloop2
-   rts
-;   jmp ulwin_refresh
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_atstart
+                        beq :+
+                        jsr fail
+                        bra @test_notatend
+:                       jsr pass
 
-wintitle:
-   .byte $48, $65, $72, $65, $27, $73, $20, $53
-   .byte $6f, $6d, $65, $20, $c5, $a8, $c5, $89
-   .byte $c3, $ae, $c2, $a9, $c3, $b6, $c3, $b0
-   .byte $c3, $a9, $20, $49, $20, $4b, $6e, $6f, $77, $00
+; ----- Test: atend is false initially -----
 
-titlestr:   .word 0
-window1: .byte 0
-window2: .byte 0
+@test_notatend:         ldx #<str_t_notatend
+                        ldy #>str_t_notatend
+                        jsr putmsg
 
-;   ; Test memory alloc/free
-;memhammer:   ldx #0
-;:  lda $500,x
-;   bne :+
-;   phx
-;   jsr ENTROPY_GET
-;   and #$1f
-;   sta gREG::r0H
-;   stx gREG::r0L
-;   clc
-;   jsr ulmem_alloc
-;   jsr validate_heap
-;   txa
-;   plx
-;   sta $400,x
-;   tya
-;   sta $500,x
-;:  inx
-;   bne :--
-;   nop
-;:  phx
-;   jsr ENTROPY_GET
-;   lda $500,x
-;   stz $500,x
-;   sta gREG::r0H
-;   lda $400,x
-;   stz $400,x
-;   sta gREG::r0L
-;   jsr ulmem_free
-;   jsr validate_heap
-;   plx
-;   inx
-;   bne :-
-;
-;@loop: bra memhammer
-;
-;.proc validate_heap
-;   pha
-;   phx
-;   phy
-;   lda $00
-;   pha
-;
-;   stz $00
-;@next_bank:
-;   inc $00
-;   beq @done
-;
-;   ldy #0
-;   ldx #8
-;:  lda $a000,x
-;   bne :+
-;   iny
-;:  inx
-;   bne :--
-;
-;   cpy $a000
-;   beq @check_smalls
-;
-;@bad_free:
-;   nop
-;   stp
-;   brk
-;   nop
-;
-;@check_smalls:
-;   stz val_smallentries
-;   ldy #7
-;:  lda $a000,y
-;   beq :+
-;   tax
-;   tya
-;   clc
-;   adc val_smallentries
-;   sta val_smallentries
-;   lda $a000,x
-;   beq :+
-;
-;@bad_small_1:
-;   nop
-;   stp
-;   brk
-;   nop
-;
-;:  dey
-;   bne :--
-;
-;   lda val_smallentries
-;   cmp $a000
-;   bcc @done
-;   beq @done
-;
-;@bad_small_2:
-;   nop
-;   stp
-;   brk
-;   nop
-;
-;
-;@done:
-;   pla
-;   sta $00
-;   ply
-;   plx
-;   pla
-;   rts
-;.endproc
-;
-;.data
-;
-;val_smallentries: .res  1
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_atend
+                        bne :+
+                        jsr fail
+                        bra @test_fwd
+:                       jsr pass
+
+; ----- Test: fetch_and_inc through all 8 bytes -----
+
+@test_fwd:              ldx #<str_t_fwd
+                        ldy #>str_t_fwd
+                        jsr putmsg
+
+                        stz fwd_idx
+                        stz fwd_errs
+@fwd_loop:              ldx iter
+                        ldy iter+1
+                        jsr ulitr_fetch_and_inc
+                        bcs @fwd_err
+                        cmp fwd_idx
+                        beq @fwd_next
+@fwd_err:               inc fwd_errs
+@fwd_next:              inc fwd_idx
+                        lda fwd_idx
+                        cmp #8
+                        bne @fwd_loop
+
+                        lda fwd_errs
+                        beq :+
+                        jsr fail
+                        bra @test_atend
+:                       jsr pass
+
+; ----- Test: atend is true after iterating all bytes -----
+
+@test_atend:            ldx #<str_t_atend
+                        ldy #>str_t_atend
+                        jsr putmsg
+
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_atend
+                        beq :+
+                        jsr fail
+                        bra @test_fai_end
+:                       jsr pass
+
+; ----- Test: fetch_and_inc at end returns carry set -----
+
+@test_fai_end:          ldx #<str_t_fai_end
+                        ldy #>str_t_fai_end
+                        jsr putmsg
+
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_fetch_and_inc
+                        bcs :+
+                        jsr fail
+                        bra @test_dec
+:                       jsr pass
+
+; ----- Test: dec 8 times back to start -----
+
+@test_dec:              ldx #<str_t_dec
+                        ldy #>str_t_dec
+                        jsr putmsg
+
+                        lda #8
+                        sta fwd_idx
+                        stz fwd_errs
+@dec_loop:              ldx iter
+                        ldy iter+1
+                        jsr ulitr_dec
+                        bcs @dec_err
+                        dec fwd_idx
+                        bne @dec_loop
+                        bra @dec_check
+@dec_err:               inc fwd_errs
+                        dec fwd_idx
+                        bne @dec_loop
+
+@dec_check:             ; Verify we're at start
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_atstart
+                        bne @dec_fail
+                        lda fwd_errs
+                        bne @dec_fail
+                        jsr pass
+                        bra @test_dec_start
+
+@dec_fail:              jsr fail
+
+; ----- Test: dec at start returns carry set -----
+
+@test_dec_start:        ldx #<str_t_dec_start
+                        ldy #>str_t_dec_start
+                        jsr putmsg
+
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_dec
+                        bcs :+
+                        jsr fail
+                        bra @test_store
+:                       jsr pass
+
+; ----- Test: store a byte and read it back -----
+
+@test_store:            ldx #<str_t_store
+                        ldy #>str_t_store
+                        jsr putmsg
+
+                        ; Store $42 at position 0
+                        lda #$42
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_store
+                        bcs @store_fail
+
+                        ; Read it back
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_fetch
+                        bcs @store_fail
+                        cmp #$42
+                        bne @store_fail
+
+                        ; Restore original value (0)
+                        lda #$00
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_store
+
+                        jsr pass
+                        bra @test_adv
+
+@store_fail:            jsr fail
+
+; ----- Test: adv 4, then fetch should return 4 -----
+
+@test_adv:              ldx #<str_t_adv
+                        ldy #>str_t_adv
+                        jsr putmsg
+
+                        lda #4
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_adv
+
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_fetch
+                        bcs @adv_fail
+                        cmp #4
+                        bne @adv_fail
+
+                        jsr pass
+                        bra @test_rew
+
+@adv_fail:              jsr fail
+
+; ----- Test: rew 4, then fetch should return 0 -----
+
+@test_rew:              ldx #<str_t_rew
+                        ldy #>str_t_rew
+                        jsr putmsg
+
+                        lda #4
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_rew
+
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_fetch
+                        bcs @rew_fail
+                        cmp #0
+                        bne @rew_fail
+
+                        ; Should be back at start
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_atstart
+                        bne @rew_fail
+
+                        jsr pass
+                        bra @test_delete
+
+@rew_fail:              jsr fail
+
+; ----- Test: delete iterator and free BRP -----
+
+@test_delete:           ldx #<str_t_delete
+                        ldy #>str_t_delete
+                        jsr putmsg
+
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_delete
+
+                        ldx data_brp
+                        ldy data_brp+1
+                        jsr ulmem_free
+
+                        jsr pass
+
+; ----- Summary -----
+
+@summary:               jsr newline
+                        ldx #<str_summary
+                        ldy #>str_summary
+                        jsr putmsg
+                        lda num_passed
+                        jsr puthex
+                        ldx #<str_of
+                        ldy #>str_of
+                        jsr putmsg
+                        lda num_total
+                        jsr puthex
+
+                        jsr ulwin_refresh
+
+@loop:                  bra @loop
+
+; =========================================================================
+; BSS
+; =========================================================================
+
+.bss
+
+win:            .res 1          ; test window handle
+titlebrp:       .res 2          ; title string BRP
+data_brp:       .res 2          ; test data BRP
+iter:           .res 2          ; iterator handle
+fwd_idx:        .res 1          ; loop counter
+fwd_errs:       .res 1          ; error counter
+num_passed:     .res 1          ; total tests passed
+num_total:      .res 1          ; total tests run

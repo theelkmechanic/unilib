@@ -2,149 +2,148 @@
 
 .segment "EXTZP" : zeropage
 
-UL_src_fptr:            .res    3   ; source pointer for core functions
-UL_src_rng:             .res    1   ; range check bits
-UL_dst_fptr:            .res    3   ; destination pointer for core functions
-UL_dst_rng:             .res    1   ; range check bits
-UL_len:                 .res    2   ; length for core functions
+; These zero-page pointers are shared with ULW_utils (as UL_src_fptr/UL_dst_fptr)
+; and other modules. They are scratch pointers, not preserved across calls.
+ULI_ptr:
+UL_dst_fptr:    .res 2          ; pointer to iterator state / destination pointer
+ULI_cur:
+UL_src_fptr:    .res 2          ; current target address / source pointer
 
 .code
 
-ULI_fetsto5d: ; Read/write value from (UL_src/dest_fptr) into FACC and decrement ptr
-                        ldy #$ff
-                        .byte $2c
+; Format step sizes indexed by (format >> 4)
+; BYTE=1, WORD=2, TBYTE=3, DWORD=4, FLOAT=5, UTF8=0(variable), STRTBL=0(variable)
+ULI_step_sizes: .byte 1, 2, 3, 4, 5, 0, 0, 0
 
-ULI_fetsto5i: ; Read/write value from (UL_src/dest_fptr) into FACC and increment ptr
-                        ldy #1
-                        .byte $2c
+; ULI_load - Load iterator state into working area
+;   In: YX              - iterator BRP handle
+;  Out: ULI_ptr         - pointer to iterator state in banked RAM
+;       ULI_cur         - current target address (2 bytes in zp)
+;       ULI_cur_bank    - current target bank
+;       ULI_state_bank  - bank where iterator state lives
+;       A               - type_format byte
+;       BANKSEL::RAM    - set to iterator state bank
+.proc ULI_load
+                        jsr ulmem_access
+                        stx ULI_ptr
+                        sty ULI_ptr+1
+                        lda BANKSEL::RAM
+                        sta ULI_state_bank
 
-ULI_fetsto5: ; Read/write value from (UL_src/dest_fptr) into FACC
-                        ldy #0
-                        ldx #5
-                        phx
-                        ldx #FAC
-                        bra ULI_fetstoplx
-
-ULI_fetsto4d: ; Read/write value from (UL_src/dest_fptr) into r0/r1 and decrement ptr
-                        ldy #$ff
-                        .byte $2c
-
-ULI_fetsto4i: ; Read/write value from (UL_src/dest_fptr) into r0/r1 and increment ptr
-                        ldy #1
-                        .byte $2c
-
-ULI_fetsto4: ; Read/write value from (UL_src/dest_fptr) into r0/r1
-                        ldy #0
-                        ldx #4
-                        phx
-                        bra ULI_fetstor0
-
-ULI_fetsto3d: ; Read/write value from (UL_src/dest_fptr) into r0/r1L and decrement ptr
-                        ldy #$ff
-                        .byte $2c
-
-ULI_fetsto3i: ; Read/write value from (UL_src/dest_fptr) into r0/r1L and increment ptr
-                        ldy #1
-                        .byte $2c
-
-ULI_fetsto3: ; Read/write value from (UL_src/dest_fptr) into r0/r1L
-                        ldy #0
-                        ldx #3
-                        phx
-                        bra ULI_fetstor0
-
-ULI_fetsto2d: ; Read/write value from (UL_src/dest_fptr) into r0 and decrement ptr
-                        ldy #$ff
-                        .byte $2c
-
-ULI_fetsto2i: ; Read/write value from (UL_src/dest_fptr) into r0 and increment ptr
-                        ldy #1
-                        .byte $2c
-
-ULI_fetsto2: ; Read/write value from (UL_src/dest_fptr) into r0
-                        ldy #0
-                        ldx #2
-                        phx
-ULI_fetstor0:           ldx #gREG::r0
-                        bra ULI_fetstoplx
-
-ULI_fetsto1d: ; Read/write value from (UL_src/dest_fptr) into A and decrement ptr
-                        ldy #$ff
-                        .byte $2c
-
-ULI_fetsto1i: ; Read/write value from (UL_src/dest_fptr) into A and increment ptr
-                        ldy #1
-                        .byte $2c
-
-ULI_fetsto1: ; Read/write value from (UL_src/dest_fptr) into A
-                        sta UL_temp_l
-                        ldy #0
-                        ldx #1
-                        phx
-                        ldx #UL_temp_l
-ULI_fetstoplx:          stx UL_var2ptr
-                        stz UL_var2ptr+1
-                        plx
-
-ULI_fetsto: ; Read (clc)/write (sec) value from (UL_src/dest_fptr)
-                        pha
-                        bcc :+
-                        lda #UL_dst_fptr
-                        .byte $2c
-:                       lda #UL_src_fptr
-                        sta UL_varptr
-                        stz UL_varptr+1
-                        pla
-
-                        ; Save X (size) and Y (inc/dec) for later
-                        phy
-                        phx
-                        ldy #0
-
-                        ; If carry is clear, we're reading X bytes from UL_src_fptr into whatever UL_var2ptr points at;
-                        ; otherwise we're writing to it
-                        bcs ULI_writeloop
-ULI_readloop:           lda (UL_src_fptr),y
-                        sta (UL_var2ptr),y
+                        ; Load current position
+                        ldy #ULI_STATE_CUR
+                        lda (ULI_ptr),y
+                        sta ULI_cur
                         iny
-                        dex
-                        bne ULI_readloop
-                        bra ULI_xferdone
-
-ULI_writeloop:          lda (UL_var2ptr),y
-                        sta (UL_dst_fptr),y
+                        lda (ULI_ptr),y
+                        sta ULI_cur+1
                         iny
-                        dex
-                        bne ULI_writeloop
+                        lda (ULI_ptr),y
+                        sta ULI_cur_bank
 
-                        ; Transfer is done, so get X and Y back to see if we need to inc/dec and by how much
-ULI_xferdone:           plx
-                        ply
-                        pha
-                        tya
-                        beq ULI_done
-
-                        ; Need to check the range of the address; if it's in I/O, don't inc/dec
-                        phy
-                        ldy #3
-                        lda (UL_varptr),y
-                        ply
-                        jsr UL_chkrng
-                        bvs ULI_done
-
-                        ; Check if inc/dec
-                        tya
-                        php
-                        ldy #0
-                        plp
-                        bmi ULI_decvar
-
-                        ; Increment pointer by X bytes and fixup pointer if needed
-                        jsr UL_adc16
-                        bra ULI_done
-
-                        ; Decrement pointer by X bytes and fixup pointer if needed
-ULI_decvar:             jsr UL_sbc16
-
-ULI_done:               pla
+                        ; Return type_format in A
+                        lda (ULI_ptr)
                         rts
+.endproc
+
+; ULI_save_cur - Write current position back to iterator state
+;   In: ULI_ptr valid, ULI_cur/ULI_cur_bank updated
+;       BANKSEL::RAM    - must be set to iterator state bank
+.proc ULI_save_cur
+                        ldy #ULI_STATE_CUR
+                        lda ULI_cur
+                        sta (ULI_ptr),y
+                        iny
+                        lda ULI_cur+1
+                        sta (ULI_ptr),y
+                        iny
+                        lda ULI_cur_bank
+                        sta (ULI_ptr),y
+                        rts
+.endproc
+
+; ULI_at_end - Check if current position equals end position
+;   In: ULI_ptr valid, ULI_cur/ULI_cur_bank loaded
+;       BANKSEL::RAM    - must be set to iterator state bank
+;  Out: Z set if at end
+.proc ULI_at_end
+                        ldy #ULI_STATE_END
+                        lda ULI_cur
+                        cmp (ULI_ptr),y
+                        bne @done
+                        iny
+                        lda ULI_cur+1
+                        cmp (ULI_ptr),y
+                        bne @done
+                        iny
+                        lda ULI_cur_bank
+                        cmp (ULI_ptr),y
+@done:                  rts
+.endproc
+
+; ULI_at_start - Check if current position equals start position
+;   In: ULI_ptr valid, ULI_cur/ULI_cur_bank loaded
+;       BANKSEL::RAM    - must be set to iterator state bank
+;  Out: Z set if at start
+.proc ULI_at_start
+                        ldy #ULI_STATE_START
+                        lda ULI_cur
+                        cmp (ULI_ptr),y
+                        bne @done
+                        iny
+                        lda ULI_cur+1
+                        cmp (ULI_ptr),y
+                        bne @done
+                        iny
+                        lda ULI_cur_bank
+                        cmp (ULI_ptr),y
+@done:                  rts
+.endproc
+
+; ULI_get_step - Get step size for a format
+;   In: A               - type_format byte
+;  Out: A               - step size in bytes (0 for variable-length formats)
+.proc ULI_get_step
+                        and #$70
+                        lsr
+                        lsr
+                        lsr
+                        lsr
+                        tax
+                        lda ULI_step_sizes,x
+                        rts
+.endproc
+
+; ULI_inc_cur - Advance current position by A bytes
+;   In: A               - number of bytes to advance
+;       ULI_cur loaded
+;  Out: ULI_cur updated
+.proc ULI_inc_cur
+                        clc
+                        adc ULI_cur
+                        sta ULI_cur
+                        bcc @done
+                        inc ULI_cur+1
+@done:                  rts
+.endproc
+
+; ULI_dec_cur - Rewind current position by A bytes
+;   In: A               - number of bytes to rewind
+;       ULI_cur loaded
+;  Out: ULI_cur updated
+.proc ULI_dec_cur
+                        sta ULI_scratch
+                        lda ULI_cur
+                        sec
+                        sbc ULI_scratch
+                        sta ULI_cur
+                        bcs @done
+                        dec ULI_cur+1
+@done:                  rts
+.endproc
+
+.bss
+
+ULI_cur_bank:   .res 1          ; current target bank
+ULI_state_bank: .res 1          ; bank where iterator state BRP lives
+ULI_scratch:    .res 8          ; scratch space for iterator operations
