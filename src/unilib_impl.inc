@@ -59,6 +59,11 @@ brps        .word       ; array of data block handles
 .globalzp ULI_cur
 .global ULI_cur_bank
 .global ULI_state_bank
+.global ULI_type_format
+.global ULI_step_forward
+.global ULI_step_backward
+.global ULI_do_fetch
+.global ULI_do_store
 
 ; Iterator state layout (stored in a BRP, 10 bytes)
 ULI_STATE_TYPE    = 0   ; type_format: bits 7=reverse, 6-4=format, 3-0=type

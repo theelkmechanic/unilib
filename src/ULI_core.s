@@ -114,6 +114,26 @@ ULI_step_sizes: .byte 1, 2, 3, 4, 5, 0, 0, 0
                         rts
 .endproc
 
+; ULI_step_forward - Step in the forward direction (respects REVERSE flag)
+;   In: A               - number of bytes to step
+;       ULI_type_format  - cached type_format (bit 7 = REVERSE)
+;  Out: ULI_cur updated
+.proc ULI_step_forward
+                        bit ULI_type_format
+                        bmi ULI_dec_cur
+                        bra ULI_inc_cur
+.endproc
+
+; ULI_step_backward - Step in the backward direction (respects REVERSE flag)
+;   In: A               - number of bytes to step
+;       ULI_type_format  - cached type_format (bit 7 = REVERSE)
+;  Out: ULI_cur updated
+.proc ULI_step_backward
+                        bit ULI_type_format
+                        bmi ULI_inc_cur
+                        bra ULI_dec_cur
+.endproc
+
 ; ULI_inc_cur - Advance current position by A bytes
 ;   In: A               - number of bytes to advance
 ;       ULI_cur loaded
@@ -124,6 +144,8 @@ ULI_step_sizes: .byte 1, 2, 3, 4, 5, 0, 0, 0
                         sta ULI_cur
                         bcc @done
                         inc ULI_cur+1
+                        bne @done
+                        inc ULI_cur_bank
 @done:                  rts
 .endproc
 
@@ -132,18 +154,158 @@ ULI_step_sizes: .byte 1, 2, 3, 4, 5, 0, 0, 0
 ;       ULI_cur loaded
 ;  Out: ULI_cur updated
 .proc ULI_dec_cur
-                        sta ULI_scratch
-                        lda ULI_cur
+                        eor #$FF                ; negate: ~step
                         sec
-                        sbc ULI_scratch
+                        adc ULI_cur             ; ULI_cur + ~step + 1 = ULI_cur - step
                         sta ULI_cur
-                        bcs @done
+                        bcs @done               ; carry set = no borrow
                         dec ULI_cur+1
+                        lda ULI_cur+1
+                        cmp #$FF
+                        bne @done
+                        dec ULI_cur_bank
 @done:                  rts
+.endproc
+
+; ULI_do_fetch - Read value at current position, dispatching by type and format
+;   In: ULI_type_format  - cached type_format
+;       ULI_cur/ULI_cur_bank - current address
+;  Out: A/ULI_scratch    - value (BYTE), or r0/r1 (WORD+)
+;       BANKSEL::RAM     - changed to target bank (BRP/MEM only)
+.proc ULI_do_fetch
+                        lda ULI_type_format
+                        and #$0F
+                        cmp #ULITYP::VRAM
+                        beq @vram
+
+                        ; --- BRP/MEM path ---
+                        lda ULI_cur_bank
+                        sta BANKSEL::RAM
+
+                        lda ULI_type_format
+                        and #$70
+                        beq @brp_byte
+
+                        ; Multi-byte
+                        lda ULI_type_format
+                        jsr ULI_get_step
+                        tax
+                        ldy #0
+@brp_loop:              lda (ULI_cur),y
+                        sta gREG::r0L,y
+                        iny
+                        dex
+                        bne @brp_loop
+                        lda gREG::r0L
+                        sta ULI_scratch
+                        rts
+
+@brp_byte:              lda (ULI_cur)
+                        sta ULI_scratch
+                        rts
+
+@vram:                  ; --- VRAM path ---
+                        stz VERA::CTRL
+                        lda ULI_cur
+                        sta VERA::ADDR
+                        lda ULI_cur+1
+                        sta VERA::ADDR+1
+                        lda ULI_cur_bank
+                        ora #VERA::INC1
+                        sta VERA::ADDR+2
+
+                        lda ULI_type_format
+                        and #$70
+                        beq @vram_byte
+
+                        ; Multi-byte VRAM
+                        lda ULI_type_format
+                        jsr ULI_get_step
+                        tax
+                        ldy #0
+@vram_loop:             lda VERA::DATA0
+                        sta gREG::r0L,y
+                        iny
+                        dex
+                        bne @vram_loop
+                        lda gREG::r0L
+                        sta ULI_scratch
+                        rts
+
+@vram_byte:             lda VERA::DATA0
+                        sta ULI_scratch
+                        rts
+.endproc
+
+; ULI_do_store - Write value at current position, dispatching by type and format
+;   In: ULI_type_format  - cached type_format
+;       ULI_cur/ULI_cur_bank - current address
+;       ULI_scratch      - value (BYTE), or r0/r1 (WORD+)
+;  Out: BANKSEL::RAM     - changed to target bank (BRP/MEM only)
+.proc ULI_do_store
+                        lda ULI_type_format
+                        and #$0F
+                        cmp #ULITYP::VRAM
+                        beq @vram
+
+                        ; --- BRP/MEM path ---
+                        lda ULI_cur_bank
+                        sta BANKSEL::RAM
+
+                        lda ULI_type_format
+                        and #$70
+                        beq @brp_byte
+
+                        ; Multi-byte
+                        lda ULI_type_format
+                        jsr ULI_get_step
+                        tax
+                        ldy #0
+@brp_loop:              lda gREG::r0L,y
+                        sta (ULI_cur),y
+                        iny
+                        dex
+                        bne @brp_loop
+                        rts
+
+@brp_byte:              lda ULI_scratch
+                        sta (ULI_cur)
+                        rts
+
+@vram:                  ; --- VRAM path ---
+                        stz VERA::CTRL
+                        lda ULI_cur
+                        sta VERA::ADDR
+                        lda ULI_cur+1
+                        sta VERA::ADDR+1
+                        lda ULI_cur_bank
+                        ora #VERA::INC1
+                        sta VERA::ADDR+2
+
+                        lda ULI_type_format
+                        and #$70
+                        beq @vram_byte
+
+                        ; Multi-byte VRAM
+                        lda ULI_type_format
+                        jsr ULI_get_step
+                        tax
+                        ldy #0
+@vram_loop:             lda gREG::r0L,y
+                        sta VERA::DATA0
+                        iny
+                        dex
+                        bne @vram_loop
+                        rts
+
+@vram_byte:             lda ULI_scratch
+                        sta VERA::DATA0
+                        rts
 .endproc
 
 .bss
 
 ULI_cur_bank:   .res 1          ; current target bank
 ULI_state_bank: .res 1          ; bank where iterator state BRP lives
+ULI_type_format:.res 1          ; cached type_format for current operation
 ULI_scratch:    .res 8          ; scratch space for iterator operations

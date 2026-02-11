@@ -4,8 +4,9 @@
 
 ; ulitr_create - Create a new iterator
 ;   In: A               - type | format (e.g., ULITYP::BRP | ULIFMT::BYTE)
-;       YX              - object to iterate over (BRP handle for BRP type)
-;       r0              - byte count (0 = use full allocated capacity)
+;       YX              - object to iterate over (BRP handle, memory address, or VRAM address)
+;       r0              - byte count (0 = use full allocated capacity, BRP only)
+;       carry           - for VRAM type: high bit (bit 16) of VRAM address
 ;  Out: YX              - iterator handle (BRP)
 ;       carry           - set on success, clear on failure
 .proc ulitr_create
@@ -14,17 +15,26 @@
                         stx ULI_scratch+1       ; target lo
                         sty ULI_scratch+2       ; target hi
 
+                        ; Save carry for VRAM type (before any flag-modifying ops)
+                        stz ULI_scratch+6       ; clear carry storage
+                        bcc :+
+                        inc ULI_scratch+6       ; save carry bit
+:
                         ; Save caller's bank
                         lda BANKSEL::RAM
                         pha
 
                         ; Dispatch by type to get start address, bank, and capacity
                         lda ULI_scratch
-                        and #$0f
+                        and #$0F
                         cmp #ULITYP::BRP
                         beq @create_brp
+                        cmp #ULITYP::MEM
+                        beq @create_mem
+                        cmp #ULITYP::VRAM
+                        beq @create_vram
 
-                        ; Unsupported type for now
+                        ; Unsupported type
                         pla
                         sta BANKSEL::RAM
                         clc
@@ -62,9 +72,104 @@
                         adc ULI_scratch+4
                         sta ULI_scratch+7       ; end_hi
                         ; end_bank = start_bank (BRP is within one bank)
+                        lda ULI_scratch+5
+                        sta ULI_scratch+2       ; end_bank
+                        bra @check_reverse
 
-                        ; Allocate iterator state BRP (ULI_STATE_SIZE = 10 bytes)
-                        ldx #ULI_STATE_SIZE
+                        ; --- MEM type: direct memory address ---
+@create_mem:            lda ULI_scratch+1
+                        sta ULI_scratch+3       ; start_lo
+                        lda ULI_scratch+2
+                        sta ULI_scratch+4       ; start_hi
+
+                        ; Determine bank: $A0-$BF hi byte = caller's bank, else 0
+                        cmp #$A0
+                        bcc @mem_bank0
+                        cmp #$C0
+                        bcs @mem_bank0
+                        ; In banked RAM range - peek caller's bank from stack
+                        tsx
+                        lda $101,x
+                        sta ULI_scratch+5       ; bank = caller's bank
+                        bra @mem_calc_end
+
+@mem_bank0:             stz ULI_scratch+5       ; bank = 0
+
+@mem_calc_end:          ; size from r0 (required for MEM)
+                        lda gREG::r0L
+                        clc
+                        adc ULI_scratch+3
+                        sta ULI_scratch+6       ; end_lo
+                        lda gREG::r0H
+                        adc ULI_scratch+4
+                        sta ULI_scratch+7       ; end_hi
+                        lda ULI_scratch+5
+                        sta ULI_scratch+2       ; end_bank = start_bank
+                        bra @check_reverse
+
+                        ; --- VRAM type: VERA video RAM ---
+@create_vram:           lda ULI_scratch+1
+                        sta ULI_scratch+3       ; start_lo
+                        lda ULI_scratch+2
+                        sta ULI_scratch+4       ; start_hi
+                        lda ULI_scratch+6       ; saved carry = VRAM bit 16
+                        sta ULI_scratch+5       ; start_bank
+
+                        ; size from r0 (required for VRAM)
+                        lda gREG::r0L
+                        clc
+                        adc ULI_scratch+3
+                        sta ULI_scratch+6       ; end_lo
+                        lda gREG::r0H
+                        adc ULI_scratch+4
+                        sta ULI_scratch+7       ; end_hi
+                        lda ULI_scratch+5       ; start_bank
+                        adc #0                  ; + carry from 16-bit addition
+                        sta ULI_scratch+2       ; end_bank
+                        bra @check_reverse
+
+                        ; --- Check REVERSE flag and swap start/end if set ---
+@check_reverse:         lda ULI_scratch
+                        bpl @allocate_state     ; bit 7 clear = not reverse
+
+                        ; Get step size
+                        jsr ULI_get_step
+                        sta ULI_scratch+1       ; save step
+
+                        ; new_start = old_end - step (save on stack temporarily)
+                        lda ULI_scratch+6       ; end_lo
+                        sec
+                        sbc ULI_scratch+1
+                        pha                     ; new_start_lo
+                        lda ULI_scratch+7       ; end_hi
+                        sbc #0
+                        pha                     ; new_start_hi
+                        lda ULI_scratch+2       ; end_bank
+                        sbc #0
+                        pha                     ; new_start_bank
+
+                        ; new_end = old_start - step
+                        lda ULI_scratch+3       ; start_lo
+                        sec
+                        sbc ULI_scratch+1
+                        sta ULI_scratch+6       ; new end_lo
+                        lda ULI_scratch+4       ; start_hi
+                        sbc #0
+                        sta ULI_scratch+7       ; new end_hi
+                        lda ULI_scratch+5       ; start_bank
+                        sbc #0
+                        sta ULI_scratch+2       ; new end_bank
+
+                        ; Pop new_start from stack into start slots
+                        pla
+                        sta ULI_scratch+5       ; new start_bank
+                        pla
+                        sta ULI_scratch+4       ; new start_hi
+                        pla
+                        sta ULI_scratch+3       ; new start_lo
+
+                        ; --- Allocate iterator state BRP (ULI_STATE_SIZE = 10 bytes) ---
+@allocate_state:        ldx #ULI_STATE_SIZE
                         ldy #0
                         sec                     ; clear the allocated memory
                         jsr ulmem_alloc
@@ -119,7 +224,7 @@
                         lda ULI_scratch+7
                         sta (ULI_ptr),y
                         iny
-                        lda ULI_scratch+5       ; end_bank = start_bank
+                        lda ULI_scratch+2       ; end_bank
                         sta (ULI_ptr),y
 
                         ; Return iterator handle
@@ -139,7 +244,7 @@
 
 ; ulitr_fetch - Read value at current iterator position
 ;   In: YX              - iterator handle
-;  Out: A               - value (for BYTE format)
+;  Out: A               - value (for BYTE format), r0/r1 for multi-byte
 ;       carry           - set if error (at end)
 .proc ulitr_fetch
                         ; Save caller's bank
@@ -148,21 +253,19 @@
 
                         ; Load iterator state
                         jsr ULI_load            ; A = type_format, state bank selected
+                        sta ULI_type_format
 
                         ; Check if at end
                         jsr ULI_at_end
                         beq @at_end
 
-                        ; Switch to target bank and read
-                        lda ULI_cur_bank
-                        sta BANKSEL::RAM
-                        lda (ULI_cur)           ; read byte at current position
+                        ; Read value at current position
+                        jsr ULI_do_fetch
 
                         ; Restore caller's bank and return success
-                        tax                     ; save value in X
                         pla
                         sta BANKSEL::RAM
-                        txa                     ; value in A
+                        lda ULI_scratch         ; value (BYTE format in A)
                         clc
                         rts
 
@@ -174,10 +277,10 @@
 
 ; ulitr_store - Write value at current iterator position
 ;   In: YX              - iterator handle
-;       A               - value to store (for BYTE format)
+;       A               - value to store (for BYTE format), r0/r1 for multi-byte
 ;  Out: carry           - set if error (at end)
 .proc ulitr_store
-                        ; Save the value to store
+                        ; Save the value to store (BYTE format)
                         sta ULI_scratch
 
                         ; Save caller's bank
@@ -186,16 +289,14 @@
 
                         ; Load iterator state
                         jsr ULI_load
+                        sta ULI_type_format
 
                         ; Check if at end
                         jsr ULI_at_end
                         beq @at_end
 
-                        ; Switch to target bank and write
-                        lda ULI_cur_bank
-                        sta BANKSEL::RAM
-                        lda ULI_scratch
-                        sta (ULI_cur)           ; write byte at current position
+                        ; Write value at current position
+                        jsr ULI_do_store
 
                         ; Restore caller's bank and return success
                         pla
@@ -219,16 +320,16 @@
 
                         ; Load iterator state
                         jsr ULI_load            ; A = type_format
-                        pha                     ; save type_format
+                        sta ULI_type_format
 
                         ; Check if at end
                         jsr ULI_at_end
                         beq @at_end
 
-                        ; Get step size and advance
-                        pla                     ; type_format
+                        ; Get step size and advance (direction-aware)
+                        lda ULI_type_format
                         jsr ULI_get_step        ; A = step size
-                        jsr ULI_inc_cur
+                        jsr ULI_step_forward
 
                         ; Save updated position back to state
                         lda ULI_state_bank
@@ -241,8 +342,7 @@
                         clc
                         rts
 
-@at_end:                pla                     ; discard type_format
-                        pla
+@at_end:                pla
                         sta BANKSEL::RAM
                         sec
                         rts
@@ -258,16 +358,16 @@
 
                         ; Load iterator state
                         jsr ULI_load            ; A = type_format
-                        pha                     ; save type_format
+                        sta ULI_type_format
 
                         ; Check if at start
                         jsr ULI_at_start
                         beq @at_start
 
-                        ; Get step size and rewind
-                        pla                     ; type_format
+                        ; Get step size and rewind (direction-aware)
+                        lda ULI_type_format
                         jsr ULI_get_step        ; A = step size
-                        jsr ULI_dec_cur
+                        jsr ULI_step_backward
 
                         ; Save updated position back to state
                         lda ULI_state_bank
@@ -280,8 +380,7 @@
                         clc
                         rts
 
-@at_start:              pla                     ; discard type_format
-                        pla
+@at_start:              pla
                         sta BANKSEL::RAM
                         sec
                         rts
@@ -289,7 +388,7 @@
 
 ; ulitr_fetch_and_inc - Read value and advance iterator
 ;   In: YX              - iterator handle
-;  Out: A               - value (for BYTE format)
+;  Out: A               - value (for BYTE format), r0/r1 for multi-byte
 ;       carry           - set if at end (no data, no advance)
 .proc ulitr_fetch_and_inc
                         ; Save caller's bank
@@ -298,22 +397,19 @@
 
                         ; Load iterator state
                         jsr ULI_load            ; A = type_format
-                        sta ULI_scratch+1       ; save type_format
+                        sta ULI_type_format
 
                         ; Check if at end
                         jsr ULI_at_end
                         beq @at_end
 
-                        ; Switch to target bank and fetch
-                        lda ULI_cur_bank
-                        sta BANKSEL::RAM
-                        lda (ULI_cur)           ; read byte
-                        sta ULI_scratch         ; save fetched value
+                        ; Read value at current position
+                        jsr ULI_do_fetch
 
-                        ; Advance current position
-                        lda ULI_scratch+1       ; type_format
-                        jsr ULI_get_step        ; A = step size
-                        jsr ULI_inc_cur
+                        ; Advance current position (direction-aware)
+                        lda ULI_type_format
+                        jsr ULI_get_step
+                        jsr ULI_step_forward
 
                         ; Switch back to state bank and save updated position
                         lda ULI_state_bank
@@ -335,7 +431,7 @@
 
 ; ulitr_fetch_and_dec - Read value and rewind iterator
 ;   In: YX              - iterator handle
-;  Out: A               - value (for BYTE format)
+;  Out: A               - value (for BYTE format), r0/r1 for multi-byte
 ;       carry           - set if at end (no data)
 .proc ulitr_fetch_and_dec
                         ; Save caller's bank
@@ -344,17 +440,14 @@
 
                         ; Load iterator state
                         jsr ULI_load            ; A = type_format
-                        sta ULI_scratch+1       ; save type_format
+                        sta ULI_type_format
 
                         ; Check if at end (can't fetch from end)
                         jsr ULI_at_end
                         beq @at_end
 
-                        ; Switch to target bank and fetch
-                        lda ULI_cur_bank
-                        sta BANKSEL::RAM
-                        lda (ULI_cur)           ; read byte
-                        sta ULI_scratch         ; save fetched value
+                        ; Read value at current position
+                        jsr ULI_do_fetch
 
                         ; Rewind current position (only if not at start)
                         lda ULI_state_bank
@@ -362,9 +455,9 @@
                         jsr ULI_at_start
                         beq @done               ; at start, skip decrement
 
-                        lda ULI_scratch+1       ; type_format
-                        jsr ULI_get_step        ; A = step size
-                        jsr ULI_dec_cur
+                        lda ULI_type_format
+                        jsr ULI_get_step
+                        jsr ULI_step_backward
                         jsr ULI_save_cur
 
 @done:                  pla
@@ -391,16 +484,17 @@
 
                         ; Load iterator state
                         jsr ULI_load            ; A = type_format
+                        sta ULI_type_format
 
                         ; Get step size
                         jsr ULI_get_step        ; A = step per entry
 
-                        ; Multiply step * count via repeated addition
+                        ; Multiply step * count via repeated stepping
                         sta ULI_scratch+1       ; step size
                         ldx ULI_scratch+2       ; count
                         beq @done
 @loop:                  lda ULI_scratch+1
-                        jsr ULI_inc_cur
+                        jsr ULI_step_forward
                         dex
                         bne @loop
 
@@ -427,16 +521,17 @@
 
                         ; Load iterator state
                         jsr ULI_load            ; A = type_format
+                        sta ULI_type_format
 
                         ; Get step size
                         jsr ULI_get_step        ; A = step per entry
 
-                        ; Multiply step * count via repeated subtraction
+                        ; Multiply step * count via repeated stepping
                         sta ULI_scratch+1       ; step size
                         ldx ULI_scratch+2       ; count
                         beq @done
 @loop:                  lda ULI_scratch+1
-                        jsr ULI_dec_cur
+                        jsr ULI_step_backward
                         dex
                         bne @loop
 

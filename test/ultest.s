@@ -38,10 +38,42 @@ str_t_adv:      .byte "adv 4, fetch=4        ", 0
 str_t_rew:      .byte "rew 4, fetch=0        ", 0
 str_t_delete:   .byte "delete iterator       ", 0
 
+; BRP+WORD tests
+str_t_wc:       .byte "BRP+WORD create       ", 0
+str_t_ws:       .byte "BRP+WORD store $BEEF  ", 0
+str_t_wf:       .byte "BRP+WORD fetch verify ", 0
+str_t_wi:       .byte "BRP+WORD fai x4+atend ", 0
+str_t_wd:       .byte "BRP+WORD dec to start ", 0
+
+; MEM+BYTE tests
+str_t_mc:       .byte "MEM+BYTE create       ", 0
+str_t_mf:       .byte "MEM+BYTE fetch data   ", 0
+str_t_ms:       .byte "MEM+BYTE store+verify ", 0
+str_t_mi:       .byte "MEM+BYTE iter to end  ", 0
+
+; VRAM+BYTE tests
+str_t_vc:       .byte "VRAM+BYTE create      ", 0
+str_t_vs:       .byte "VRAM+BYTE store byte  ", 0
+str_t_vf:       .byte "VRAM+BYTE fetch verify", 0
+str_t_vi:       .byte "VRAM+BYTE iter to end ", 0
+
+; BRP+BYTE+REVERSE tests
+str_t_rc:       .byte "REVERSE create        ", 0
+str_t_rf:       .byte "REVERSE first fetch=7 ", 0
+str_t_ri:       .byte "REVERSE fai x8 (7..0) ", 0
+str_t_ra:       .byte "REVERSE atend         ", 0
+str_t_rd:       .byte "REVERSE dec to start  ", 0
+
+; VRAM+DWORD tests
+str_t_dc:       .byte "VRAM+DWORD create     ", 0
+str_t_ds:       .byte "VRAM+DWORD store      ", 0
+str_t_df:       .byte "VRAM+DWORD fetch      ", 0
+
 str_pass:       .byte " OK", 0
 str_fail:       .byte " FAIL", 0
 str_summary:    .byte "Passed: ", 0
 str_of:         .byte " of ", 0
+str_pad:        .byte "          ", 0
 str_exp:        .byte " exp:", 0
 str_got:        .byte " got:", 0
 
@@ -165,13 +197,13 @@ start:
                         stx titlebrp
                         sty titlebrp+1
 
-                        ; Open test window: position (1,1), size 78x26, white on blue, border
+                        ; Open test window: position (1,1), size 78x40, white on blue, border
                         lda #1
                         sta gREG::r0L
                         sta gREG::r0H
                         lda #78
                         sta gREG::r1L
-                        lda #26
+                        lda #28
                         sta gREG::r1H
                         lda #ULCOLOR::WHITE
                         sta gREG::r2L
@@ -470,10 +502,608 @@ start:
 
                         jsr pass
 
+; =========================================================================
+; BRP+WORD tests
+; =========================================================================
+
+; ----- Test: Create BRP+WORD iterator -----
+
+@test_wc:               ldx #<str_t_wc
+                        ldy #>str_t_wc
+                        jsr putmsg
+
+                        ; Allocate 8-byte BRP (4 words)
+                        ldx #8
+                        ldy #0
+                        sec
+                        jsr ulmem_alloc
+                        bcc @wc_fail
+                        stx data_brp
+                        sty data_brp+1
+
+                        ; Create WORD iterator
+                        lda #8
+                        sta gREG::r0L
+                        stz gREG::r0H
+                        lda #(ULITYP::BRP | ULIFMT::WORD)
+                        ldx data_brp
+                        ldy data_brp+1
+                        jsr ulitr_create
+                        bcc @wc_fail
+                        stx iter
+                        sty iter+1
+
+                        jsr pass
+                        bra @test_ws
+
+@wc_fail:               jsr fail
+                        jmp @test_mc
+
+; ----- Test: Store $BEEF via r0 -----
+
+@test_ws:               ldx #<str_t_ws
+                        ldy #>str_t_ws
+                        jsr putmsg
+
+                        lda #$EF
+                        sta gREG::r0L
+                        lda #$BE
+                        sta gREG::r0H
+                        lda #0              ; A ignored for WORD
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_store
+                        bcs @ws_fail
+
+                        jsr pass
+                        bra @test_wf
+
+@ws_fail:               jsr fail
+
+; ----- Test: Fetch and verify r0 = $BEEF -----
+
+@test_wf:               ldx #<str_t_wf
+                        ldy #>str_t_wf
+                        jsr putmsg
+
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_fetch
+                        bcs @wf_fail
+                        lda gREG::r0L
+                        cmp #$EF
+                        bne @wf_fail
+                        lda gREG::r0H
+                        cmp #$BE
+                        bne @wf_fail
+
+                        jsr pass
+                        bra @test_wi
+
+@wf_fail:               jsr fail
+
+; ----- Test: fetch_and_inc x4, verify atend -----
+
+@test_wi:               ldx #<str_t_wi
+                        ldy #>str_t_wi
+                        jsr putmsg
+
+                        stz fwd_errs
+                        lda #4
+                        sta fwd_idx
+@wi_loop:               ldx iter
+                        ldy iter+1
+                        jsr ulitr_fetch_and_inc
+                        bcs @wi_err
+                        dec fwd_idx
+                        bne @wi_loop
+                        bra @wi_check
+@wi_err:                inc fwd_errs
+                        dec fwd_idx
+                        bne @wi_loop
+
+@wi_check:              ; Should be at end
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_atend
+                        bne @wi_fail
+                        lda fwd_errs
+                        bne @wi_fail
+
+                        jsr pass
+                        bra @test_wd
+
+@wi_fail:               jsr fail
+
+; ----- Test: dec x4 back to start -----
+
+@test_wd:               ldx #<str_t_wd
+                        ldy #>str_t_wd
+                        jsr putmsg
+
+                        lda #4
+                        sta fwd_idx
+                        stz fwd_errs
+@wd_loop:               ldx iter
+                        ldy iter+1
+                        jsr ulitr_dec
+                        bcs @wd_err
+                        dec fwd_idx
+                        bne @wd_loop
+                        bra @wd_check
+@wd_err:                inc fwd_errs
+                        dec fwd_idx
+                        bne @wd_loop
+
+@wd_check:              ldx iter
+                        ldy iter+1
+                        jsr ulitr_atstart
+                        bne @wd_fail
+                        lda fwd_errs
+                        bne @wd_fail
+
+                        jsr pass
+                        bra @word_cleanup
+
+@wd_fail:               jsr fail
+
+@word_cleanup:          ; Delete WORD iterator and free BRP
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_delete
+                        ldx data_brp
+                        ldy data_brp+1
+                        jsr ulmem_free
+
+; =========================================================================
+; MEM+BYTE tests
+; =========================================================================
+
+; ----- Test: Create MEM+BYTE iterator -----
+
+@test_mc:               ldx #<str_t_mc
+                        ldy #>str_t_mc
+                        jsr putmsg
+
+                        ; Fill mem_buf with 0,1,2,...,7
+                        ldx #0
+@mem_fill:              txa
+                        sta mem_buf,x
+                        inx
+                        cpx #8
+                        bne @mem_fill
+
+                        ; Create MEM iterator over mem_buf
+                        lda #8
+                        sta gREG::r0L
+                        stz gREG::r0H
+                        lda #(ULITYP::MEM | ULIFMT::BYTE)
+                        ldx #<mem_buf
+                        ldy #>mem_buf
+                        clc                     ; no carry needed for MEM
+                        jsr ulitr_create
+                        bcc @mc_fail
+                        stx iter
+                        sty iter+1
+
+                        jsr pass
+                        bra @test_mf
+
+@mc_fail:               jsr fail
+                        jmp @test_vc
+
+; ----- Test: Fetch first byte, verify = 0 -----
+
+@test_mf:               ldx #<str_t_mf
+                        ldy #>str_t_mf
+                        jsr putmsg
+
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_fetch
+                        bcs @mf_fail
+                        cmp #0
+                        bne @mf_fail
+
+                        jsr pass
+                        bra @test_ms
+
+@mf_fail:               jsr fail
+
+; ----- Test: Store $42, readback verify -----
+
+@test_ms:               ldx #<str_t_ms
+                        ldy #>str_t_ms
+                        jsr putmsg
+
+                        lda #$42
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_store
+                        bcs @ms_fail
+
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_fetch
+                        bcs @ms_fail
+                        cmp #$42
+                        bne @ms_fail
+
+                        ; Restore original
+                        lda #$00
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_store
+
+                        jsr pass
+                        bra @test_mi
+
+@ms_fail:               jsr fail
+
+; ----- Test: fetch_and_inc x8, verify atend -----
+
+@test_mi:               ldx #<str_t_mi
+                        ldy #>str_t_mi
+                        jsr putmsg
+
+                        stz fwd_idx
+                        stz fwd_errs
+@mi_loop:               ldx iter
+                        ldy iter+1
+                        jsr ulitr_fetch_and_inc
+                        bcs @mi_err
+                        cmp fwd_idx
+                        beq @mi_next
+@mi_err:                inc fwd_errs
+@mi_next:               inc fwd_idx
+                        lda fwd_idx
+                        cmp #8
+                        bne @mi_loop
+
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_atend
+                        bne @mi_fail
+                        lda fwd_errs
+                        bne @mi_fail
+
+                        jsr pass
+                        bra @mem_cleanup
+
+@mi_fail:               jsr fail
+
+@mem_cleanup:           ldx iter
+                        ldy iter+1
+                        jsr ulitr_delete
+
+; =========================================================================
+; VRAM+BYTE tests
+; =========================================================================
+
+; ----- Test: Create VRAM+BYTE iterator at $1F000 -----
+
+@test_vc:               ldx #<str_t_vc
+                        ldy #>str_t_vc
+                        jsr putmsg
+
+                        lda #8
+                        sta gREG::r0L
+                        stz gREG::r0H
+                        lda #(ULITYP::VRAM | ULIFMT::BYTE)
+                        ldx #$00                ; low byte of $F000
+                        ldy #$F0                ; high byte of $F000
+                        sec                     ; bit 16 = 1 (address $1F000)
+                        jsr ulitr_create
+                        bcc @vc_fail
+                        stx iter
+                        sty iter+1
+
+                        jsr pass
+                        bra @test_vs
+
+@vc_fail:               jsr fail
+                        jmp @test_rc
+
+; ----- Test: Store $42 at VRAM position -----
+
+@test_vs:               ldx #<str_t_vs
+                        ldy #>str_t_vs
+                        jsr putmsg
+
+                        lda #$42
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_store
+                        bcs @vs_fail
+
+                        jsr pass
+                        bra @test_vf
+
+@vs_fail:               jsr fail
+
+; ----- Test: Fetch and verify = $42 -----
+
+@test_vf:               ldx #<str_t_vf
+                        ldy #>str_t_vf
+                        jsr putmsg
+
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_fetch
+                        bcs @vf_fail
+                        cmp #$42
+                        bne @vf_fail
+
+                        jsr pass
+                        bra @test_vi
+
+@vf_fail:               jsr fail
+
+; ----- Test: iterate to end -----
+
+@test_vi:               ldx #<str_t_vi
+                        ldy #>str_t_vi
+                        jsr putmsg
+
+                        ; Advance 8 entries to reach end
+                        lda #8
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_adv
+
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_atend
+                        bne @vi_fail
+                        ; Also verify fetch fails at end
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_fetch
+                        bcc @vi_fail
+
+                        jsr pass
+                        bra @vram_cleanup
+
+@vi_fail:               jsr fail
+
+@vram_cleanup:          ldx iter
+                        ldy iter+1
+                        jsr ulitr_delete
+
+; =========================================================================
+; BRP+BYTE+REVERSE tests
+; =========================================================================
+
+; ----- Test: Create reverse iterator -----
+
+@test_rc:               ldx #<str_t_rc
+                        ldy #>str_t_rc
+                        jsr putmsg
+
+                        ; Allocate 8-byte BRP and fill with 0-7
+                        ldx #8
+                        ldy #0
+                        sec
+                        jsr ulmem_alloc
+                        bcc @rc_fail
+                        stx data_brp
+                        sty data_brp+1
+
+                        jsr ulmem_access
+                        stx gREG::r5L
+                        sty gREG::r5H
+                        ldy #0
+:                       tya
+                        sta (gREG::r5),y
+                        iny
+                        cpy #8
+                        bne :-
+
+                        ; Create REVERSE byte iterator
+                        lda #8
+                        sta gREG::r0L
+                        stz gREG::r0H
+                        lda #(ULITYP::BRP | ULITYP::REVERSE | ULIFMT::BYTE)
+                        ldx data_brp
+                        ldy data_brp+1
+                        jsr ulitr_create
+                        bcc @rc_fail
+                        stx iter
+                        sty iter+1
+
+                        jsr pass
+                        bra @test_rf
+
+@rc_fail:               jsr fail
+                        jmp @test_dc
+
+; ----- Test: First fetch should return 7 (last byte) -----
+
+@test_rf:               ldx #<str_t_rf
+                        ldy #>str_t_rf
+                        jsr putmsg
+
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_fetch
+                        bcs @rf_fail
+                        cmp #7
+                        bne @rf_fail
+
+                        jsr pass
+                        bra @test_ri
+
+@rf_fail:               jsr fail
+
+; ----- Test: fetch_and_inc x8 yields 7,6,5,4,3,2,1,0 -----
+
+@test_ri:               ldx #<str_t_ri
+                        ldy #>str_t_ri
+                        jsr putmsg
+
+                        lda #7
+                        sta fwd_idx             ; expected value starts at 7
+                        stz fwd_errs
+@ri_loop:               ldx iter
+                        ldy iter+1
+                        jsr ulitr_fetch_and_inc
+                        bcs @ri_err
+                        cmp fwd_idx
+                        beq @ri_next
+@ri_err:                inc fwd_errs
+@ri_next:               dec fwd_idx             ; next expected value
+                        lda fwd_idx
+                        cmp #$FF                ; went past 0?
+                        bne @ri_loop
+
+                        lda fwd_errs
+                        beq :+
+                        jsr fail
+                        bra @test_ra
+:                       jsr pass
+
+; ----- Test: atend after reverse iteration -----
+
+@test_ra:               ldx #<str_t_ra
+                        ldy #>str_t_ra
+                        jsr putmsg
+
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_atend
+                        beq :+
+                        jsr fail
+                        bra @test_rd
+:                       jsr pass
+
+; ----- Test: dec x8 back to start -----
+
+@test_rd:               ldx #<str_t_rd
+                        ldy #>str_t_rd
+                        jsr putmsg
+
+                        lda #8
+                        sta fwd_idx
+                        stz fwd_errs
+@rd_loop:               ldx iter
+                        ldy iter+1
+                        jsr ulitr_dec
+                        bcs @rd_err
+                        dec fwd_idx
+                        bne @rd_loop
+                        bra @rd_check
+@rd_err:                inc fwd_errs
+                        dec fwd_idx
+                        bne @rd_loop
+
+@rd_check:              ldx iter
+                        ldy iter+1
+                        jsr ulitr_atstart
+                        bne @rd_fail
+                        lda fwd_errs
+                        bne @rd_fail
+
+                        jsr pass
+                        bra @rev_cleanup
+
+@rd_fail:               jsr fail
+
+@rev_cleanup:           ldx iter
+                        ldy iter+1
+                        jsr ulitr_delete
+                        ldx data_brp
+                        ldy data_brp+1
+                        jsr ulmem_free
+
+; =========================================================================
+; VRAM+DWORD tests
+; =========================================================================
+
+; ----- Test: Create VRAM+DWORD iterator -----
+
+@test_dc:               ldx #<str_t_dc
+                        ldy #>str_t_dc
+                        jsr putmsg
+
+                        lda #16                 ; 4 dwords = 16 bytes
+                        sta gREG::r0L
+                        stz gREG::r0H
+                        lda #(ULITYP::VRAM | ULIFMT::DWORD)
+                        ldx #$00                ; low byte of $F000
+                        ldy #$F0                ; high byte of $F000
+                        sec                     ; bit 16 = 1 (address $1F000)
+                        jsr ulitr_create
+                        bcc @dc_fail
+                        stx iter
+                        sty iter+1
+
+                        jsr pass
+                        bra @test_ds
+
+@dc_fail:               jsr fail
+                        jmp @summary
+
+; ----- Test: Store $DEADBEEF via r0/r1 -----
+
+@test_ds:               ldx #<str_t_ds
+                        ldy #>str_t_ds
+                        jsr putmsg
+
+                        ; DWORD in little-endian: $EF, $BE, $AD, $DE
+                        lda #$EF
+                        sta gREG::r0L
+                        lda #$BE
+                        sta gREG::r0H
+                        lda #$AD
+                        sta gREG::r1L
+                        lda #$DE
+                        sta gREG::r1H
+                        lda #0                  ; A ignored for DWORD
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_store
+                        bcs @ds_fail
+
+                        jsr pass
+                        bra @test_df
+
+@ds_fail:               jsr fail
+
+; ----- Test: Fetch and verify $DEADBEEF -----
+
+@test_df:               ldx #<str_t_df
+                        ldy #>str_t_df
+                        jsr putmsg
+
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_fetch
+                        bcs @df_fail
+                        lda gREG::r0L
+                        cmp #$EF
+                        bne @df_fail
+                        lda gREG::r0H
+                        cmp #$BE
+                        bne @df_fail
+                        lda gREG::r1L
+                        cmp #$AD
+                        bne @df_fail
+                        lda gREG::r1H
+                        cmp #$DE
+                        bne @df_fail
+
+                        jsr pass
+                        bra @dword_cleanup
+
+@df_fail:               jsr fail
+
+@dword_cleanup:         ldx iter
+                        ldy iter+1
+                        jsr ulitr_delete
+
 ; ----- Summary -----
 
-@summary:               jsr newline
-                        ldx #<str_summary
+@summary:               ldx #<str_summary
                         ldy #>str_summary
                         jsr putmsg
                         lda num_passed
@@ -483,6 +1113,9 @@ start:
                         jsr putmsg
                         lda num_total
                         jsr puthex
+                        ldx #<str_pad
+                        ldy #>str_pad
+                        jsr putmsg
 
                         jsr ulwin_refresh
 
@@ -502,3 +1135,4 @@ fwd_idx:        .res 1          ; loop counter
 fwd_errs:       .res 1          ; error counter
 num_passed:     .res 1          ; total tests passed
 num_total:      .res 1          ; total tests run
+mem_buf:        .res 8          ; memory buffer for MEM tests
