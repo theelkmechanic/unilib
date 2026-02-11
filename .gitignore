@@ -9,6 +9,7 @@ ULTEST.PRG
 *.sh
 *.sym
 obj/
+run/
 sto/
 test/*.o
 tools/
