@@ -69,6 +69,17 @@ str_t_dc:       .byte "VRAM+DWORD create     ", 0
 str_t_ds:       .byte "VRAM+DWORD store      ", 0
 str_t_df:       .byte "VRAM+DWORD fetch      ", 0
 
+; Data block tests
+str_t_dbc:      .byte "uldb_create size=8    ", 0
+str_t_dbrc:     .byte "uldb_getrefcount = 1  ", 0
+str_t_dbs:      .byte "uldb_getsize = 8      ", 0
+str_t_dbb:      .byte "uldb_getbrp non-zero  ", 0
+str_t_dba:      .byte "uldb_addref rc=2      ", 0
+str_t_dbr1:     .byte "uldb_release 2->1     ", 0
+str_t_dbr0:     .byte "uldb_release 1->0     ", 0
+str_t_dbfb:     .byte "uldb_fromBuffer       ", 0
+str_t_dbfi:     .byte "uldb_fromIter         ", 0
+
 str_pass:       .byte " OK", 0
 str_fail:       .byte " FAIL", 0
 str_summary:    .byte "Passed: ", 0
@@ -1101,6 +1112,311 @@ start:
                         ldy iter+1
                         jsr ulitr_delete
 
+; =========================================================================
+; Data block tests
+; =========================================================================
+
+; ----- Test: uldb_create with size 8 -----
+
+@test_db_create:        ldx #<str_t_dbc
+                        ldy #>str_t_dbc
+                        jsr putmsg
+
+                        ldx #8
+                        ldy #0
+                        jsr uldb_create
+                        bcc @dbc_fail
+                        stx db_handle
+                        sty db_handle+1
+
+                        ; Verify handle is non-zero
+                        txa
+                        ora db_handle+1
+                        beq @dbc_fail
+
+                        jsr pass
+                        bra @test_db_refcount
+
+@dbc_fail:              jsr fail
+                        jmp @summary
+
+; ----- Test: uldb_getrefcount = 1 -----
+
+@test_db_refcount:      ldx #<str_t_dbrc
+                        ldy #>str_t_dbrc
+                        jsr putmsg
+
+                        ldx db_handle
+                        ldy db_handle+1
+                        jsr uldb_getrefcount
+                        cpx #1
+                        bne @dbrc_fail
+                        cpy #0
+                        bne @dbrc_fail
+
+                        jsr pass
+                        bra @test_db_size
+
+@dbrc_fail:             jsr fail
+
+; ----- Test: uldb_getsize = 8 -----
+
+@test_db_size:          ldx #<str_t_dbs
+                        ldy #>str_t_dbs
+                        jsr putmsg
+
+                        ldx db_handle
+                        ldy db_handle+1
+                        jsr uldb_getsize
+                        cpx #8
+                        bne @dbs_fail
+                        cpy #0
+                        bne @dbs_fail
+
+                        jsr pass
+                        bra @test_db_brp
+
+@dbs_fail:              jsr fail
+
+; ----- Test: uldb_getbrp is non-zero -----
+
+@test_db_brp:           ldx #<str_t_dbb
+                        ldy #>str_t_dbb
+                        jsr putmsg
+
+                        ldx db_handle
+                        ldy db_handle+1
+                        jsr uldb_getbrp
+                        stx db_data_brp
+                        sty db_data_brp+1
+
+                        txa
+                        ora db_data_brp+1
+                        beq @dbb_fail
+
+                        jsr pass
+                        bra @test_db_addref
+
+@dbb_fail:              jsr fail
+
+; ----- Test: uldb_addref, refcount = 2 -----
+
+@test_db_addref:        ldx #<str_t_dba
+                        ldy #>str_t_dba
+                        jsr putmsg
+
+                        ldx db_handle
+                        ldy db_handle+1
+                        jsr uldb_addref
+
+                        ldx db_handle
+                        ldy db_handle+1
+                        jsr uldb_getrefcount
+                        cpx #2
+                        bne @dba_fail
+                        cpy #0
+                        bne @dba_fail
+
+                        jsr pass
+                        bra @test_db_rel1
+
+@dba_fail:              jsr fail
+
+; ----- Test: uldb_release (2 -> 1) -----
+
+@test_db_rel1:          ldx #<str_t_dbr1
+                        ldy #>str_t_dbr1
+                        jsr putmsg
+
+                        ldx db_handle
+                        ldy db_handle+1
+                        jsr uldb_release
+
+                        ldx db_handle
+                        ldy db_handle+1
+                        jsr uldb_getrefcount
+                        cpx #1
+                        bne @dbr1_fail
+                        cpy #0
+                        bne @dbr1_fail
+
+                        jsr pass
+                        bra @test_db_rel0
+
+@dbr1_fail:             jsr fail
+
+; ----- Test: uldb_release to zero (1 -> 0, frees) -----
+
+@test_db_rel0:          ldx #<str_t_dbr0
+                        ldy #>str_t_dbr0
+                        jsr putmsg
+
+                        ldx db_handle
+                        ldy db_handle+1
+                        jsr uldb_release
+
+                        ; If we get here without crashing, it passed
+                        jsr pass
+                        bra @test_db_frombuf
+
+@dbr0_fail:             jsr fail
+
+; ----- Test: uldb_fromBuffer -----
+
+@test_db_frombuf:       ldx #<str_t_dbfb
+                        ldy #>str_t_dbfb
+                        jsr putmsg
+
+                        ; Fill db_testdata with known pattern
+                        ldx #0
+@fb_fill:               txa
+                        clc
+                        adc #$10
+                        sta db_testdata,x
+                        inx
+                        cpx #8
+                        bne @fb_fill
+
+                        ; Create data block from buffer
+                        lda #<db_testdata
+                        sta gREG::r0L
+                        lda #>db_testdata
+                        sta gREG::r0H
+                        lda #8
+                        sta gREG::r1L
+                        stz gREG::r1H
+                        jsr uldb_fromBuffer
+                        bcc @dbfb_fail
+                        stx db_handle
+                        sty db_handle+1
+
+                        ; Get data BRP and verify contents
+                        jsr uldb_getbrp
+                        jsr ulmem_access
+                        stx gREG::r5L
+                        sty gREG::r5H
+
+                        stz fwd_errs
+                        ldy #0
+@fb_check:              lda (gREG::r5),y
+                        sta fwd_idx             ; temp: actual value
+                        tya
+                        clc
+                        adc #$10                ; expected = y + $10
+                        cmp fwd_idx
+                        beq :+
+                        inc fwd_errs
+:                       iny
+                        cpy #8
+                        bne @fb_check
+
+                        lda fwd_errs
+                        bne @dbfb_fail
+
+                        ; Clean up: release the data block
+                        ldx db_handle
+                        ldy db_handle+1
+                        jsr uldb_release
+
+                        jsr pass
+                        bra @test_db_fromiter
+
+@dbfb_fail:             jsr fail
+
+; ----- Test: uldb_fromIter -----
+
+@test_db_fromiter:      ldx #<str_t_dbfi
+                        ldy #>str_t_dbfi
+                        jsr putmsg
+
+                        ; Allocate a BRP and fill with known data
+                        ldx #8
+                        ldy #0
+                        sec
+                        jsr ulmem_alloc
+                        bcs :+
+                        jmp @dbfi_fail
+:                       stx db_data_brp
+                        sty db_data_brp+1
+
+                        jsr ulmem_access
+                        stx gREG::r5L
+                        sty gREG::r5H
+                        ldy #0
+:                       tya
+                        eor #$AA                ; pattern: 0^AA, 1^AA, ...
+                        sta (gREG::r5),y
+                        iny
+                        cpy #8
+                        bne :-
+
+                        ; Create a BRP+BYTE iterator over this data
+                        lda #8
+                        sta gREG::r0L
+                        stz gREG::r0H
+                        lda #(ULITYP::BRP | ULIFMT::BYTE)
+                        ldx db_data_brp
+                        ldy db_data_brp+1
+                        jsr ulitr_create
+                        bcs :+
+                        jmp @dbfi_fail
+:
+                        stx iter
+                        sty iter+1
+
+                        ; Create data block from iterator
+                        lda iter
+                        sta gREG::r0L
+                        lda iter+1
+                        sta gREG::r0H
+                        lda #8
+                        sta gREG::r1L
+                        stz gREG::r1H
+                        jsr uldb_fromIter
+                        bcs :+
+                        jmp @dbfi_fail
+:                       stx db_handle
+                        sty db_handle+1
+
+                        ; Get data BRP from new data block and verify contents
+                        jsr uldb_getbrp
+                        jsr ulmem_access
+                        stx gREG::r5L
+                        sty gREG::r5H
+
+                        stz fwd_errs
+                        ldy #0
+@fi_check:              lda (gREG::r5),y
+                        sta fwd_idx             ; temp: actual value
+                        tya
+                        eor #$AA                ; expected = y ^ $AA
+                        cmp fwd_idx
+                        beq :+
+                        inc fwd_errs
+:                       iny
+                        cpy #8
+                        bne @fi_check
+
+                        lda fwd_errs
+                        beq @fi_ok
+                        jmp @dbfi_fail
+
+@fi_ok:                 ; Clean up
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_delete
+                        ldx db_data_brp
+                        ldy db_data_brp+1
+                        jsr ulmem_free
+                        ldx db_handle
+                        ldy db_handle+1
+                        jsr uldb_release
+
+                        jsr pass
+                        jmp @summary
+
+@dbfi_fail:             jsr fail
+
 ; ----- Summary -----
 
 @summary:               ldx #<str_summary
@@ -1136,3 +1452,6 @@ fwd_errs:       .res 1          ; error counter
 num_passed:     .res 1          ; total tests passed
 num_total:      .res 1          ; total tests run
 mem_buf:        .res 8          ; memory buffer for MEM tests
+db_handle:      .res 2          ; data block handle
+db_data_brp:    .res 2          ; data block's data BRP
+db_testdata:    .res 8          ; test data buffer for fromBuffer test

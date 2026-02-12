@@ -28,7 +28,8 @@
 .global uldb_addref         ; YX = data block handle; increments reference count
 .global uldb_release        ; YX = data block handle; decrements reference count, frees data block BRP and data BRP when it hits zero
 .global uldb_getsize        ; YX = data block handle; returns size of data in YX
-.global uldb_getrawbrp      ; YX = data block handle; returns data BRP in YX
+.global uldb_getcapacity    ; YX = data block handle; returns capacity of data BRP in YX
+.global uldb_getbrp         ; YX = data block handle; returns data BRP in YX
 
 ; Blocklists - Lets you organize data blocks into an iterable list of blocks
 .global ullist_create       ; YX = initial data block handle (0/0 means empty list); returns list handle in YX
