@@ -4,6 +4,8 @@
 
 .import __BSS_RUN__, __BSS_SIZE__
 
+EMU_STDOUT = $9FBB      ; emulator host stdout register
+
 .segment "EXEHDR"
 
     ; Stub launcher
@@ -125,6 +127,7 @@ str_got:        .byte " got:", 0
                         ldy #0
 @loop:                  lda (gREG::r5),y
                         beq @done
+                        sta EMU_STDOUT
                         sta gREG::r0L
                         stz gREG::r0H
                         stz gREG::r1L
@@ -147,6 +150,7 @@ str_got:        .byte " got:", 0
                         lsr
                         tax
                         lda @hexchars,x
+                        sta EMU_STDOUT
                         sta gREG::r0L
                         stz gREG::r0H
                         stz gREG::r1L
@@ -156,6 +160,7 @@ str_got:        .byte " got:", 0
                         and #$0f
                         tax
                         lda @hexchars,x
+                        sta EMU_STDOUT
                         sta gREG::r0L
                         stz gREG::r0H
                         stz gREG::r1L
@@ -164,8 +169,61 @@ str_got:        .byte " got:", 0
 @hexchars:              .byte "0123456789ABCDEF"
 .endproc
 
+; putdec - Write A as unsigned decimal (0-255) to the test window
+;   In: A = byte value
+.proc putdec
+                        ; Convert to BCD using decimal mode
+                        sed
+                        stz bcd_tmp
+                        stz bcd_tmp+1
+                        ldx #8
+@cvt:                   asl
+                        pha
+                        lda bcd_tmp+1
+                        adc bcd_tmp+1
+                        sta bcd_tmp+1
+                        lda bcd_tmp
+                        adc bcd_tmp
+                        sta bcd_tmp
+                        pla
+                        dex
+                        bne @cvt
+                        cld
+                        ; bcd_tmp low nibble = hundreds (0-2)
+                        ; bcd_tmp+1 high nibble = tens, low nibble = ones
+                        ldy #0          ; Y=0: still suppressing leading zeros
+                        lda bcd_tmp
+                        and #$0f
+                        beq @tens
+                        jsr @emit
+                        ldy #1
+@tens:                  lda bcd_tmp+1
+                        lsr
+                        lsr
+                        lsr
+                        lsr
+                        bne :+
+                        cpy #0
+                        beq @ones
+:                       jsr @emit
+@ones:                  lda bcd_tmp+1
+                        and #$0f
+@emit:                  ora #$30
+                        sta EMU_STDOUT
+                        sta gREG::r0L
+                        stz gREG::r0H
+                        stz gREG::r1L
+                        pha
+                        lda win
+                        jsr ulwin_putchar
+                        pla
+                        rts
+.endproc
+
 ; newline - Advance cursor to the start of the next line, scroll if at bottom
 .proc newline
+                        lda #$0A
+                        sta EMU_STDOUT
                         lda win
                         jsr ulwin_getline
                         cmp #27                 ; last line of 28-line window
@@ -188,9 +246,7 @@ str_got:        .byte " got:", 0
 
 ; delay_and_refresh - Refresh the screen and wait ~20ms (1 frame at 60Hz)
 .proc delay_and_refresh
-                        jsr ulwin_refresh
-                        wai
-                        rts
+                        jmp ulwin_refresh
 .endproc
 
 ; pass - Print " OK" and increment pass counter
@@ -2185,18 +2241,20 @@ start:
                         ldy #>str_summary
                         jsr putmsg
                         lda num_passed
-                        jsr puthex
+                        jsr putdec
                         ldx #<str_of
                         ldy #>str_of
                         jsr putmsg
                         lda num_total
-                        jsr puthex
+                        jsr putdec
                         ldx #<str_pad
                         ldy #>str_pad
                         jsr putmsg
 
                         jsr ulwin_refresh
-
+                        lda #$0A
+                        sta EMU_STDOUT
+                        stp
 @loop:                  bra @loop
 
 ; =========================================================================
@@ -2225,3 +2283,4 @@ li_handle:      .res 2          ; LIST iterator handle
 li_db_a:        .res 2          ; LIST test data block A
 li_db_b:        .res 2          ; LIST test data block B
 li_list:        .res 2          ; LIST test blocklist handle
+bcd_tmp:        .res 2          ; scratch for putdec BCD conversion

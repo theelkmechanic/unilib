@@ -2,6 +2,8 @@
 # Makefile for UniLib library and test application
 #
 
+EMU ?= $(HOME)/dev/x16/x16-emulator/build/x16emu
+
 SRCDIR = ./src
 OBJDIR = ./obj
 LIBRARY = libunilib.a
@@ -108,8 +110,12 @@ $(OBJDIR):
 $(OBJDIR)/%.o: $(SRCDIR)/%.s $(HEADERS) | $(OBJDIR)
 	ca65 $(FLAGS) -I. -I.. -o $@ $<
 
-.PHONY: all clean
+.PHONY: all clean test
 clean:
 	-rm -r $(OBJDIR)
 	-rm $(LIBRARY)
 	-rm $(TESTAPP) $(TEST_SOURCES:.s=.o) *.map *.sym
+
+test: $(TESTAPP)
+	cp $(TESTAPP) run/
+	X16EMU=$(EMU) python3 test/run_tests.py
