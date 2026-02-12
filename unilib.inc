@@ -36,8 +36,9 @@
 .global ullist_getrefcount  ; YX = list handle; returns reference count in YX
 .global ullist_addref       ; YX = list handle; increments reference count
 .global ullist_release      ; YX = list handle; decrements reference count, when count hits zero it releases all data blocks in the list and frees the list BRP
+.global ullist_getsize      ; YX = list handle; returns number of entries in YX
 .global ullist_insert       ; r0 = list handle, YX = data block handle, A = position; inserts data block in the list at the specified position (255=end)
-.global ullist_delete       ; r0 = list handle, YX = data block handle, A = position; removes the data block from the list at the specified position (255=end)
+.global ullist_delete       ; r0 = list handle, A = position; removes the data block from the list at the specified position (255=end)
 .global ullist_getat        ; r0 = list handle, A = position
 
 ; Iterators - Let you step backward/forward through memory/strings/lists/stringtables/etc.

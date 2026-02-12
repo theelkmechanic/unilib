@@ -71,8 +71,76 @@ _realloc_origslots = ULM_scratchspace+1
                         jsr UL_mulxby32
                         clc
                         jsr ulmem_alloc
+                        bcs :+
+                        jmp _realloc_failed
+:
 
-                        ; Now we need to copy the old BRP contents into the new one
+                        ; Save new BRP (reuse scratch +2/+3, alloc is done with them)
+                        stx ULM_scratchspace+2  ; new BRP lo
+                        sty ULM_scratchspace+3  ; new BRP hi
+
+                        ; Compute copy count = origslots * 32
+                        ldx _realloc_origslots
+                        jsr UL_mulxby32
+                        stx ULM_scratchspace+4  ; count lo
+                        sty ULM_scratchspace+5  ; count hi
+
+                        ; Get old source address (r0 preserved through clc alloc)
+                        ldx gREG::r0L
+                        ldy gREG::r0H
+                        jsr ulmem_access
+                        stx UL_varptr           ; old data ptr
+                        sty UL_varptr+1
+                        lda BANKSEL::RAM
+                        sta ULM_scratchspace+0  ; old bank
+
+                        ; Get new dest address
+                        ldx ULM_scratchspace+2
+                        ldy ULM_scratchspace+3
+                        jsr ulmem_access
+                        stx UL_var2ptr          ; new data ptr
+                        sty UL_var2ptr+1
+                        lda BANKSEL::RAM
+                        sta ULM_scratchspace+1  ; new bank
+
+                        ; Cross-bank byte copy loop
+                        ldy #0
+@copy_loop:             lda ULM_scratchspace+4
+                        ora ULM_scratchspace+5
+                        beq @copy_done
+                        lda ULM_scratchspace+0  ; old bank
+                        sta BANKSEL::RAM
+                        lda (UL_varptr),y
+                        pha
+                        lda ULM_scratchspace+1  ; new bank
+                        sta BANKSEL::RAM
+                        pla
+                        sta (UL_var2ptr),y
+                        ; Increment source pointer
+                        inc UL_varptr
+                        bne :+
+                        inc UL_varptr+1
+:                       ; Increment dest pointer
+                        inc UL_var2ptr
+                        bne :+
+                        inc UL_var2ptr+1
+:                       ; 16-bit decrement count
+                        lda ULM_scratchspace+4
+                        bne :+
+                        dec ULM_scratchspace+5
+:                       dec ULM_scratchspace+4
+                        bra @copy_loop
+
+@copy_done:             ; Free old BRP (still in r0)
+                        ldx gREG::r0L
+                        ldy gREG::r0H
+                        jsr ulmem_free
+
+                        ; Return new BRP
+                        ldx ULM_scratchspace+2
+                        ldy ULM_scratchspace+3
+                        sec
+                        jmp _alloc_done
 
 ; ulmem_realloc - Change size of a previously allocated BRP
 ;   In: r0              - previously allocated BRP
@@ -95,7 +163,9 @@ ulmem_realloc:
                         sty BANKSEL::RAM
                         lda BANK::RAM,x
                         cmp _realloc_numslots
-                        bcc _realloc_need_more
+                        bcs :+
+                        jmp _realloc_need_more
+:
                         beq _return_r0
 
                         ; Free extra memory as follows (os = original slot entry, oc = original slot capacity, nc = new slot capacity):

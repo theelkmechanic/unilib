@@ -80,6 +80,21 @@ str_t_dbr0:     .byte "uldb_release 1->0     ", 0
 str_t_dbfb:     .byte "uldb_fromBuffer       ", 0
 str_t_dbfi:     .byte "uldb_fromIter         ", 0
 
+; Blocklist tests
+str_t_llc:      .byte "ullist_create empty    ", 0
+str_t_llrc:     .byte "ullist_getrefcount = 1 ", 0
+str_t_lls:      .byte "ullist_getsize = 0     ", 0
+str_t_lli:      .byte "ullist_insert append   ", 0
+str_t_llg:      .byte "ullist_getat pos 0     ", 0
+str_t_lli2:     .byte "ullist_insert 2nd end  ", 0
+str_t_lli0:     .byte "ullist_insert at 0     ", 0
+str_t_llo:      .byte "ullist_getat order     ", 0
+str_t_lld:      .byte "ullist_delete middle   ", 0
+str_t_llar:     .byte "ullist_addref rc=2     ", 0
+str_t_llr1:     .byte "ullist_release 2->1    ", 0
+str_t_llr0:     .byte "ullist_release 1->0    ", 0
+str_t_llci:     .byte "ullist_create w/init   ", 0
+
 str_pass:       .byte " OK", 0
 str_fail:       .byte " FAIL", 0
 str_summary:    .byte "Passed: ", 0
@@ -139,15 +154,33 @@ str_got:        .byte " got:", 0
 @hexchars:              .byte "0123456789ABCDEF"
 .endproc
 
-; newline - Advance cursor to the start of the next line
+; newline - Advance cursor to the start of the next line, scroll if at bottom
 .proc newline
                         lda win
                         jsr ulwin_getline
-                        ina
+                        cmp #27                 ; last line of 28-line window
+                        bcc @no_scroll
+                        ; Scroll window contents up 1 line (Y=-1 moves content up)
+                        lda win
+                        ldx #0
+                        ldy #$ff
+                        jsr ulwin_scroll
+                        ldy #27
+                        ldx #0
+                        lda win
+                        jmp ulwin_putcursor
+@no_scroll:             ina
                         tay
                         ldx #0
                         lda win
                         jmp ulwin_putcursor
+.endproc
+
+; delay_and_refresh - Refresh the screen and wait ~20ms (1 frame at 60Hz)
+.proc delay_and_refresh
+                        jsr ulwin_refresh
+                        wai
+                        rts
 .endproc
 
 ; pass - Print " OK" and increment pass counter
@@ -157,7 +190,8 @@ str_got:        .byte " got:", 0
                         ldx #<str_pass
                         ldy #>str_pass
                         jsr putmsg
-                        jmp newline
+                        jsr newline
+                        jmp delay_and_refresh
 .endproc
 
 ; fail - Print " FAIL" and increment fail counter
@@ -166,7 +200,8 @@ str_got:        .byte " got:", 0
                         ldx #<str_fail
                         ldy #>str_fail
                         jsr putmsg
-                        jmp newline
+                        jsr newline
+                        jmp delay_and_refresh
 .endproc
 
 ; =========================================================================
@@ -1413,9 +1448,435 @@ start:
                         jsr uldb_release
 
                         jsr pass
-                        jmp @summary
+                        jmp @test_ll_create
 
 @dbfi_fail:             jsr fail
+
+; =========================================================================
+; Blocklist tests
+; =========================================================================
+
+; ----- Test: ullist_create (empty) -----
+
+@test_ll_create:        ldx #<str_t_llc
+                        ldy #>str_t_llc
+                        jsr putmsg
+
+                        ldx #0
+                        ldy #0
+                        jsr ullist_create
+                        bcc @llc_fail
+                        stx ll_handle
+                        sty ll_handle+1
+
+                        ; Verify handle non-zero
+                        txa
+                        ora ll_handle+1
+                        beq @llc_fail
+
+                        jsr pass
+                        bra @test_ll_refcount
+
+@llc_fail:              jsr fail
+                        jmp @summary
+
+; ----- Test: ullist_getrefcount = 1 -----
+
+@test_ll_refcount:      ldx #<str_t_llrc
+                        ldy #>str_t_llrc
+                        jsr putmsg
+
+                        ldx ll_handle
+                        ldy ll_handle+1
+                        jsr ullist_getrefcount
+                        cpx #1
+                        bne @llrc_fail
+                        cpy #0
+                        bne @llrc_fail
+
+                        jsr pass
+                        bra @test_ll_size
+
+@llrc_fail:             jsr fail
+
+; ----- Test: ullist_getsize = 0 -----
+
+@test_ll_size:          ldx #<str_t_lls
+                        ldy #>str_t_lls
+                        jsr putmsg
+
+                        ldx ll_handle
+                        ldy ll_handle+1
+                        jsr ullist_getsize
+                        cpx #0
+                        bne @lls_fail
+                        cpy #0
+                        bne @lls_fail
+
+                        jsr pass
+                        bra @test_ll_ins1
+
+@lls_fail:              jsr fail
+
+; ----- Test: ullist_insert (append) -----
+
+@test_ll_ins1:          ldx #<str_t_lli
+                        ldy #>str_t_lli
+                        jsr putmsg
+
+                        ; Create a data block for testing
+                        ldx #8
+                        ldy #0
+                        jsr uldb_create
+                        bcc @lli_fail
+                        stx ll_db1
+                        sty ll_db1+1
+
+                        ; Insert at end (255)
+                        lda ll_handle
+                        sta gREG::r0L
+                        lda ll_handle+1
+                        sta gREG::r0H
+                        ldx ll_db1
+                        ldy ll_db1+1
+                        lda #255
+                        jsr ullist_insert
+                        bcc @lli_fail
+
+                        ; Verify size = 1
+                        ldx ll_handle
+                        ldy ll_handle+1
+                        jsr ullist_getsize
+                        cpx #1
+                        bne @lli_fail
+                        cpy #0
+                        bne @lli_fail
+
+                        jsr pass
+                        bra @test_ll_getat
+
+@lli_fail:              jsr fail
+                        jmp @summary
+
+; ----- Test: ullist_getat position 0 -----
+
+@test_ll_getat:         ldx #<str_t_llg
+                        ldy #>str_t_llg
+                        jsr putmsg
+
+                        lda ll_handle
+                        sta gREG::r0L
+                        lda ll_handle+1
+                        sta gREG::r0H
+                        lda #0
+                        jsr ullist_getat
+                        bcc @llg_fail
+                        cpx ll_db1
+                        bne @llg_fail
+                        cpy ll_db1+1
+                        bne @llg_fail
+
+                        jsr pass
+                        bra @test_ll_ins2
+
+@llg_fail:              jsr fail
+
+; ----- Test: ullist_insert (second at end) -----
+
+@test_ll_ins2:          ldx #<str_t_lli2
+                        ldy #>str_t_lli2
+                        jsr putmsg
+
+                        ; Create second data block
+                        ldx #8
+                        ldy #0
+                        jsr uldb_create
+                        bcc @lli2_fail
+                        stx ll_db2
+                        sty ll_db2+1
+
+                        ; Insert at end
+                        lda ll_handle
+                        sta gREG::r0L
+                        lda ll_handle+1
+                        sta gREG::r0H
+                        ldx ll_db2
+                        ldy ll_db2+1
+                        lda #255
+                        jsr ullist_insert
+                        bcc @lli2_fail
+
+                        ; Verify size = 2
+                        ldx ll_handle
+                        ldy ll_handle+1
+                        jsr ullist_getsize
+                        cpx #2
+                        bne @lli2_fail
+
+                        jsr pass
+                        bra @test_ll_ins0
+
+@lli2_fail:             jsr fail
+
+; ----- Test: ullist_insert at position 0 -----
+
+@test_ll_ins0:          ldx #<str_t_lli0
+                        ldy #>str_t_lli0
+                        jsr putmsg
+
+                        ; Create third data block
+                        ldx #8
+                        ldy #0
+                        jsr uldb_create
+                        bcc @lli0_fail
+                        stx ll_db3
+                        sty ll_db3+1
+
+                        ; Insert at position 0
+                        lda ll_handle
+                        sta gREG::r0L
+                        lda ll_handle+1
+                        sta gREG::r0H
+                        ldx ll_db3
+                        ldy ll_db3+1
+                        lda #0
+                        jsr ullist_insert
+                        bcc @lli0_fail
+
+                        ; Verify size = 3
+                        ldx ll_handle
+                        ldy ll_handle+1
+                        jsr ullist_getsize
+                        cpx #3
+                        bne @lli0_fail
+
+                        jsr pass
+                        bra @test_ll_order
+
+@lli0_fail:             jsr fail
+
+; ----- Test: ullist_getat order check -----
+; After inserting db3 at 0, order should be: db3, db1, db2
+
+@test_ll_order:         ldx #<str_t_llo
+                        ldy #>str_t_llo
+                        jsr putmsg
+
+                        stz fwd_errs
+
+                        ; Position 0 should be db3
+                        lda ll_handle
+                        sta gREG::r0L
+                        lda ll_handle+1
+                        sta gREG::r0H
+                        lda #0
+                        jsr ullist_getat
+                        bcc @llo_err
+                        cpx ll_db3
+                        bne @llo_err
+                        cpy ll_db3+1
+                        beq :+
+@llo_err:               inc fwd_errs
+
+                        ; Position 1 should be db1
+:                       lda ll_handle
+                        sta gREG::r0L
+                        lda ll_handle+1
+                        sta gREG::r0H
+                        lda #1
+                        jsr ullist_getat
+                        bcc @llo_err2
+                        cpx ll_db1
+                        bne @llo_err2
+                        cpy ll_db1+1
+                        beq :+
+@llo_err2:              inc fwd_errs
+
+                        ; Position 2 should be db2
+:                       lda ll_handle
+                        sta gREG::r0L
+                        lda ll_handle+1
+                        sta gREG::r0H
+                        lda #2
+                        jsr ullist_getat
+                        bcc @llo_err3
+                        cpx ll_db2
+                        bne @llo_err3
+                        cpy ll_db2+1
+                        beq :+
+@llo_err3:              inc fwd_errs
+
+:                       lda fwd_errs
+                        bne @llo_fail
+                        jsr pass
+                        bra @test_ll_del
+
+@llo_fail:              jsr fail
+
+; ----- Test: ullist_delete (middle, position 1 = db1) -----
+; Order before: db3, db1, db2. After delete pos 1: db3, db2
+
+@test_ll_del:           ldx #<str_t_lld
+                        ldy #>str_t_lld
+                        jsr putmsg
+
+                        lda ll_handle
+                        sta gREG::r0L
+                        lda ll_handle+1
+                        sta gREG::r0H
+                        lda #1
+                        jsr ullist_delete
+                        bcc @lld_fail
+
+                        ; Verify size = 2
+                        ldx ll_handle
+                        ldy ll_handle+1
+                        jsr ullist_getsize
+                        cpx #2
+                        bne @lld_fail
+
+                        ; Verify order: pos 0 = db3, pos 1 = db2
+                        lda ll_handle
+                        sta gREG::r0L
+                        lda ll_handle+1
+                        sta gREG::r0H
+                        lda #0
+                        jsr ullist_getat
+                        cpx ll_db3
+                        bne @lld_fail
+                        cpy ll_db3+1
+                        bne @lld_fail
+
+                        lda ll_handle
+                        sta gREG::r0L
+                        lda ll_handle+1
+                        sta gREG::r0H
+                        lda #1
+                        jsr ullist_getat
+                        cpx ll_db2
+                        bne @lld_fail
+                        cpy ll_db2+1
+                        bne @lld_fail
+
+                        jsr pass
+                        bra @test_ll_addref
+
+@lld_fail:              jsr fail
+
+; ----- Test: ullist_addref, refcount = 2 -----
+
+@test_ll_addref:        ldx #<str_t_llar
+                        ldy #>str_t_llar
+                        jsr putmsg
+
+                        ldx ll_handle
+                        ldy ll_handle+1
+                        jsr ullist_addref
+
+                        ldx ll_handle
+                        ldy ll_handle+1
+                        jsr ullist_getrefcount
+                        cpx #2
+                        bne @llar_fail
+                        cpy #0
+                        bne @llar_fail
+
+                        jsr pass
+                        bra @test_ll_rel1
+
+@llar_fail:             jsr fail
+
+; ----- Test: ullist_release (2 -> 1) -----
+
+@test_ll_rel1:          ldx #<str_t_llr1
+                        ldy #>str_t_llr1
+                        jsr putmsg
+
+                        ldx ll_handle
+                        ldy ll_handle+1
+                        jsr ullist_release
+
+                        ldx ll_handle
+                        ldy ll_handle+1
+                        jsr ullist_getrefcount
+                        cpx #1
+                        bne @llr1_fail
+                        cpy #0
+                        bne @llr1_fail
+
+                        jsr pass
+                        bra @test_ll_rel0
+
+@llr1_fail:             jsr fail
+
+; ----- Test: ullist_release (1 -> 0, frees) -----
+
+@test_ll_rel0:          ldx #<str_t_llr0
+                        ldy #>str_t_llr0
+                        jsr putmsg
+
+                        ldx ll_handle
+                        ldy ll_handle+1
+                        jsr ullist_release
+
+                        ; If we get here without crashing, it passed
+                        jsr pass
+                        bra @test_ll_create_init
+
+; ----- Test: ullist_create with initial handle -----
+
+@test_ll_create_init:   ldx #<str_t_llci
+                        ldy #>str_t_llci
+                        jsr putmsg
+
+                        ; Create a data block for initial
+                        ldx #8
+                        ldy #0
+                        jsr uldb_create
+                        bcc @llci_fail
+                        stx ll_db1
+                        sty ll_db1+1
+
+                        ; Create list with initial handle
+                        ldx ll_db1
+                        ldy ll_db1+1
+                        jsr ullist_create
+                        bcc @llci_fail
+                        stx ll_handle
+                        sty ll_handle+1
+
+                        ; Verify size = 1
+                        ldx ll_handle
+                        ldy ll_handle+1
+                        jsr ullist_getsize
+                        cpx #1
+                        bne @llci_fail
+
+                        ; Verify getat 0 = initial handle
+                        lda ll_handle
+                        sta gREG::r0L
+                        lda ll_handle+1
+                        sta gREG::r0H
+                        lda #0
+                        jsr ullist_getat
+                        bcc @llci_fail
+                        cpx ll_db1
+                        bne @llci_fail
+                        cpy ll_db1+1
+                        bne @llci_fail
+
+                        ; Clean up
+                        ldx ll_handle
+                        ldy ll_handle+1
+                        jsr ullist_release
+                        ldx ll_db1
+                        ldy ll_db1+1
+                        jsr uldb_release
+
+                        jsr pass
+                        jmp @summary
+
+@llci_fail:             jsr fail
 
 ; ----- Summary -----
 
@@ -1455,3 +1916,7 @@ mem_buf:        .res 8          ; memory buffer for MEM tests
 db_handle:      .res 2          ; data block handle
 db_data_brp:    .res 2          ; data block's data BRP
 db_testdata:    .res 8          ; test data buffer for fromBuffer test
+ll_handle:      .res 2          ; blocklist handle
+ll_db1:         .res 2          ; blocklist test data block 1
+ll_db2:         .res 2          ; blocklist test data block 2
+ll_db3:         .res 2          ; blocklist test data block 3
