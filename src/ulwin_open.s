@@ -111,7 +111,7 @@
                         ldx #.sizeof(ULW_WINDOW)
                         sec ; clear the allocated memory
                         jsr ulmem_alloc
-                        bcc @out_of_memory
+                        bcs @out_of_memory
 
                         ; Okay, need to save the window structure BRP in the right slot,
                         ; which is at old Y
@@ -155,7 +155,7 @@
                         phy
                         clc
                         jsr ulmem_alloc
-                        bcs :++
+                        bcc :++
                         pla
                         pla
 :                       lda ULW_newwin_handle
@@ -173,7 +173,7 @@
                         jsr ulmath_umul16_8
                         clc
                         jsr ulmem_alloc
-                        bcc :--
+                        bcs :--
                         tya
                         ldy #ULW_WINDOW::charbuf+1
                         sta (ULW_scratch_fptr),y

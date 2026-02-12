@@ -34,7 +34,7 @@ Allocate a block of banked RAM.
 Input:  YX    = size in bytes (max 7,936)
         carry = set to zero-fill the allocated memory; clear to leave uninitialized
 Output: YX    = BRP of allocated block (0/0 on failure)
-        carry = set on success, clear on failure
+        carry = set on error, clear on success
 ```
 
 The allocator searches banks for the best-fit free chunk. Small allocations (1-7 slots) use a fast lookup table. Larger allocations scan all banks for an exact match first, then fall back to the smallest sufficient chunk.
@@ -49,7 +49,7 @@ Change the size of a previously allocated block.
 Input:  r0    = BRP to reallocate
         YX    = new size in bytes (max 7,936)
 Output: YX    = new BRP (may differ from original; 0/0 on failure)
-        carry = set on success, clear on failure
+        carry = set on error, clear on success
 ```
 
 If the block is shrinking, excess slots are freed in-place and the original BRP is returned. If growing beyond the current capacity, a new block is allocated, data is copied, and the old block is freed. On failure, the original allocation remains valid.

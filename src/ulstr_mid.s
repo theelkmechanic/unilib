@@ -4,7 +4,7 @@
 
 ; ulstr_mid - Extract substring
 ;   In: r0 = string BRP, r1 = start index (char), r2 = length (chars)
-;  Out: YX = new substring BRP, carry set on success
+;  Out: YX = new substring BRP, carry set on error
 .proc ulstr_mid
                         ; Save caller's bank
                         lda BANKSEL::RAM
@@ -83,7 +83,7 @@
                         inx
                         ldy #0
                         jsr ulmem_alloc
-                        bcc @error
+                        bcs @error
 
                         ; Save new BRP
                         phx
@@ -148,7 +148,7 @@
                         plx
                         pla
                         sta BANKSEL::RAM
-                        sec
+                        clc
                         rts
 
 @empty_string:          ; Allocate minimal string (4 bytes: 3 header + NUL)
@@ -156,16 +156,16 @@
                         ldy #0
                         sec                     ; clear memory
                         jsr ulmem_alloc
-                        bcc @error
+                        bcs @error
                         ; Header is all zeros (0 bytelen, 0 charlen, 0 printlen, NUL)
                         pla
                         sta BANKSEL::RAM
-                        sec
+                        clc
                         rts
 
 @error:                 pla
                         sta BANKSEL::RAM
-                        clc
+                        sec
                         rts
 
 .bss

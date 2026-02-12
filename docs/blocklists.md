@@ -22,7 +22,7 @@ Create a new blocklist.
 ```
 Input:  YX    = initial data block handle (0/0 for empty list)
 Output: YX    = list handle (BRP)
-        carry = set on success, clear on failure
+        carry = set on error, clear on success
 ```
 
 Creates a list with initial capacity of 4 entries. If a non-zero initial handle is provided, it is inserted as the first element and its reference count is incremented.
@@ -75,7 +75,7 @@ Get the data block handle at a given position.
 Input:  r0    = list handle
         A     = position (0-based)
 Output: YX    = data block handle at that position
-        carry = set on success, clear if position >= size
+        carry = set on error, clear if position >= size
 ```
 
 ## Mutation
@@ -88,7 +88,7 @@ Insert a data block into the list at a given position.
 Input:  r0    = list handle
         YX    = data block handle to insert
         A     = position (0-based; 255 = append to end)
-Output: carry = set on success, clear on failure
+Output: carry = set on error, clear on success
 ```
 
 The position is clamped to the current size (so 255 or any value >= size appends to the end). The data block's reference count is incremented. If the list is at capacity, the handle array is automatically reallocated to double its size.
@@ -102,7 +102,7 @@ Remove a data block from the list at a given position.
 ```
 Input:  r0    = list handle
         A     = position (0-based; 255 = remove last)
-Output: carry = set on success, clear if position >= size
+Output: carry = set on error, clear if position >= size
 ```
 
 The removed data block's reference count is decremented via `uldb_release`. Elements after the deletion point are shifted left.

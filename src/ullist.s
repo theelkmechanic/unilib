@@ -24,7 +24,7 @@
 ; ullist_create - Create a new blocklist
 ;   In: YX              - initial data block handle (0/0 = empty list)
 ;  Out: YX              - list handle BRP
-;       carry           - set on success
+;       carry           - set on error
 .proc ullist_create
                         ; Save caller's bank
                         lda BANKSEL::RAM
@@ -39,7 +39,7 @@
                         ldy #0
                         sec                     ; clear allocated memory
                         jsr ulmem_alloc
-                        bcs :+
+                        bcc :+
                         jmp @fail
 :
                         ; Save brps BRP
@@ -51,7 +51,7 @@
                         ldy #0
                         clc                     ; don't clear
                         jsr ulmem_alloc
-                        bcs :+
+                        bcc :+
                         jmp @fail_free_brps
 :
 
@@ -139,7 +139,7 @@
                         ldy ULLIST_scratch+5
                         pla
                         sta BANKSEL::RAM
-                        sec
+                        clc
                         rts
 
 @fail_free_brps:        ldx ULLIST_scratch+2
@@ -148,7 +148,7 @@
 
 @fail:                  pla
                         sta BANKSEL::RAM
-                        clc
+                        sec
                         rts
 .endproc
 
@@ -216,7 +216,7 @@
 ;   In: r0              - list handle BRP
 ;       A               - position
 ;  Out: YX              - data block handle at position
-;       carry           - set on success, clear if position >= size
+;       carry           - set on error, clear on success
 .proc ullist_getat
                         pha
                         lda BANKSEL::RAM
@@ -271,7 +271,7 @@
                         pla
                         sta BANKSEL::RAM
                         pla                     ; discard saved A
-                        sec
+                        clc
                         rts
 
 @out_of_range:          pla
@@ -279,7 +279,7 @@
                         pla                     ; discard saved A
                         ldx #0
                         ldy #0
-                        clc
+                        sec
                         rts
 .endproc
 
@@ -291,7 +291,7 @@
 ;   In: r0              - list handle BRP
 ;       YX              - data block handle to insert
 ;       A               - position (255 = end, clamped to size)
-;  Out: carry           - set on success
+;  Out: carry           - set on error
 .proc ullist_insert
                         ; Save caller's bank
                         pha
@@ -363,13 +363,13 @@
                         tax
                         ldy #0
                         jsr ulmem_realloc
-                        bcs @grow_ok
+                        bcc @grow_ok
 
                         ; Realloc failed
                         pla
                         sta BANKSEL::RAM
                         pla
-                        clc
+                        sec
                         rts
 
 @grow_ok:               ; Save new brps BRP
@@ -470,14 +470,14 @@
                         pla
                         sta BANKSEL::RAM
                         pla
-                        sec
+                        clc
                         rts
 .endproc
 
 ; ullist_delete - Remove a data block from the list
 ;   In: r0              - list handle BRP
 ;       A               - position (255 = end)
-;  Out: carry           - set on success, clear if position >= size
+;  Out: carry           - set on error, clear on success
 .proc ullist_delete
                         pha
                         lda BANKSEL::RAM
@@ -591,13 +591,13 @@
                         pla
                         sta BANKSEL::RAM
                         pla                     ; discard saved A
-                        sec
+                        clc
                         rts
 
 @out_of_range:          pla
                         sta BANKSEL::RAM
                         pla                     ; discard saved A
-                        clc
+                        sec
                         rts
 .endproc
 

@@ -13,17 +13,17 @@
 ; To access memory:
 ;  - RAM bank selector <- hi
 ;  - 16-bit address    <- $A000 | (lo * 32)
-.global ulmem_alloc         ; YX = allocation size (max 7,936 bytes), carry set will clear the allocated memory; returns BPR in YX
-.global ulmem_realloc       ; r0 = BRP to reallocate, YX = new allocation size (max 7,936 bytes); returns new BPR in YX
+.global ulmem_alloc         ; YX = allocation size (max 7,936 bytes), carry set will clear the allocated memory; returns BPR in YX, carry set on error
+.global ulmem_realloc       ; r0 = BRP to reallocate, YX = new allocation size (max 7,936 bytes); returns new BPR in YX, carry set on error
 .global ulmem_free          ; YX = BRP to free
 .global ulmem_access        ; YX = BRP; returns YX = 16-bit memory address of data with RAM bank selected
 .global ulmem_capacity      ; YX = BRP; returns YX = BRP capacity in bytes
 
 ; Data blocks - Lets you reference-count BRPs for reuse
-.global uldb_create         ; YX = size; allocates and references new uninitialized BRP, returns data block handle in YX
-.global uldb_fromBRP        ; r0 = BRP, r1 = size; returns data block handle in YX, takes ownership of the passed BRP (will free it when reference count drops to 0)
-.global uldb_fromBuffer     ; r0 = pointer to memory, r1 = size to copy; returns data block handle in YX, allocates new data BRP and copies from pointer
-.global uldb_fromIter       ; r0 = iterator, r1 = size; returns data block handle in YX, allocates new data BRP and copies r1 entries from iterator
+.global uldb_create         ; YX = size; allocates and references new uninitialized BRP, returns data block handle in YX, carry set on error
+.global uldb_fromBRP        ; r0 = BRP, r1 = size; returns data block handle in YX, takes ownership of the passed BRP (will free it when reference count drops to 0), carry set on error
+.global uldb_fromBuffer     ; r0 = pointer to memory, r1 = size to copy; returns data block handle in YX, allocates new data BRP and copies from pointer, carry set on error
+.global uldb_fromIter       ; r0 = iterator, r1 = size; returns data block handle in YX, allocates new data BRP and copies r1 entries from iterator, carry set on error
 .global uldb_getrefcount    ; YX = data block handle; returns reference count in YX
 .global uldb_addref         ; YX = data block handle; increments reference count
 .global uldb_release        ; YX = data block handle; decrements reference count, frees data block BRP and data BRP when it hits zero
@@ -32,17 +32,17 @@
 .global uldb_getbrp         ; YX = data block handle; returns data BRP in YX
 
 ; Blocklists - Lets you organize data blocks into an iterable list of blocks
-.global ullist_create       ; YX = initial data block handle (0/0 means empty list); returns list handle in YX
+.global ullist_create       ; YX = initial data block handle (0/0 means empty list); returns list handle in YX, carry set on error
 .global ullist_getrefcount  ; YX = list handle; returns reference count in YX
 .global ullist_addref       ; YX = list handle; increments reference count
 .global ullist_release      ; YX = list handle; decrements reference count, when count hits zero it releases all data blocks in the list and frees the list BRP
 .global ullist_getsize      ; YX = list handle; returns number of entries in YX
-.global ullist_insert       ; r0 = list handle, YX = data block handle, A = position; inserts data block in the list at the specified position (255=end)
-.global ullist_delete       ; r0 = list handle, A = position; removes the data block from the list at the specified position (255=end)
-.global ullist_getat        ; r0 = list handle, A = position
+.global ullist_insert       ; r0 = list handle, YX = data block handle, A = position; inserts data block in the list at the specified position (255=end), carry set on error
+.global ullist_delete       ; r0 = list handle, A = position; removes the data block from the list at the specified position (255=end), carry set on error
+.global ullist_getat        ; r0 = list handle, A = position, carry set on error
 
 ; Iterators - Let you step backward/forward through memory/strings/lists/stringtables/etc.
-.global ulitr_create        ; A = iterator type | Iterator format, YX = object to iterate over; returns iterator handle in YX
+.global ulitr_create        ; A = iterator type | Iterator format, YX = object to iterate over; returns iterator handle in YX, carry set on error
 .global ulitr_delete        ; YX = iterator; deletes iterator
 .global ulitr_fetch         ; YX = iterator; returns value at iterator as specified in formats (carry set if error)
 .global ulitr_store         ; YX = iterator, pass value as specified in formats; stores value at iterator (carry set if error)
@@ -136,7 +136,7 @@
 .endenum
 
 ; Unicode string functions - Work on UTF-8 BRP immutable, reference-counted string objects
-.global ulstr_fromUtf8      ; YX = address of NUL-terminated UTF-8 character data; creates new string object and returns in YX
+.global ulstr_fromUtf8      ; YX = address of NUL-terminated UTF-8 character data; creates new string object and returns in YX, carry set on error
 .global ulstr_fromPETSCII   ; YX = address of NUL-terminated PETSCII character data; creates new string object and returns in YX
 .global ulstr_fromISO8859   ; YX = address of NUL-terminated ISO-8859-15 character data; creates new string object and returns in YX
 
@@ -147,8 +147,8 @@
 .global ulstr_find          ; r0 = string, r1 = start index, AYX = Unicode character to find; returns index of first occurrence of character in YX (-1 if not found)
 .global ulstr_rfind         ; r0 = string, r1 = start index, AYX = Unicode character to find; returns index of last occurrence of character in YX (-1 if not found)
 
-.global ulstr_append        ; r0 = first string, r1 = second string; creates new string by appending second to first and returns in YX
-.global ulstr_mid           ; r0 = string, r1 = start index, r2 = length; extracts substring and returns in YX
+.global ulstr_append        ; r0 = first string, r1 = second string; creates new string by appending second to first and returns in YX, carry set on error
+.global ulstr_mid           ; r0 = string, r1 = start index, r2 = length; extracts substring and returns in YX, carry set on error
 .global ulstr_format        ; r0 = format string, r1 = stringtable; creates new string from format string and returns in YX, carry set on error
                             ;   - {} will be replaced with successive entries in the stringtable
                             ;   - {#} will be replaced with that indexed entry in the stringtable
@@ -159,12 +159,12 @@
 .global ulstr_release       ; YX = string; releases the string (will free any underlying string buffer(s) that have no owners left)
 
 ; Unicode stringtable functions - Manage tables of Unicode strings
-.global ulstb_create        ; A = # of string slots (1-255); return stringtable BRP in YX
+.global ulstb_create        ; A = # of string slots (1-255); return stringtable BRP in YX, carry set on error
 .global ulstb_delete        ; YX = stringtable BRP, will free all strings and stringtable
-.global ulstb_get           ; A = string index to retrieve (1-based), r0 = stringtable BRP; returns string BRP in YX, carry set if error
-.global ulstb_put           ; A = string index to set (1-based), YX = string BRP, r0 = stringtable BRP; carry set if error
-.global ulstb_build         ; YX = address of list of NUL-terminated UTF-8 strings; creates stringtable of up to 255 strings, stops at empty string
-.global ulstb_load          ; A = device number, YX = address of filename of NUL-terminated UTF-8 strings; reads from file and creates stringtable of up to 255 strings, stops at empty string or EOF
+.global ulstb_get           ; A = string index to retrieve (1-based), r0 = stringtable BRP; returns string BRP in YX, carry set on error
+.global ulstb_put           ; A = string index to set (1-based), YX = string BRP, r0 = stringtable BRP; carry set on error
+.global ulstb_build         ; YX = address of list of NUL-terminated UTF-8 strings; creates stringtable of up to 255 strings, stops at empty string; returns stringtable BRP in YX, carry set on error
+.global ulstb_load          ; A = device number, YX = address of filename of NUL-terminated UTF-8 strings; reads from file and creates stringtable of up to 255 strings; returns stringtable BRP in YX, carry set on error
 
 ; Unicode character type functions
 .global ul_isprint          ; AYX = Unicode character; carry set if printable (i.e., ulwin_putchar will advance cursor)
@@ -206,9 +206,9 @@
 .global ulwin_idlecfg       ; YX = idle function; configure function to call while waiting for keypress
 .global ulwin_inschar       ; A = window, r0/r1L = Unicode character; insert character at current position
 .global ulwin_insline       ; A = window; insert line at current position
-.global ulwin_joinlines     ; X = first window, Y = second window; join two windows, first window will be top, second will be bottom; windows must be same width and must fit on screen when combined; carry set and joined window handle in A on success
-.global ulwin_joincolumns   ; X = first window, Y = second window; join two windows, first window will be left, second will be right; windows must be same height and must fit on screen when combined; carry set and joined window handle in A on success
-.global ulwin_move          ; A = window, X = new screen start column of window content area, Y = new screen start line of window content area; move a window (must be fully onscreen including border, carry set on success)
+.global ulwin_joinlines     ; X = first window, Y = second window; join two windows, first window will be top, second will be bottom; windows must be same width and must fit on screen when combined; carry set on error
+.global ulwin_joincolumns   ; X = first window, Y = second window; join two windows, first window will be left, second will be right; windows must be same height and must fit on screen when combined; carry set on error
+.global ulwin_move          ; A = window, X = new screen start column of window content area, Y = new screen start line of window content area; move a window (must be fully onscreen including border, carry set on error)
 .global ulwin_open          ; r0 = top left of window content area, r1 = size of window content area, r2 = colors (r2L = foreground, r2H = background), r3/r4L = title pointer, r4H = flags (0x80 = has border); open a new window, returns handle in A
 .global ulwin_picklist      ; A = window, YX = stringtable to choose from; displays scrollable list in window, pressing ENTER returns choice index (1-n) in A
 .global ulwin_putchar       ; A = window, r0/r1L = Unicode character; put character at current position
@@ -218,7 +218,7 @@
 .global ulwin_putstr        ; A = window, r0 = string, carry set for autowrap/scroll; put string at current position
 .global ulwin_puttitle      ; A = window, r0 = title string; update window title
 .global ulwin_refresh       ; refresh the screen with any updated window contents
-.global ulwin_resize        ; A = window, X = new content area width, Y = new content area height; resize a window (must be fully onscreen including border, carry set on success)
+.global ulwin_resize        ; A = window, X = new content area width, Y = new content area height; resize a window (must be fully onscreen including border, carry set on error)
 .global ulwin_scroll        ; A = window, X = number of columns (signed), Y = number of lines (signed); scroll window contents in desired direction
 .global ulwin_select        ; A = window; bring a window to the top
 .global ulwin_splitline     ; A = window, Y = split line; split into two windows at specified line (window passed in A = lines 0 through split-1, new window selected and returned in A = lines split through #lines-1)

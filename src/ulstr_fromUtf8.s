@@ -5,7 +5,7 @@
 ; ulstr_fromUtf8 - Allocate a BRP string from a NUL-terminated UTF-8 source
 ;   In: YX              - Pointer to UTF-8 character sequence (must be in currently accessible memory)
 ;  Out: YX              - String BRP
-;       carry           - Set on success
+;       carry           - Set on error
 .proc ulstr_fromUtf8
                         ; Save A
                         pha
@@ -39,7 +39,7 @@
                         bne :+
                         iny
 :                       jsr ulmem_alloc
-                        bcc @done
+                        bcs @done
 
                         ; Save bank/BRP
                         lda BANKSEL::RAM
@@ -74,7 +74,7 @@
                         plx
                         pla
                         sta BANKSEL::RAM
-                        sec
+                        clc
 
                         ; Restore A
 @done:                  pla

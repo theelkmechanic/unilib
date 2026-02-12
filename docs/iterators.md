@@ -84,7 +84,7 @@ Input:  A     = type | format (e.g., ULITYP::BRP | ULIFMT::BYTE)
         r0    = byte count (BRP/MEM/VRAM: size of range; BRP only: 0 = use full capacity)
         carry = VRAM bit 16 (VRAM type only)
 Output: YX    = iterator handle (BRP)
-        carry = set on success, clear on failure
+        carry = set on error, clear on success
 ```
 
 ### ulitr_delete

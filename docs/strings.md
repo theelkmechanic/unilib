@@ -16,7 +16,7 @@ The three length fields allow O(1) queries without scanning the string data.
 
 ## Creation Functions
 
-All creation functions return a string BRP in YX with carry set on success.
+All creation functions return a string BRP in YX with carry set on error.
 
 ### ulstr_fromUtf8
 
@@ -25,7 +25,7 @@ Create a string from a NUL-terminated UTF-8 byte sequence.
 ```
 Input:  YX    = address of NUL-terminated UTF-8 data
 Output: YX    = string BRP
-        carry = set on success
+        carry = set on error
 ```
 
 If the source is in banked RAM (`$A000`-`$BFFF`), the data is first copied to scratch space at `$700` to avoid conflicts with the allocation.
@@ -37,7 +37,7 @@ Create a string from a NUL-terminated PETSCII byte sequence.
 ```
 Input:  YX    = address of NUL-terminated PETSCII data
 Output: YX    = string BRP
-        carry = set on success
+        carry = set on error
 ```
 
 Converts PETSCII characters to their Unicode equivalents.
@@ -49,7 +49,7 @@ Create a string from a NUL-terminated ISO-8859-15 byte sequence.
 ```
 Input:  YX    = address of NUL-terminated ISO-8859-15 data
 Output: YX    = string BRP
-        carry = set on success
+        carry = set on error
 ```
 
 ## Length Queries

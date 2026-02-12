@@ -24,7 +24,7 @@
 ; uldb_create - Allocate a new uninitialized data block of given size
 ;   In: YX              - size of data to allocate
 ;  Out: YX              - data block handle BRP
-;       carry           - set on success
+;       carry           - set on error
 .proc uldb_create
                         ; Save caller's bank
                         lda BANKSEL::RAM
@@ -37,7 +37,7 @@
                         ; Allocate data BRP of requested size
                         clc                     ; don't clear
                         jsr ulmem_alloc
-                        bcc @fail
+                        bcs @fail
 
                         ; Save data BRP in r0
                         stx gREG::r0L
@@ -50,7 +50,7 @@
 
 @fail:                  pla
                         sta BANKSEL::RAM
-                        clc
+                        sec
                         rts
 .endproc
 
@@ -58,7 +58,7 @@
 ;   In: r0              - BRP to wrap (takes ownership)
 ;       r1              - logical data size
 ;  Out: YX              - data block handle BRP
-;       carry           - set on success
+;       carry           - set on error
 .proc uldb_fromBRP
                         ; Save caller's bank
                         lda BANKSEL::RAM
@@ -86,7 +86,7 @@
                         ldy #0
                         clc                     ; don't clear
                         jsr ulmem_alloc
-                        bcc @fail
+                        bcs @fail
 
                         ; Save handle BRP before calling ulmem_access
                         stx ULDB_scratch+6      ; handle BRP lo (slot)
@@ -136,12 +136,12 @@
                         ; Restore caller's bank
                         pla
                         sta BANKSEL::RAM
-                        sec
+                        clc
                         rts
 
 @fail:                  pla
                         sta BANKSEL::RAM
-                        clc
+                        sec
                         rts
 .endproc
 
@@ -149,7 +149,7 @@
 ;   In: r0              - pointer to source memory
 ;       r1              - size to copy
 ;  Out: YX              - data block handle BRP
-;       carry           - set on success
+;       carry           - set on error
 .proc uldb_fromBuffer
                         ; Save caller's bank
                         lda BANKSEL::RAM
@@ -170,7 +170,7 @@
                         ldy gREG::r1H
                         clc                     ; don't clear
                         jsr ulmem_alloc
-                        bcc @fail
+                        bcs @fail
 
                         ; Save data BRP to scratch
                         stx ULDB_scratch+4      ; data BRP lo
@@ -210,7 +210,7 @@
 
 @fail:                  pla
                         sta BANKSEL::RAM
-                        clc
+                        sec
                         rts
 .endproc
 
@@ -218,7 +218,7 @@
 ;   In: r0              - iterator handle
 ;       r1              - number of bytes to read
 ;  Out: YX              - data block handle BRP
-;       carry           - set on success
+;       carry           - set on error
 .proc uldb_fromIter
                         ; Save caller's bank
                         lda BANKSEL::RAM
@@ -245,7 +245,7 @@
                         ldy gREG::r1H
                         clc                     ; don't clear
                         jsr ulmem_alloc
-                        bcc @fail
+                        bcs @fail
 
                         ; Save data BRP
                         stx ULDB_scratch+4      ; data BRP lo
@@ -312,7 +312,7 @@
 
                         pla
                         sta BANKSEL::RAM
-                        clc
+                        sec
                         rts
 .endproc
 

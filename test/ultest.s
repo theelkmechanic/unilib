@@ -138,6 +138,19 @@ str_hello:      .byte "Hello", 0
 str_world:      .byte "World", 0
 str_cafe:       .byte "Caf", $C3, $A9, 0
 
+; Stringtable test strings
+str_t_stc:      .byte "ulstb_create 3         ", 0
+str_t_stp:      .byte "ulstb_put slot 1       ", 0
+str_t_stg:      .byte "ulstb_get slot 1       ", 0
+str_t_stb0:     .byte "ulstb_get slot 0 err   ", 0
+str_t_stb4:     .byte "ulstb_get slot 4 err   ", 0
+str_t_std:      .byte "ulstb_delete           ", 0
+str_t_stbld:    .byte "ulstb_build 3 strings  ", 0
+str_t_stbg:     .byte "ulstb_get after build  ", 0
+
+; Test data for ulstb_build: three NUL-terminated strings + empty terminator
+stb_build_data: .byte "Alpha", 0, "Beta", 0, "Gamma", 0, 0
+
 str_pass:       .byte " OK", 0
 str_fail:       .byte " FAIL", 0
 str_summary:    .byte "Passed: ", 0
@@ -373,7 +386,7 @@ start:
                         ldy #0
                         sec
                         jsr ulmem_alloc
-                        bcc @alloc_fail
+                        bcs @alloc_fail
                         stx data_brp
                         sty data_brp+1
 
@@ -407,7 +420,7 @@ start:
                         ldx data_brp
                         ldy data_brp+1
                         jsr ulitr_create
-                        bcc @create_fail
+                        bcs @create_fail
                         stx iter
                         sty iter+1
 
@@ -660,7 +673,7 @@ start:
                         ldy #0
                         sec
                         jsr ulmem_alloc
-                        bcc @wc_fail
+                        bcs @wc_fail
                         stx data_brp
                         sty data_brp+1
 
@@ -672,7 +685,7 @@ start:
                         ldx data_brp
                         ldy data_brp+1
                         jsr ulitr_create
-                        bcc @wc_fail
+                        bcs @wc_fail
                         stx iter
                         sty iter+1
 
@@ -825,7 +838,7 @@ start:
                         ldy #>mem_buf
                         clc                     ; no carry needed for MEM
                         jsr ulitr_create
-                        bcc @mc_fail
+                        bcs @mc_fail
                         stx iter
                         sty iter+1
 
@@ -937,7 +950,7 @@ start:
                         ldy #$F0                ; high byte of $F000
                         sec                     ; bit 16 = 1 (address $1F000)
                         jsr ulitr_create
-                        bcc @vc_fail
+                        bcs @vc_fail
                         stx iter
                         sty iter+1
 
@@ -1028,7 +1041,7 @@ start:
                         ldy #0
                         sec
                         jsr ulmem_alloc
-                        bcc @rc_fail
+                        bcs @rc_fail
                         stx data_brp
                         sty data_brp+1
 
@@ -1050,7 +1063,7 @@ start:
                         ldx data_brp
                         ldy data_brp+1
                         jsr ulitr_create
-                        bcc @rc_fail
+                        bcs @rc_fail
                         stx iter
                         sty iter+1
 
@@ -1176,7 +1189,7 @@ start:
                         ldy #$F0                ; high byte of $F000
                         sec                     ; bit 16 = 1 (address $1F000)
                         jsr ulitr_create
-                        bcc @dc_fail
+                        bcs @dc_fail
                         stx iter
                         sty iter+1
 
@@ -1257,7 +1270,7 @@ start:
                         ldx #8
                         ldy #0
                         jsr uldb_create
-                        bcc @dbc_fail
+                        bcs @dbc_fail
                         stx db_handle
                         sty db_handle+1
 
@@ -1418,7 +1431,7 @@ start:
                         sta gREG::r1L
                         stz gREG::r1H
                         jsr uldb_fromBuffer
-                        bcc @dbfb_fail
+                        bcs @dbfb_fail
                         stx db_handle
                         sty db_handle+1
 
@@ -1466,7 +1479,7 @@ start:
                         ldy #0
                         sec
                         jsr ulmem_alloc
-                        bcs :+
+                        bcc :+
                         jmp @dbfi_fail
 :                       stx db_data_brp
                         sty db_data_brp+1
@@ -1490,7 +1503,7 @@ start:
                         ldx db_data_brp
                         ldy db_data_brp+1
                         jsr ulitr_create
-                        bcs :+
+                        bcc :+
                         jmp @dbfi_fail
 :
                         stx iter
@@ -1505,7 +1518,7 @@ start:
                         sta gREG::r1L
                         stz gREG::r1H
                         jsr uldb_fromIter
-                        bcs :+
+                        bcc :+
                         jmp @dbfi_fail
 :                       stx db_handle
                         sty db_handle+1
@@ -1562,7 +1575,7 @@ start:
                         ldx #0
                         ldy #0
                         jsr ullist_create
-                        bcc @llc_fail
+                        bcs @llc_fail
                         stx ll_handle
                         sty ll_handle+1
 
@@ -1625,7 +1638,7 @@ start:
                         ldx #8
                         ldy #0
                         jsr uldb_create
-                        bcc @lli_fail
+                        bcs @lli_fail
                         stx ll_db1
                         sty ll_db1+1
 
@@ -1638,7 +1651,7 @@ start:
                         ldy ll_db1+1
                         lda #255
                         jsr ullist_insert
-                        bcc @lli_fail
+                        bcs @lli_fail
 
                         ; Verify size = 1
                         ldx ll_handle
@@ -1667,7 +1680,7 @@ start:
                         sta gREG::r0H
                         lda #0
                         jsr ullist_getat
-                        bcc @llg_fail
+                        bcs @llg_fail
                         cpx ll_db1
                         bne @llg_fail
                         cpy ll_db1+1
@@ -1688,7 +1701,7 @@ start:
                         ldx #8
                         ldy #0
                         jsr uldb_create
-                        bcc @lli2_fail
+                        bcs @lli2_fail
                         stx ll_db2
                         sty ll_db2+1
 
@@ -1701,7 +1714,7 @@ start:
                         ldy ll_db2+1
                         lda #255
                         jsr ullist_insert
-                        bcc @lli2_fail
+                        bcs @lli2_fail
 
                         ; Verify size = 2
                         ldx ll_handle
@@ -1725,7 +1738,7 @@ start:
                         ldx #8
                         ldy #0
                         jsr uldb_create
-                        bcc @lli0_fail
+                        bcs @lli0_fail
                         stx ll_db3
                         sty ll_db3+1
 
@@ -1738,7 +1751,7 @@ start:
                         ldy ll_db3+1
                         lda #0
                         jsr ullist_insert
-                        bcc @lli0_fail
+                        bcs @lli0_fail
 
                         ; Verify size = 3
                         ldx ll_handle
@@ -1768,7 +1781,7 @@ start:
                         sta gREG::r0H
                         lda #0
                         jsr ullist_getat
-                        bcc @llo_err
+                        bcs @llo_err
                         cpx ll_db3
                         bne @llo_err
                         cpy ll_db3+1
@@ -1782,7 +1795,7 @@ start:
                         sta gREG::r0H
                         lda #1
                         jsr ullist_getat
-                        bcc @llo_err2
+                        bcs @llo_err2
                         cpx ll_db1
                         bne @llo_err2
                         cpy ll_db1+1
@@ -1796,7 +1809,7 @@ start:
                         sta gREG::r0H
                         lda #2
                         jsr ullist_getat
-                        bcc @llo_err3
+                        bcs @llo_err3
                         cpx ll_db2
                         bne @llo_err3
                         cpy ll_db2+1
@@ -1823,7 +1836,7 @@ start:
                         sta gREG::r0H
                         lda #1
                         jsr ullist_delete
-                        bcc @lld_fail
+                        bcs @lld_fail
 
                         ; Verify size = 2
                         ldx ll_handle
@@ -1930,7 +1943,7 @@ start:
                         ldx #8
                         ldy #0
                         jsr uldb_create
-                        bcc @llci_fail
+                        bcs @llci_fail
                         stx ll_db1
                         sty ll_db1+1
 
@@ -1938,7 +1951,7 @@ start:
                         ldx ll_db1
                         ldy ll_db1+1
                         jsr ullist_create
-                        bcc @llci_fail
+                        bcs @llci_fail
                         stx ll_handle
                         sty ll_handle+1
 
@@ -1956,7 +1969,7 @@ start:
                         sta gREG::r0H
                         lda #0
                         jsr ullist_getat
-                        bcc @llci_fail
+                        bcs @llci_fail
                         cpx ll_db1
                         bne @llci_fail
                         cpy ll_db1+1
@@ -1985,7 +1998,7 @@ start:
                         ldx #4
                         ldy #0
                         jsr uldb_create
-                        bcs :+
+                        bcc :+
                         jmp @summary
 :                       stx li_db_a
                         sty li_db_a+1
@@ -2012,7 +2025,7 @@ start:
                         ldx #4
                         ldy #0
                         jsr uldb_create
-                        bcs :+
+                        bcc :+
                         jmp @summary
 :                       stx li_db_b
                         sty li_db_b+1
@@ -2039,7 +2052,7 @@ start:
                         ldx li_db_a
                         ldy li_db_a+1
                         jsr ullist_create       ; create with A as initial
-                        bcs :+
+                        bcc :+
                         jmp @summary
 :                       stx li_list
                         sty li_list+1
@@ -2066,7 +2079,7 @@ start:
                         ldx li_list
                         ldy li_list+1
                         jsr ulitr_create
-                        bcc @lic_fail
+                        bcs @lic_fail
                         stx li_handle
                         sty li_handle+1
 
@@ -2275,7 +2288,7 @@ start:
                         ldy #0
                         clc                     ; don't clear
                         jsr ulmem_alloc
-                        bcs :+
+                        bcc :+
                         jmp @test_str_setup
 :                       stx u8_brp
                         sty u8_brp+1
@@ -2304,7 +2317,7 @@ start:
                         ldx u8_brp
                         ldy u8_brp+1
                         jsr ulitr_create
-                        bcc @u8c_fail
+                        bcs @u8c_fail
                         stx u8_iter
                         sty u8_iter+1
 
@@ -2737,7 +2750,7 @@ start:
                         lda s_world+1
                         sta gREG::r1H
                         jsr ulstr_append
-                        bcc @sapp_fail
+                        bcs @sapp_fail
                         stx s_temp
                         sty s_temp+1
 
@@ -2778,7 +2791,7 @@ start:
                         sta gREG::r2L
                         stz gREG::r2H
                         jsr ulstr_mid
-                        bcc @smid_fail
+                        bcs @smid_fail
                         stx s_temp
                         sty s_temp+1
 
@@ -2827,7 +2840,7 @@ start:
                         ldy #0
                         sec
                         jsr ulmem_alloc
-                        bcs :+
+                        bcc :+
                         jmp @sto8_fail
 :                       stx s_temp
                         sty s_temp+1
@@ -2840,7 +2853,7 @@ start:
                         ldx s_temp
                         ldy s_temp+1
                         jsr ulitr_create
-                        bcs :+
+                        bcc :+
                         jmp @sto8_fail
 :
                         stx s_temp2
@@ -2901,7 +2914,7 @@ start:
                         jsr ulmem_free
 
                         jsr pass
-                        bra @str_cleanup
+                        jmp @test_stc
 
 @sto8_fail2:            ldx s_temp2
                         ldy s_temp2+1
@@ -2910,6 +2923,195 @@ start:
                         ldy s_temp+1
                         jsr ulmem_free
 @sto8_fail:             jsr fail
+
+; ----- Test: ulstb_create 3 -----
+
+@test_stc:              ldx #<str_t_stc
+                        ldy #>str_t_stc
+                        jsr putmsg
+
+                        lda #3
+                        jsr ulstb_create
+                        bcs @stc_fail
+                        stx stb_handle
+                        sty stb_handle+1
+
+                        jsr pass
+                        bra @test_stp
+
+@stc_fail:              jsr fail
+                        jmp @test_stbld
+
+; ----- Test: ulstb_put slot 1 -----
+
+@test_stp:              ldx #<str_t_stp
+                        ldy #>str_t_stp
+                        jsr putmsg
+
+                        ; Put s_hello into slot 1
+                        lda stb_handle
+                        sta gREG::r0L
+                        lda stb_handle+1
+                        sta gREG::r0H
+                        lda #1
+                        ldx s_hello
+                        ldy s_hello+1
+                        jsr ulstb_put
+                        bcs @stp_fail
+
+                        jsr pass
+                        bra @test_stg
+
+@stp_fail:              jsr fail
+
+; ----- Test: ulstb_get slot 1 -----
+
+@test_stg:              ldx #<str_t_stg
+                        ldy #>str_t_stg
+                        jsr putmsg
+
+                        ; Get slot 1 and verify it matches s_hello
+                        lda stb_handle
+                        sta gREG::r0L
+                        lda stb_handle+1
+                        sta gREG::r0H
+                        lda #1
+                        jsr ulstb_get
+                        bcs @stg_fail
+                        cpx s_hello
+                        bne @stg_fail
+                        cpy s_hello+1
+                        bne @stg_fail
+
+                        jsr pass
+                        bra @test_stb0
+
+@stg_fail:              jsr fail
+
+; ----- Test: ulstb_get slot 0 (bounds error) -----
+
+@test_stb0:             ldx #<str_t_stb0
+                        ldy #>str_t_stb0
+                        jsr putmsg
+
+                        lda stb_handle
+                        sta gREG::r0L
+                        lda stb_handle+1
+                        sta gREG::r0H
+                        lda #0
+                        jsr ulstb_get
+                        bcs @stb0_pass          ; expect error
+                        jsr fail
+                        bra @test_stb4
+@stb0_pass:             jsr pass
+
+; ----- Test: ulstb_get slot 4 (bounds error) -----
+
+@test_stb4:             ldx #<str_t_stb4
+                        ldy #>str_t_stb4
+                        jsr putmsg
+
+                        lda stb_handle
+                        sta gREG::r0L
+                        lda stb_handle+1
+                        sta gREG::r0H
+                        lda #4
+                        jsr ulstb_get
+                        bcs @stb4_pass          ; expect error
+                        jsr fail
+                        bra @test_std
+@stb4_pass:             jsr pass
+
+; ----- Test: ulstb_delete -----
+
+@test_std:              ldx #<str_t_std
+                        ldy #>str_t_std
+                        jsr putmsg
+
+                        ; Delete table (this will release s_hello via the table)
+                        ; First addref s_hello so it survives the table delete
+                        ; Actually, strings are BRPs not data blocks - ulstr_release frees them
+                        ; So we need to remove s_hello from the table before delete, or accept it's freed
+                        ; Simplest: put 0/0 in slot 1 first so delete doesn't free s_hello
+                        lda stb_handle
+                        sta gREG::r0L
+                        lda stb_handle+1
+                        sta gREG::r0H
+                        lda #1
+                        ldx #0
+                        ldy #0
+                        jsr ulstb_put
+
+                        ldx stb_handle
+                        ldy stb_handle+1
+                        jsr ulstb_delete
+
+                        ; If we get here without crashing, pass
+                        jsr pass
+                        bra @test_stbld
+
+; ----- Test: ulstb_build 3 strings -----
+
+@test_stbld:            ldx #<str_t_stbld
+                        ldy #>str_t_stbld
+                        jsr putmsg
+
+                        ldx #<stb_build_data
+                        ldy #>stb_build_data
+                        jsr ulstb_build
+                        bcc :+
+                        jmp @stbld_fail
+:                       stx stb_handle
+                        sty stb_handle+1
+
+                        jsr pass
+                        bra @test_stbg
+
+@stbld_fail:            jsr fail
+                        jmp @str_cleanup
+
+; ----- Test: ulstb_get after build -----
+
+@test_stbg:             ldx #<str_t_stbg
+                        ldy #>str_t_stbg
+                        jsr putmsg
+
+                        ; Get slot 1 ("Alpha") and check its length = 5
+                        lda stb_handle
+                        sta gREG::r0L
+                        lda stb_handle+1
+                        sta gREG::r0H
+                        lda #1
+                        jsr ulstb_get
+                        bcs @stbg_fail
+                        jsr ulstr_getlen
+                        cmp #5
+                        bne @stbg_fail
+
+                        ; Get slot 3 ("Gamma") and check its length = 5
+                        lda stb_handle
+                        sta gREG::r0L
+                        lda stb_handle+1
+                        sta gREG::r0H
+                        lda #3
+                        jsr ulstb_get
+                        bcs @stbg_fail
+                        jsr ulstr_getlen
+                        cmp #5
+                        bne @stbg_fail
+
+                        ; Clean up build table
+                        ldx stb_handle
+                        ldy stb_handle+1
+                        jsr ulstb_delete
+
+                        jsr pass
+                        bra @str_cleanup
+
+@stbg_fail:             ldx stb_handle
+                        ldy stb_handle+1
+                        jsr ulstb_delete
+                        jsr fail
 
 ; ----- String cleanup -----
 
@@ -2976,3 +3178,5 @@ s_world:        .res 2          ; "World" string BRP
 s_cafe:         .res 2          ; "Cafe" string BRP
 s_temp:         .res 2          ; temp string/BRP
 s_temp2:        .res 2          ; temp iterator handle
+stb_handle:     .res 2          ; stringtable BRP
+stb_str:        .res 2          ; string BRP retrieved from table

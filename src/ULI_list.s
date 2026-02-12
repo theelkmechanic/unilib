@@ -55,7 +55,7 @@
 ;   In: ULI_scratch+0 = type_format
 ;       ULI_scratch+1/+2 = list handle (BRP)
 ;       Caller's bank on stack
-;  Out: YX = iterator handle (BRP), carry set on success
+;  Out: YX = iterator handle (BRP), carry set on error
 ; =============================================================================
 .proc ULI_list_create
                         ; Get block count via ullist_getsize
@@ -67,7 +67,7 @@
                         ; Empty list - fail
                         pla
                         sta BANKSEL::RAM
-                        clc
+                        sec
                         rts
 
 @has_blocks:            stx ULI_list_scratch+0  ; block_count (lo byte only)
@@ -144,7 +144,7 @@
                         ldy #0
                         sec                     ; clear memory
                         jsr ulmem_alloc
-                        bcs @fwd_alloc_ok
+                        bcc @fwd_alloc_ok
                         jmp @fail
 
 @fwd_alloc_ok:          phx
@@ -236,12 +236,12 @@
                         plx
                         pla
                         sta BANKSEL::RAM
-                        sec
+                        clc
                         rts
 
 @fail:                  pla
                         sta BANKSEL::RAM
-                        clc
+                        sec
                         rts
 
                         ; --- REVERSE setup ---
@@ -261,7 +261,7 @@
                         ldy #0
                         sec
                         jsr ulmem_alloc
-                        bcs @rev_alloc_ok
+                        bcc @rev_alloc_ok
                         bra @fail
 
 @rev_alloc_ok:          phx
@@ -366,7 +366,7 @@
                         plx
                         pla
                         sta BANKSEL::RAM
-                        sec
+                        clc
                         rts
 .endproc
 

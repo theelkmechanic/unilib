@@ -323,7 +323,7 @@ Move a window to a new screen position.
 Input:  A     = window handle
         X     = new start column of content area
         Y     = new start line of content area
-Output: carry = set on success
+Output: carry = set on error
 ```
 
 The window (including border) must fit entirely on screen at the new position.
@@ -336,7 +336,7 @@ Resize a window.
 Input:  A     = window handle
         X     = new content width
         Y     = new content height
-Output: carry = set on success
+Output: carry = set on error
 ```
 
 ### ulwin_splitline
@@ -347,7 +347,7 @@ Split a window horizontally at a line.
 Input:  A     = window handle
         Y     = split line (0-based)
 Output: A     = new window handle (bottom portion)
-        carry = set on success
+        carry = set on error
 ```
 
 The original window keeps lines 0 through split-1. A new window is created for lines split through end. The new window is selected and returned.
@@ -360,7 +360,7 @@ Split a window vertically at a column.
 Input:  A     = window handle
         X     = split column (0-based)
 Output: A     = new window handle (right portion)
-        carry = set on success
+        carry = set on error
 ```
 
 ### ulwin_joinlines
@@ -371,7 +371,7 @@ Join two windows vertically (first on top, second on bottom).
 Input:  X     = first window handle (becomes top)
         Y     = second window handle (becomes bottom)
 Output: A     = joined window handle
-        carry = set on success
+        carry = set on error
 ```
 
 Windows must be the same width and the combined height must fit on screen.
@@ -384,7 +384,7 @@ Join two windows horizontally (first on left, second on right).
 Input:  X     = first window handle (becomes left)
         Y     = second window handle (becomes right)
 Output: A     = joined window handle
-        carry = set on success
+        carry = set on error
 ```
 
 Windows must be the same height.

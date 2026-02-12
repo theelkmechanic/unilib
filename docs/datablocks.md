@@ -22,7 +22,7 @@ Allocate a new uninitialized data block.
 ```
 Input:  YX    = size in bytes
 Output: YX    = data block handle (BRP)
-        carry = set on success, clear on failure
+        carry = set on error, clear on success
 ```
 
 Allocates a data BRP of the requested size and wraps it in a new data block with refcount = 1. The data content is **not** zeroed.
@@ -35,7 +35,7 @@ Wrap an existing BRP in a data block, transferring ownership.
 Input:  r0    = BRP to wrap (ownership is transferred)
         r1    = logical data size
 Output: YX    = data block handle (BRP)
-        carry = set on success, clear on failure
+        carry = set on error, clear on success
 ```
 
 The passed BRP becomes owned by the data block and will be freed when the reference count reaches zero. Do not free the BRP yourself after this call.
@@ -48,7 +48,7 @@ Create a data block by copying from a memory buffer.
 Input:  r0    = pointer to source memory
         r1    = number of bytes to copy
 Output: YX    = data block handle (BRP)
-        carry = set on success, clear on failure
+        carry = set on error, clear on success
 ```
 
 Allocates a new data BRP, copies the specified bytes from the source address into it, and returns a data block handle.
@@ -61,7 +61,7 @@ Create a data block by reading bytes from an iterator.
 Input:  r0    = iterator handle
         r1    = number of bytes to read
 Output: YX    = data block handle (BRP)
-        carry = set on success, clear on failure
+        carry = set on error, clear on success
 ```
 
 Reads up to `r1` bytes from the iterator (using `ulitr_fetch_and_inc`) into a newly allocated data BRP. Stops early if the iterator reaches its end or encounters an error.

@@ -8,7 +8,7 @@
 ;       r0              - byte count (0 = use full allocated capacity, BRP only)
 ;       carry           - for VRAM type: high bit (bit 16) of VRAM address
 ;  Out: YX              - iterator handle (BRP)
-;       carry           - set on success, clear on failure
+;       carry           - set on error, clear on success
 .proc ulitr_create
                         ; Save parameters
                         sta ULI_scratch         ; type_format
@@ -40,7 +40,7 @@
                         ; Unsupported type
                         pla
                         sta BANKSEL::RAM
-                        clc
+                        sec
                         rts
 
                         ; --- BRP type: get target address and capacity ---
@@ -141,7 +141,7 @@
                         bne :+
                         pla
                         sta BANKSEL::RAM
-                        clc
+                        sec
                         rts
 :
                         ; Get step size
@@ -186,12 +186,12 @@
                         ldy #0
                         sec                     ; clear the allocated memory
                         jsr ulmem_alloc
-                        bcs @alloc_ok
+                        bcc @alloc_ok
 
                         ; Allocation failed
                         pla
                         sta BANKSEL::RAM
-                        clc
+                        sec
                         rts
 
 @alloc_ok:              ; Save iterator handle for return
@@ -245,7 +245,7 @@
                         plx
                         pla
                         sta BANKSEL::RAM
-                        sec                     ; success
+                        clc                     ; success
                         rts
 .endproc
 

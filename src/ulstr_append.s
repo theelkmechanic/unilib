@@ -4,7 +4,7 @@
 
 ; ulstr_append - Concatenate two strings
 ;   In: r0 = first string BRP, r1 = second string BRP
-;  Out: YX = new string BRP, carry set on success
+;  Out: YX = new string BRP, carry set on error
 .proc ulstr_append
                         ; Save caller's bank
                         lda BANKSEL::RAM
@@ -63,7 +63,7 @@
                         inx                     ; size = total + 4
                         ldy #0
                         jsr ulmem_alloc
-                        bcc @alloc_fail
+                        bcs @alloc_fail
 
                         ; Save new BRP
                         phx
@@ -145,14 +145,14 @@
                         plx
                         pla
                         sta BANKSEL::RAM
-                        sec
+                        clc
                         rts
 
 @too_long:              lda #ULERR::STRING_TOO_LONG
                         sta UL_lasterr
 @alloc_fail:            pla
                         sta BANKSEL::RAM
-                        clc
+                        sec
                         rts
 
 .bss

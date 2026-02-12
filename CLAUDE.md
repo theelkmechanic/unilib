@@ -19,7 +19,7 @@
 ## Common Patterns
 - Save/restore caller's bank: `lda BANKSEL::RAM; pha` at entry, `pla; sta BANKSEL::RAM` at exit
 - Access handle helper: `jsr ulmem_access; stx UL_varptr; sty UL_varptr+1`
-- `ulmem_alloc` with `clc` = don't clear memory, `sec` = clear. Returns BRP in YX, carry set on success
+- `ulmem_alloc` with `clc` = don't clear memory, `sec` = clear. Returns BRP in YX, carry set on error (KERNAL convention)
 - `ulmem_alloc` with `clc` preserves r0 (useful for realloc pattern)
 
 ## 6502 Stack Offset Gotcha

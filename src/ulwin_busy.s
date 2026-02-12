@@ -23,7 +23,7 @@
                         ldx #<ULW_busymsg
                         ldy #>ULW_busymsg
                         jsr ulstr_fromUtf8
-                        bcc @exit
+                        bcs @exit
                         stx ULW_busystr
                         sty ULW_busystr+1
 

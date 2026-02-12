@@ -71,7 +71,7 @@ _realloc_origslots = ULM_scratchspace+1
                         jsr UL_mulxby32
                         clc
                         jsr ulmem_alloc
-                        bcs :+
+                        bcc :+
                         jmp _realloc_failed
 :
 
@@ -139,14 +139,14 @@ _realloc_origslots = ULM_scratchspace+1
                         ; Return new BRP
                         ldx ULM_scratchspace+2
                         ldy ULM_scratchspace+3
-                        sec
+                        clc
                         jmp _alloc_done
 
 ; ulmem_realloc - Change size of a previously allocated BRP
 ;   In: r0              - previously allocated BRP
 ;       YX              - new allocated size (max = 7,936 bytes)
 ;  Out: YX              - new banked RAM pointer, 0/0 if allocation fails (previous allocation will still be valid)
-;       carry           - set on success, clear on failure
+;       carry           - set on error, clear on success
 ulmem_realloc:
                         ; Calculate number of slots
                         pha
@@ -189,13 +189,14 @@ ulmem_realloc:
                         ; Return original BRP
 _return_r0:             ldx gREG::r0L
                         ldy gREG::r0H
+                        clc
                         bra _alloc_done
 
 ; ulmem_alloc - Allocate a chunk of banked RAM
 ;   In: YX              - size to allocate (max = 7,936 bytes)
 ;       carry           - if set, allocated memory will be cleared
 ;  Out: YX              - banked RAM pointer, 0/0 if allocation fails
-;       carry           - set on success, clear on failure
+;       carry           - set on error, clear on success
 ulmem_alloc:
 _alloc_numslots = ULM_scratchspace
 _alloc_freestart = ULM_scratchspace+1
@@ -285,7 +286,7 @@ _alloc_failed:          plp
 _realloc_failed:        lda #0
                         tax
                         tay
-                        clc
+                        sec
 
                         ; Restore bank and return
 _alloc_done:            pla
@@ -411,7 +412,7 @@ _alloc_reloadslot:      ldx #$00
                         ; Return bank in Y and slot in X
 _alloc_return_brp:      ldx _alloc_reloadslot+1
                         ldy BANKSEL::RAM
-                        sec
+                        clc
                         jmp _alloc_done
 
 ; ulmem_free - Free an allocated banked RAM pointer
