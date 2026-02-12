@@ -24,6 +24,7 @@ FONT_OBJS = \
 
 ITER_OBJS = \
 	$(OBJDIR)/ULI_core.o \
+	$(OBJDIR)/ULI_list.o \
 	$(OBJDIR)/ulitr.o
 
 MATH_OBJS = \

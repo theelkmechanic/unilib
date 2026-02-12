@@ -70,15 +70,46 @@ ULI_step_sizes: .byte 1, 2, 3, 4, 5, 0, 0, 0
                         ldy #ULI_STATE_END
                         lda ULI_cur
                         cmp (ULI_ptr),y
-                        bne @done
+                        bne @not_equal
                         iny
                         lda ULI_cur+1
                         cmp (ULI_ptr),y
-                        bne @done
+                        bne @not_equal
                         iny
                         lda ULI_cur_bank
                         cmp (ULI_ptr),y
-@done:                  rts
+                        bne @not_equal
+
+                        ; cur == end. Check if LIST type needs block_index verification
+                        lda (ULI_ptr)           ; type_format
+                        and #$0F
+                        cmp #ULITYP::LIST
+                        bne @is_at_end          ; not LIST -> truly at end
+
+                        ; LIST: check if at terminal block
+                        lda (ULI_ptr)           ; type_format
+                        bmi @reverse_end        ; bit 7 = REVERSE
+
+                        ; Forward: must be at last block (block_index + 1 == block_count)
+                        ldy #ULI_STATE_BLK_IDX
+                        lda (ULI_ptr),y
+                        clc
+                        adc #1
+                        ldy #ULI_STATE_BLK_CNT
+                        cmp (ULI_ptr),y
+                        beq @is_at_end          ; at last block -> truly at end
+                        bne @not_at_end         ; not last block -> false positive
+
+@reverse_end:           ; Reverse: must be at block 0
+                        ldy #ULI_STATE_BLK_IDX
+                        lda (ULI_ptr),y
+                        beq @is_at_end          ; block 0 -> truly at end (in reverse)
+
+@not_at_end:            lda #1                  ; clear Z flag
+                        rts
+@not_equal:             rts                     ; Z already clear from cmp
+@is_at_end:             lda #0                  ; set Z flag
+                        rts
 .endproc
 
 ; ULI_at_start - Check if current position equals start position

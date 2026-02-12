@@ -95,6 +95,16 @@ str_t_llr1:     .byte "ullist_release 2->1    ", 0
 str_t_llr0:     .byte "ullist_release 1->0    ", 0
 str_t_llci:     .byte "ullist_create w/init   ", 0
 
+; LIST iterator tests
+str_t_lic:      .byte "LIST+BYTE create       ", 0
+str_t_lis:      .byte "LIST atstart           ", 0
+str_t_lif:      .byte "LIST fai x8 seamless   ", 0
+str_t_lie:      .byte "LIST atend             ", 0
+str_t_lid:      .byte "LIST dec x8 to start   ", 0
+str_t_lidf:     .byte "LIST fetch after dec   ", 0
+str_t_lia:      .byte "LIST adv 6, fetch=$22  ", 0
+str_t_lir:      .byte "LIST rew 6, fetch=$10  ", 0
+
 str_pass:       .byte " OK", 0
 str_fail:       .byte " FAIL", 0
 str_summary:    .byte "Passed: ", 0
@@ -1874,9 +1884,300 @@ start:
                         jsr uldb_release
 
                         jsr pass
-                        jmp @summary
+                        jmp @test_li_setup
 
 @llci_fail:             jsr fail
+
+; =========================================================================
+; LIST iterator tests
+; =========================================================================
+
+                        ; --- Setup: create 2 data blocks with distinct patterns ---
+@test_li_setup:
+                        ; Create data block A (4 bytes: $10, $11, $12, $13)
+                        ldx #4
+                        ldy #0
+                        jsr uldb_create
+                        bcs :+
+                        jmp @summary
+:                       stx li_db_a
+                        sty li_db_a+1
+
+                        ; Fill block A data
+                        jsr uldb_getbrp
+                        jsr ulmem_access
+                        stx gREG::r5L
+                        sty gREG::r5H
+                        ldy #0
+                        lda #$10
+                        sta (gREG::r5),y
+                        iny
+                        lda #$11
+                        sta (gREG::r5),y
+                        iny
+                        lda #$12
+                        sta (gREG::r5),y
+                        iny
+                        lda #$13
+                        sta (gREG::r5),y
+
+                        ; Create data block B (4 bytes: $20, $21, $22, $23)
+                        ldx #4
+                        ldy #0
+                        jsr uldb_create
+                        bcs :+
+                        jmp @summary
+:                       stx li_db_b
+                        sty li_db_b+1
+
+                        ; Fill block B data
+                        jsr uldb_getbrp
+                        jsr ulmem_access
+                        stx gREG::r5L
+                        sty gREG::r5H
+                        ldy #0
+                        lda #$20
+                        sta (gREG::r5),y
+                        iny
+                        lda #$21
+                        sta (gREG::r5),y
+                        iny
+                        lda #$22
+                        sta (gREG::r5),y
+                        iny
+                        lda #$23
+                        sta (gREG::r5),y
+
+                        ; Create blocklist with A then B
+                        ldx li_db_a
+                        ldy li_db_a+1
+                        jsr ullist_create       ; create with A as initial
+                        bcs :+
+                        jmp @summary
+:                       stx li_list
+                        sty li_list+1
+
+                        ; Insert B at end
+                        lda li_list
+                        sta gREG::r0L
+                        lda li_list+1
+                        sta gREG::r0H
+                        ldx li_db_b
+                        ldy li_db_b+1
+                        lda #255                ; append at end
+                        jsr ullist_insert
+
+; ----- Test: LIST+BYTE create -----
+
+@test_lic:              ldx #<str_t_lic
+                        ldy #>str_t_lic
+                        jsr putmsg
+
+                        stz gREG::r0L
+                        stz gREG::r0H
+                        lda #(ULITYP::LIST | ULIFMT::BYTE)
+                        ldx li_list
+                        ldy li_list+1
+                        jsr ulitr_create
+                        bcc @lic_fail
+                        stx li_handle
+                        sty li_handle+1
+
+                        ; Verify handle non-zero
+                        txa
+                        ora li_handle+1
+                        beq @lic_fail
+
+                        jsr pass
+                        bra @test_lis
+
+@lic_fail:              jsr fail
+                        jmp @li_cleanup
+
+; ----- Test: LIST atstart -----
+
+@test_lis:              ldx #<str_t_lis
+                        ldy #>str_t_lis
+                        jsr putmsg
+
+                        ldx li_handle
+                        ldy li_handle+1
+                        jsr ulitr_atstart
+                        beq :+
+                        jsr fail
+                        bra @test_lif
+:                       jsr pass
+
+; ----- Test: LIST fetch_and_inc x8 seamless -----
+
+@test_lif:              ldx #<str_t_lif
+                        ldy #>str_t_lif
+                        jsr putmsg
+
+                        stz fwd_errs
+                        ; Expected values: $10,$11,$12,$13,$20,$21,$22,$23
+                        lda #0
+                        sta fwd_idx             ; loop counter
+@lif_loop:              ldx li_handle
+                        ldy li_handle+1
+                        jsr ulitr_fetch_and_inc
+                        bcs @lif_err
+                        ; Compute expected: idx < 4 ? $10+idx : $20+(idx-4)
+                        sta gREG::r5L           ; save actual
+                        lda fwd_idx
+                        cmp #4
+                        bcs @lif_block_b
+                        clc
+                        adc #$10                ; expected = $10 + idx
+                        bra @lif_cmp
+@lif_block_b:           sec
+                        sbc #4
+                        clc
+                        adc #$20                ; expected = $20 + (idx-4)
+@lif_cmp:               cmp gREG::r5L
+                        beq @lif_next
+@lif_err:               inc fwd_errs
+@lif_next:              inc fwd_idx
+                        lda fwd_idx
+                        cmp #8
+                        bne @lif_loop
+
+                        lda fwd_errs
+                        beq :+
+                        jsr fail
+                        bra @test_lie
+:                       jsr pass
+
+; ----- Test: LIST atend -----
+
+@test_lie:              ldx #<str_t_lie
+                        ldy #>str_t_lie
+                        jsr putmsg
+
+                        ldx li_handle
+                        ldy li_handle+1
+                        jsr ulitr_atend
+                        beq :+
+                        jsr fail
+                        bra @test_lid
+:                       jsr pass
+
+; ----- Test: LIST dec x8 back to start -----
+
+@test_lid:              ldx #<str_t_lid
+                        ldy #>str_t_lid
+                        jsr putmsg
+
+                        lda #8
+                        sta fwd_idx
+                        stz fwd_errs
+@lid_loop:              ldx li_handle
+                        ldy li_handle+1
+                        jsr ulitr_dec
+                        bcs @lid_err
+                        dec fwd_idx
+                        bne @lid_loop
+                        bra @lid_check
+@lid_err:               inc fwd_errs
+                        dec fwd_idx
+                        bne @lid_loop
+
+@lid_check:             ldx li_handle
+                        ldy li_handle+1
+                        jsr ulitr_atstart
+                        bne @lid_fail
+                        lda fwd_errs
+                        bne @lid_fail
+                        jsr pass
+                        bra @test_lidf
+
+@lid_fail:              jsr fail
+
+; ----- Test: LIST fetch after dec returns $10 -----
+
+@test_lidf:             ldx #<str_t_lidf
+                        ldy #>str_t_lidf
+                        jsr putmsg
+
+                        ldx li_handle
+                        ldy li_handle+1
+                        jsr ulitr_fetch
+                        bcs @lidf_fail
+                        cmp #$10
+                        bne @lidf_fail
+
+                        jsr pass
+                        bra @test_lia
+
+@lidf_fail:             jsr fail
+
+; ----- Test: LIST adv 6, fetch = $22 -----
+
+@test_lia:              ldx #<str_t_lia
+                        ldy #>str_t_lia
+                        jsr putmsg
+
+                        lda #6
+                        ldx li_handle
+                        ldy li_handle+1
+                        jsr ulitr_adv
+
+                        ldx li_handle
+                        ldy li_handle+1
+                        jsr ulitr_fetch
+                        bcs @lia_fail
+                        cmp #$22
+                        bne @lia_fail
+
+                        jsr pass
+                        bra @test_lir
+
+@lia_fail:              jsr fail
+
+; ----- Test: LIST rew 6, atstart, fetch = $10 -----
+
+@test_lir:              ldx #<str_t_lir
+                        ldy #>str_t_lir
+                        jsr putmsg
+
+                        lda #6
+                        ldx li_handle
+                        ldy li_handle+1
+                        jsr ulitr_rew
+
+                        ; Verify at start
+                        ldx li_handle
+                        ldy li_handle+1
+                        jsr ulitr_atstart
+                        bne @lir_fail
+
+                        ; Verify fetch = $10
+                        ldx li_handle
+                        ldy li_handle+1
+                        jsr ulitr_fetch
+                        bcs @lir_fail
+                        cmp #$10
+                        bne @lir_fail
+
+                        jsr pass
+                        bra @li_cleanup
+
+@lir_fail:              jsr fail
+
+; ----- LIST cleanup -----
+
+@li_cleanup:            ldx li_handle
+                        ldy li_handle+1
+                        jsr ulitr_delete
+                        ldx li_list
+                        ldy li_list+1
+                        jsr ullist_release
+                        ldx li_db_a
+                        ldy li_db_a+1
+                        jsr uldb_release
+                        ldx li_db_b
+                        ldy li_db_b+1
+                        jsr uldb_release
 
 ; ----- Summary -----
 
@@ -1920,3 +2221,7 @@ ll_handle:      .res 2          ; blocklist handle
 ll_db1:         .res 2          ; blocklist test data block 1
 ll_db2:         .res 2          ; blocklist test data block 2
 ll_db3:         .res 2          ; blocklist test data block 3
+li_handle:      .res 2          ; LIST iterator handle
+li_db_a:        .res 2          ; LIST test data block A
+li_db_b:        .res 2          ; LIST test data block B
+li_list:        .res 2          ; LIST test blocklist handle

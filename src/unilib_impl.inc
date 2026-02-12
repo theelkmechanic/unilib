@@ -72,6 +72,17 @@ ULI_STATE_START   = 4   ; start address lo, hi, bank (3 bytes)
 ULI_STATE_END     = 7   ; end address lo, hi, bank (3 bytes)
 ULI_STATE_SIZE    = 10
 
+; LIST-specific extended state (appended after standard 10 bytes)
+ULI_STATE_LIST_HANDLE = 10  ; blocklist handle BRP (2 bytes)
+ULI_STATE_BLK_IDX     = 12  ; current block index in list (1 byte)
+ULI_STATE_BLK_CNT     = 13  ; total block count (1 byte)
+ULI_STATE_BLK_START   = 14  ; current block data start (3 bytes: lo, hi, bank)
+ULI_STATE_BLK_END     = 17  ; current block data end (3 bytes: lo, hi, bank)
+ULI_LIST_STATE_SIZE   = 20
+
+.global ULI_list_create
+.global ULI_list_boundary_check
+.global ULI_list_scratch
 
 ; Math utilities
 .global ULM_multbl_init

@@ -31,7 +31,10 @@
                         beq @create_brp
                         cmp #ULITYP::MEM
                         beq @create_mem
-                        cmp #ULITYP::VRAM
+                        cmp #ULITYP::LIST
+                        bne :+
+                        jmp ULI_list_create
+:                       cmp #ULITYP::VRAM
                         beq @create_vram
 
                         ; Unsupported type
@@ -331,6 +334,13 @@
                         jsr ULI_get_step        ; A = step size
                         jsr ULI_step_forward
 
+                        ; LIST boundary check
+                        lda ULI_type_format
+                        and #$0F
+                        cmp #ULITYP::LIST
+                        bne :+
+                        jsr ULI_list_boundary_check
+:
                         ; Save updated position back to state
                         lda ULI_state_bank
                         sta BANKSEL::RAM
@@ -369,6 +379,13 @@
                         jsr ULI_get_step        ; A = step size
                         jsr ULI_step_backward
 
+                        ; LIST boundary check
+                        lda ULI_type_format
+                        and #$0F
+                        cmp #ULITYP::LIST
+                        bne :+
+                        jsr ULI_list_boundary_check
+:
                         ; Save updated position back to state
                         lda ULI_state_bank
                         sta BANKSEL::RAM
@@ -411,6 +428,13 @@
                         jsr ULI_get_step
                         jsr ULI_step_forward
 
+                        ; LIST boundary check
+                        lda ULI_type_format
+                        and #$0F
+                        cmp #ULITYP::LIST
+                        bne :+
+                        jsr ULI_list_boundary_check
+:
                         ; Switch back to state bank and save updated position
                         lda ULI_state_bank
                         sta BANKSEL::RAM
@@ -458,6 +482,16 @@
                         lda ULI_type_format
                         jsr ULI_get_step
                         jsr ULI_step_backward
+
+                        ; LIST boundary check
+                        lda ULI_type_format
+                        and #$0F
+                        cmp #ULITYP::LIST
+                        bne :+
+                        jsr ULI_list_boundary_check
+:
+                        lda ULI_state_bank
+                        sta BANKSEL::RAM
                         jsr ULI_save_cur
 
 @done:                  pla
@@ -495,6 +529,16 @@
                         beq @done
 @loop:                  lda ULI_scratch+1
                         jsr ULI_step_forward
+
+                        ; LIST boundary check (preserve X loop counter)
+                        lda ULI_type_format
+                        and #$0F
+                        cmp #ULITYP::LIST
+                        bne :+
+                        phx
+                        jsr ULI_list_boundary_check
+                        plx
+:
                         dex
                         bne @loop
 
@@ -532,6 +576,16 @@
                         beq @done
 @loop:                  lda ULI_scratch+1
                         jsr ULI_step_backward
+
+                        ; LIST boundary check (preserve X loop counter)
+                        lda ULI_type_format
+                        and #$0F
+                        cmp #ULITYP::LIST
+                        bne :+
+                        phx
+                        jsr ULI_list_boundary_check
+                        plx
+:
                         dex
                         bne @loop
 
