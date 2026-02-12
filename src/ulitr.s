@@ -135,7 +135,17 @@
 @check_reverse:         lda ULI_scratch
                         bpl @allocate_state     ; bit 7 clear = not reverse
 
+                        ; REVERSE + UTF8 not supported
+                        and #$70
+                        cmp #ULIFMT::UTF8
+                        bne :+
+                        pla
+                        sta BANKSEL::RAM
+                        clc
+                        rts
+:
                         ; Get step size
+                        lda ULI_scratch
                         jsr ULI_get_step
                         sta ULI_scratch+1       ; save step
 
@@ -332,9 +342,12 @@
                         ; Get step size and advance (direction-aware)
                         lda ULI_type_format
                         jsr ULI_get_step        ; A = step size
-                        jsr ULI_step_forward
+                        bne :+
+                        jsr ULI_utf8_step_forward
+                        bra @inc_done
+:                       jsr ULI_step_forward
 
-                        ; LIST boundary check
+@inc_done:              ; LIST boundary check
                         lda ULI_type_format
                         and #$0F
                         cmp #ULITYP::LIST
@@ -377,9 +390,12 @@
                         ; Get step size and rewind (direction-aware)
                         lda ULI_type_format
                         jsr ULI_get_step        ; A = step size
-                        jsr ULI_step_backward
+                        bne :+
+                        jsr ULI_utf8_step_backward
+                        bra @dec_done
+:                       jsr ULI_step_backward
 
-                        ; LIST boundary check
+@dec_done:              ; LIST boundary check
                         lda ULI_type_format
                         and #$0F
                         cmp #ULITYP::LIST
@@ -426,9 +442,12 @@
                         ; Advance current position (direction-aware)
                         lda ULI_type_format
                         jsr ULI_get_step
-                        jsr ULI_step_forward
+                        bne :+
+                        jsr ULI_utf8_step_forward
+                        bra @fai_done
+:                       jsr ULI_step_forward
 
-                        ; LIST boundary check
+@fai_done:              ; LIST boundary check
                         lda ULI_type_format
                         and #$0F
                         cmp #ULITYP::LIST
@@ -481,9 +500,12 @@
 
                         lda ULI_type_format
                         jsr ULI_get_step
-                        jsr ULI_step_backward
+                        bne :+
+                        jsr ULI_utf8_step_backward
+                        bra @fad_stepped
+:                       jsr ULI_step_backward
 
-                        ; LIST boundary check
+@fad_stepped:           ; LIST boundary check
                         lda ULI_type_format
                         and #$0F
                         cmp #ULITYP::LIST
@@ -524,13 +546,16 @@
                         jsr ULI_get_step        ; A = step per entry
 
                         ; Multiply step * count via repeated stepping
-                        sta ULI_scratch+1       ; step size
+                        sta ULI_scratch+1       ; step size (0 for UTF-8)
                         ldx ULI_scratch+2       ; count
                         beq @done
 @loop:                  lda ULI_scratch+1
-                        jsr ULI_step_forward
+                        bne @adv_fixed
+                        jsr ULI_utf8_step_forward
+                        bra @adv_stepped
+@adv_fixed:             jsr ULI_step_forward
 
-                        ; LIST boundary check (preserve X loop counter)
+@adv_stepped:           ; LIST boundary check (preserve X loop counter)
                         lda ULI_type_format
                         and #$0F
                         cmp #ULITYP::LIST
@@ -571,13 +596,16 @@
                         jsr ULI_get_step        ; A = step per entry
 
                         ; Multiply step * count via repeated stepping
-                        sta ULI_scratch+1       ; step size
+                        sta ULI_scratch+1       ; step size (0 for UTF-8)
                         ldx ULI_scratch+2       ; count
                         beq @done
 @loop:                  lda ULI_scratch+1
-                        jsr ULI_step_backward
+                        bne @rew_fixed
+                        jsr ULI_utf8_step_backward
+                        bra @rew_stepped
+@rew_fixed:             jsr ULI_step_backward
 
-                        ; LIST boundary check (preserve X loop counter)
+@rew_stepped:           ; LIST boundary check (preserve X loop counter)
                         lda ULI_type_format
                         and #$0F
                         cmp #ULITYP::LIST

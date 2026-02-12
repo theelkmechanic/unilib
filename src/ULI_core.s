@@ -216,6 +216,8 @@ ULI_step_sizes: .byte 1, 2, 3, 4, 5, 0, 0, 0
                         lda ULI_type_format
                         and #$70
                         beq @brp_byte
+                        cmp #ULIFMT::UTF8
+                        beq @utf8_fetch
 
                         ; Multi-byte
                         lda ULI_type_format
@@ -234,6 +236,8 @@ ULI_step_sizes: .byte 1, 2, 3, 4, 5, 0, 0, 0
 @brp_byte:              lda (ULI_cur)
                         sta ULI_scratch
                         rts
+
+@utf8_fetch:            jmp ULI_utf8_fetch
 
 @vram:                  ; --- VRAM path ---
                         stz VERA::CTRL
@@ -286,6 +290,8 @@ ULI_step_sizes: .byte 1, 2, 3, 4, 5, 0, 0, 0
                         lda ULI_type_format
                         and #$70
                         beq @brp_byte
+                        cmp #ULIFMT::UTF8
+                        beq @utf8_store
 
                         ; Multi-byte
                         lda ULI_type_format
@@ -302,6 +308,8 @@ ULI_step_sizes: .byte 1, 2, 3, 4, 5, 0, 0, 0
 @brp_byte:              lda ULI_scratch
                         sta (ULI_cur)
                         rts
+
+@utf8_store:            jmp ULI_utf8_store
 
 @vram:                  ; --- VRAM path ---
                         stz VERA::CTRL

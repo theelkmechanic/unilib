@@ -107,6 +107,37 @@ str_t_lidf:     .byte "LIST fetch after dec   ", 0
 str_t_lia:      .byte "LIST adv 6, fetch=$22  ", 0
 str_t_lir:      .byte "LIST rew 6, fetch=$10  ", 0
 
+; UTF-8 iterator tests
+str_t_u8c:      .byte "BRP+UTF8 create        ", 0
+str_t_u8f1:     .byte "UTF8 fetch=U+0041      ", 0
+str_t_u8f2:     .byte "UTF8 inc,fetch=U+00E9  ", 0
+str_t_u8f3:     .byte "UTF8 inc,fetch=U+4E2D  ", 0
+str_t_u8f4:     .byte "UTF8 fai=U+4E2D,U+1F600", 0
+str_t_u8e:      .byte "UTF8 inc->atend        ", 0
+str_t_u8d:      .byte "UTF8 dec,fetch=U+1F600 ", 0
+str_t_u8ds:     .byte "UTF8 dec x3->atstart   ", 0
+
+; UTF-8 test data: 'A' (1 byte) + e-acute U+00E9 (2 bytes) + CJK U+4E2D (3 bytes) + grinning U+1F600 (4 bytes)
+utf8_testdata:  .byte $41, $C3, $A9, $E4, $B8, $AD, $F0, $9F, $98, $80
+UTF8_TESTLEN = 10
+
+; String function tests
+str_t_srel:     .byte "ulstr_release          ", 0
+str_t_scmp1:    .byte "compare(Hello,Hello)=0 ", 0
+str_t_scmp2:    .byte "compare(Hello,World)<0 ", 0
+str_t_scmp3:    .byte "compare(World,Hello)>0 ", 0
+str_t_sfnd1:    .byte "find(Hello,0,'l')=2    ", 0
+str_t_sfnd2:    .byte "find(Hello,3,'l')=3    ", 0
+str_t_sfnd3:    .byte "find(Hello,0,'z')=-1   ", 0
+str_t_srfnd:    .byte "rfind(Hello,4,'l')=3   ", 0
+str_t_sapp:     .byte "append(Hello,World)    ", 0
+str_t_smid:     .byte "mid(Hello,1,3)=ell     ", 0
+str_t_sto8:     .byte "toUtf8(Hello,iter)     ", 0
+
+str_hello:      .byte "Hello", 0
+str_world:      .byte "World", 0
+str_cafe:       .byte "Caf", $C3, $A9, 0
+
 str_pass:       .byte " OK", 0
 str_fail:       .byte " FAIL", 0
 str_summary:    .byte "Passed: ", 0
@@ -2235,6 +2266,660 @@ start:
                         ldy li_db_b+1
                         jsr uldb_release
 
+; =========================================================================
+; UTF-8 Iterator tests
+; =========================================================================
+
+                        ; Setup: allocate BRP with UTF-8 test data
+                        ldx #UTF8_TESTLEN
+                        ldy #0
+                        clc                     ; don't clear
+                        jsr ulmem_alloc
+                        bcs :+
+                        jmp @test_str_setup
+:                       stx u8_brp
+                        sty u8_brp+1
+
+                        ; Fill with test data
+                        jsr ulmem_access
+                        stx gREG::r5L
+                        sty gREG::r5H
+                        ldy #0
+@u8_fill:               lda utf8_testdata,y
+                        sta (gREG::r5),y
+                        iny
+                        cpy #UTF8_TESTLEN
+                        bne @u8_fill
+
+; ----- Test: Create BRP+UTF8 iterator -----
+
+@test_u8c:              ldx #<str_t_u8c
+                        ldy #>str_t_u8c
+                        jsr putmsg
+
+                        lda #UTF8_TESTLEN
+                        sta gREG::r0L
+                        stz gREG::r0H
+                        lda #(ULITYP::BRP | ULIFMT::UTF8)
+                        ldx u8_brp
+                        ldy u8_brp+1
+                        jsr ulitr_create
+                        bcc @u8c_fail
+                        stx u8_iter
+                        sty u8_iter+1
+
+                        jsr pass
+                        bra @test_u8f1
+
+@u8c_fail:              jsr fail
+                        jmp @u8_cleanup
+
+; ----- Test: fetch = U+0041 ('A') -----
+
+@test_u8f1:             ldx #<str_t_u8f1
+                        ldy #>str_t_u8f1
+                        jsr putmsg
+
+                        ldx u8_iter
+                        ldy u8_iter+1
+                        jsr ulitr_fetch
+                        bcs @u8f1_fail
+                        lda gREG::r0L
+                        cmp #$41
+                        bne @u8f1_fail
+                        lda gREG::r0H
+                        bne @u8f1_fail
+                        lda gREG::r1L
+                        bne @u8f1_fail
+
+                        jsr pass
+                        bra @test_u8f2
+
+@u8f1_fail:             jsr fail
+
+; ----- Test: inc, fetch = U+00E9 -----
+
+@test_u8f2:             ldx #<str_t_u8f2
+                        ldy #>str_t_u8f2
+                        jsr putmsg
+
+                        ldx u8_iter
+                        ldy u8_iter+1
+                        jsr ulitr_inc
+
+                        ldx u8_iter
+                        ldy u8_iter+1
+                        jsr ulitr_fetch
+                        bcs @u8f2_fail
+                        lda gREG::r0L
+                        cmp #$E9
+                        bne @u8f2_fail
+                        lda gREG::r0H
+                        bne @u8f2_fail
+                        lda gREG::r1L
+                        bne @u8f2_fail
+
+                        jsr pass
+                        bra @test_u8f3
+
+@u8f2_fail:             jsr fail
+
+; ----- Test: inc, fetch = U+4E2D -----
+
+@test_u8f3:             ldx #<str_t_u8f3
+                        ldy #>str_t_u8f3
+                        jsr putmsg
+
+                        ldx u8_iter
+                        ldy u8_iter+1
+                        jsr ulitr_inc
+
+                        ldx u8_iter
+                        ldy u8_iter+1
+                        jsr ulitr_fetch
+                        bcs @u8f3_fail
+                        lda gREG::r0L
+                        cmp #$2D
+                        bne @u8f3_fail
+                        lda gREG::r0H
+                        cmp #$4E
+                        bne @u8f3_fail
+                        lda gREG::r1L
+                        bne @u8f3_fail
+
+                        jsr pass
+                        bra @test_u8f4
+
+@u8f3_fail:             jsr fail
+
+; ----- Test: fetch_and_inc = U+4E2D, then fetch = U+1F600 -----
+
+@test_u8f4:             ldx #<str_t_u8f4
+                        ldy #>str_t_u8f4
+                        jsr putmsg
+
+                        ldx u8_iter
+                        ldy u8_iter+1
+                        jsr ulitr_fetch_and_inc
+                        bcs @u8f4_fail
+                        ; Should have returned U+4E2D
+                        lda gREG::r0L
+                        cmp #$2D
+                        bne @u8f4_fail
+                        lda gREG::r0H
+                        cmp #$4E
+                        bne @u8f4_fail
+
+                        ; Now fetch should be U+1F600
+                        ldx u8_iter
+                        ldy u8_iter+1
+                        jsr ulitr_fetch
+                        bcs @u8f4_fail
+                        lda gREG::r0L
+                        cmp #$00
+                        bne @u8f4_fail
+                        lda gREG::r0H
+                        cmp #$F6
+                        bne @u8f4_fail
+                        lda gREG::r1L
+                        cmp #$01
+                        bne @u8f4_fail
+
+                        jsr pass
+                        bra @test_u8e
+
+@u8f4_fail:             jsr fail
+
+; ----- Test: inc -> atend -----
+
+@test_u8e:              ldx #<str_t_u8e
+                        ldy #>str_t_u8e
+                        jsr putmsg
+
+                        ldx u8_iter
+                        ldy u8_iter+1
+                        jsr ulitr_inc
+
+                        ldx u8_iter
+                        ldy u8_iter+1
+                        jsr ulitr_atend
+                        beq :+
+                        jsr fail
+                        bra @test_u8d
+:                       jsr pass
+
+; ----- Test: dec, fetch = U+1F600 -----
+
+@test_u8d:              ldx #<str_t_u8d
+                        ldy #>str_t_u8d
+                        jsr putmsg
+
+                        ldx u8_iter
+                        ldy u8_iter+1
+                        jsr ulitr_dec
+
+                        ldx u8_iter
+                        ldy u8_iter+1
+                        jsr ulitr_fetch
+                        bcs @u8d_fail
+                        lda gREG::r0L
+                        cmp #$00
+                        bne @u8d_fail
+                        lda gREG::r0H
+                        cmp #$F6
+                        bne @u8d_fail
+                        lda gREG::r1L
+                        cmp #$01
+                        bne @u8d_fail
+
+                        jsr pass
+                        bra @test_u8ds
+
+@u8d_fail:              jsr fail
+
+; ----- Test: dec x3 -> atstart -----
+
+@test_u8ds:             ldx #<str_t_u8ds
+                        ldy #>str_t_u8ds
+                        jsr putmsg
+
+                        ; Dec 3 more times to get back to start
+                        ldx u8_iter
+                        ldy u8_iter+1
+                        jsr ulitr_dec
+                        ldx u8_iter
+                        ldy u8_iter+1
+                        jsr ulitr_dec
+                        ldx u8_iter
+                        ldy u8_iter+1
+                        jsr ulitr_dec
+
+                        ldx u8_iter
+                        ldy u8_iter+1
+                        jsr ulitr_atstart
+                        beq :+
+                        jsr fail
+                        bra @u8_cleanup
+:                       jsr pass
+
+; ----- UTF-8 cleanup -----
+
+@u8_cleanup:            ldx u8_iter
+                        ldy u8_iter+1
+                        jsr ulitr_delete
+                        ldx u8_brp
+                        ldy u8_brp+1
+                        jsr ulmem_free
+
+; =========================================================================
+; String function tests
+; =========================================================================
+
+@test_str_setup:
+                        ; Create test strings
+                        ldx #<str_hello
+                        ldy #>str_hello
+                        jsr ulstr_fromUtf8
+                        stx s_hello
+                        sty s_hello+1
+
+                        ldx #<str_world
+                        ldy #>str_world
+                        jsr ulstr_fromUtf8
+                        stx s_world
+                        sty s_world+1
+
+                        ldx #<str_cafe
+                        ldy #>str_cafe
+                        jsr ulstr_fromUtf8
+                        stx s_cafe
+                        sty s_cafe+1
+
+; ----- Test: ulstr_release (create + release Cafe, no crash) -----
+
+@test_srel:             ldx #<str_t_srel
+                        ldy #>str_t_srel
+                        jsr putmsg
+
+                        ldx s_cafe
+                        ldy s_cafe+1
+                        jsr ulstr_release
+
+                        jsr pass
+
+; ----- Test: compare(Hello,Hello) = 0 -----
+
+@test_scmp1:            ldx #<str_t_scmp1
+                        ldy #>str_t_scmp1
+                        jsr putmsg
+
+                        lda s_hello
+                        sta gREG::r0L
+                        lda s_hello+1
+                        sta gREG::r0H
+                        lda s_hello
+                        sta gREG::r1L
+                        lda s_hello+1
+                        sta gREG::r1H
+                        lda #0
+                        jsr ulstr_compare
+                        cmp #0
+                        bne @scmp1_fail
+
+                        jsr pass
+                        bra @test_scmp2
+
+@scmp1_fail:            jsr fail
+
+; ----- Test: compare(Hello,World) < 0 -----
+
+@test_scmp2:            ldx #<str_t_scmp2
+                        ldy #>str_t_scmp2
+                        jsr putmsg
+
+                        lda s_hello
+                        sta gREG::r0L
+                        lda s_hello+1
+                        sta gREG::r0H
+                        lda s_world
+                        sta gREG::r1L
+                        lda s_world+1
+                        sta gREG::r1H
+                        lda #0
+                        jsr ulstr_compare
+                        bmi :+
+                        jsr fail
+                        bra @test_scmp3
+:                       jsr pass
+
+; ----- Test: compare(World,Hello) > 0 -----
+
+@test_scmp3:            ldx #<str_t_scmp3
+                        ldy #>str_t_scmp3
+                        jsr putmsg
+
+                        lda s_world
+                        sta gREG::r0L
+                        lda s_world+1
+                        sta gREG::r0H
+                        lda s_hello
+                        sta gREG::r1L
+                        lda s_hello+1
+                        sta gREG::r1H
+                        lda #0
+                        jsr ulstr_compare
+                        beq @scmp3_fail
+                        bmi @scmp3_fail
+
+                        jsr pass
+                        bra @test_sfnd1
+
+@scmp3_fail:            jsr fail
+
+; ----- Test: find(Hello, 0, 'l') = 2 -----
+
+@test_sfnd1:            ldx #<str_t_sfnd1
+                        ldy #>str_t_sfnd1
+                        jsr putmsg
+
+                        lda s_hello
+                        sta gREG::r0L
+                        lda s_hello+1
+                        sta gREG::r0H
+                        stz gREG::r1L
+                        stz gREG::r1H
+                        ldx #$6C                ; 'l'
+                        ldy #0
+                        lda #0
+                        jsr ulstr_find
+                        cpx #2
+                        bne @sfnd1_fail
+                        cpy #0
+                        bne @sfnd1_fail
+
+                        jsr pass
+                        bra @test_sfnd2
+
+@sfnd1_fail:            jsr fail
+
+; ----- Test: find(Hello, 3, 'l') = 3 -----
+
+@test_sfnd2:            ldx #<str_t_sfnd2
+                        ldy #>str_t_sfnd2
+                        jsr putmsg
+
+                        lda s_hello
+                        sta gREG::r0L
+                        lda s_hello+1
+                        sta gREG::r0H
+                        lda #3
+                        sta gREG::r1L
+                        stz gREG::r1H
+                        ldx #$6C                ; 'l'
+                        ldy #0
+                        lda #0
+                        jsr ulstr_find
+                        cpx #3
+                        bne @sfnd2_fail
+                        cpy #0
+                        bne @sfnd2_fail
+
+                        jsr pass
+                        bra @test_sfnd3
+
+@sfnd2_fail:            jsr fail
+
+; ----- Test: find(Hello, 0, 'z') = $FFFF -----
+
+@test_sfnd3:            ldx #<str_t_sfnd3
+                        ldy #>str_t_sfnd3
+                        jsr putmsg
+
+                        lda s_hello
+                        sta gREG::r0L
+                        lda s_hello+1
+                        sta gREG::r0H
+                        stz gREG::r1L
+                        stz gREG::r1H
+                        ldx #$7A                ; 'z'
+                        ldy #0
+                        lda #0
+                        jsr ulstr_find
+                        cpx #$FF
+                        bne @sfnd3_fail
+                        cpy #$FF
+                        bne @sfnd3_fail
+
+                        jsr pass
+                        bra @test_srfnd
+
+@sfnd3_fail:            jsr fail
+
+; ----- Test: rfind(Hello, 4, 'l') = 3 -----
+
+@test_srfnd:            ldx #<str_t_srfnd
+                        ldy #>str_t_srfnd
+                        jsr putmsg
+
+                        lda s_hello
+                        sta gREG::r0L
+                        lda s_hello+1
+                        sta gREG::r0H
+                        lda #4
+                        sta gREG::r1L
+                        stz gREG::r1H
+                        ldx #$6C                ; 'l'
+                        ldy #0
+                        lda #0
+                        jsr ulstr_rfind
+                        cpx #3
+                        bne @srfnd_fail
+                        cpy #0
+                        bne @srfnd_fail
+
+                        jsr pass
+                        jmp @test_sapp
+
+@srfnd_fail:            jsr fail
+
+; ----- Test: append(Hello,World) -> rawlen=10 -----
+
+@test_sapp:             ldx #<str_t_sapp
+                        ldy #>str_t_sapp
+                        jsr putmsg
+
+                        lda s_hello
+                        sta gREG::r0L
+                        lda s_hello+1
+                        sta gREG::r0H
+                        lda s_world
+                        sta gREG::r1L
+                        lda s_world+1
+                        sta gREG::r1H
+                        jsr ulstr_append
+                        bcc @sapp_fail
+                        stx s_temp
+                        sty s_temp+1
+
+                        ; Check rawlen = 10
+                        jsr ulmem_access
+                        stx gREG::r5L
+                        sty gREG::r5H
+                        lda (gREG::r5)          ; bytelen
+                        cmp #10
+                        bne @sapp_fail2
+
+                        ldx s_temp
+                        ldy s_temp+1
+                        jsr ulstr_release
+
+                        jsr pass
+                        bra @test_smid
+
+@sapp_fail2:            ldx s_temp
+                        ldy s_temp+1
+                        jsr ulstr_release
+@sapp_fail:             jsr fail
+
+; ----- Test: mid(Hello, 1, 3) -> rawlen=3 -----
+
+@test_smid:             ldx #<str_t_smid
+                        ldy #>str_t_smid
+                        jsr putmsg
+
+                        lda s_hello
+                        sta gREG::r0L
+                        lda s_hello+1
+                        sta gREG::r0H
+                        lda #1
+                        sta gREG::r1L
+                        stz gREG::r1H
+                        lda #3
+                        sta gREG::r2L
+                        stz gREG::r2H
+                        jsr ulstr_mid
+                        bcc @smid_fail
+                        stx s_temp
+                        sty s_temp+1
+
+                        ; Check rawlen = 3
+                        jsr ulmem_access
+                        stx gREG::r5L
+                        sty gREG::r5H
+                        lda (gREG::r5)          ; bytelen
+                        cmp #3
+                        bne @smid_fail2
+
+                        ; Verify data is 'e','l','l'
+                        ldy #3
+                        lda (gREG::r5),y
+                        cmp #$65                ; 'e'
+                        bne @smid_fail2
+                        iny
+                        lda (gREG::r5),y
+                        cmp #$6C                ; 'l'
+                        bne @smid_fail2
+                        iny
+                        lda (gREG::r5),y
+                        cmp #$6C                ; 'l'
+                        bne @smid_fail2
+
+                        ldx s_temp
+                        ldy s_temp+1
+                        jsr ulstr_release
+
+                        jsr pass
+                        bra @test_sto8
+
+@smid_fail2:            ldx s_temp
+                        ldy s_temp+1
+                        jsr ulstr_release
+@smid_fail:             jsr fail
+
+; ----- Test: toUtf8(Hello, byte_iter) -> 5 bytes match -----
+
+@test_sto8:             ldx #<str_t_sto8
+                        ldy #>str_t_sto8
+                        jsr putmsg
+
+                        ; Allocate 8-byte BRP for output
+                        ldx #8
+                        ldy #0
+                        sec
+                        jsr ulmem_alloc
+                        bcs :+
+                        jmp @sto8_fail
+:                       stx s_temp
+                        sty s_temp+1
+
+                        ; Create byte iterator over it
+                        lda #8
+                        sta gREG::r0L
+                        stz gREG::r0H
+                        lda #(ULITYP::BRP | ULIFMT::BYTE)
+                        ldx s_temp
+                        ldy s_temp+1
+                        jsr ulitr_create
+                        bcs :+
+                        jmp @sto8_fail
+:
+                        stx s_temp2
+                        sty s_temp2+1
+
+                        ; Call toUtf8
+                        lda s_hello
+                        sta gREG::r0L
+                        lda s_hello+1
+                        sta gREG::r0H
+                        ldx s_temp2
+                        ldy s_temp2+1
+                        jsr ulstr_toUtf8
+                        bcs @sto8_fail2
+
+                        ; Verify bytes: read the BRP directly
+                        ldx s_temp
+                        ldy s_temp+1
+                        jsr ulmem_access
+                        stx gREG::r5L
+                        sty gREG::r5H
+                        stz fwd_errs
+                        ldy #0
+                        lda (gREG::r5),y
+                        cmp #$48                ; 'H'
+                        beq :+
+                        inc fwd_errs
+:                       iny
+                        lda (gREG::r5),y
+                        cmp #$65                ; 'e'
+                        beq :+
+                        inc fwd_errs
+:                       iny
+                        lda (gREG::r5),y
+                        cmp #$6C                ; 'l'
+                        beq :+
+                        inc fwd_errs
+:                       iny
+                        lda (gREG::r5),y
+                        cmp #$6C                ; 'l'
+                        beq :+
+                        inc fwd_errs
+:                       iny
+                        lda (gREG::r5),y
+                        cmp #$6F                ; 'o'
+                        beq :+
+                        inc fwd_errs
+:
+                        lda fwd_errs
+                        bne @sto8_fail2
+
+                        ; Cleanup
+                        ldx s_temp2
+                        ldy s_temp2+1
+                        jsr ulitr_delete
+                        ldx s_temp
+                        ldy s_temp+1
+                        jsr ulmem_free
+
+                        jsr pass
+                        bra @str_cleanup
+
+@sto8_fail2:            ldx s_temp2
+                        ldy s_temp2+1
+                        jsr ulitr_delete
+                        ldx s_temp
+                        ldy s_temp+1
+                        jsr ulmem_free
+@sto8_fail:             jsr fail
+
+; ----- String cleanup -----
+
+@str_cleanup:           ldx s_hello
+                        ldy s_hello+1
+                        jsr ulstr_release
+                        ldx s_world
+                        ldy s_world+1
+                        jsr ulstr_release
+
 ; ----- Summary -----
 
 @summary:               ldx #<str_summary
@@ -2284,3 +2969,10 @@ li_db_a:        .res 2          ; LIST test data block A
 li_db_b:        .res 2          ; LIST test data block B
 li_list:        .res 2          ; LIST test blocklist handle
 bcd_tmp:        .res 2          ; scratch for putdec BCD conversion
+u8_brp:         .res 2          ; UTF-8 test data BRP
+u8_iter:        .res 2          ; UTF-8 iterator handle
+s_hello:        .res 2          ; "Hello" string BRP
+s_world:        .res 2          ; "World" string BRP
+s_cafe:         .res 2          ; "Cafe" string BRP
+s_temp:         .res 2          ; temp string/BRP
+s_temp2:        .res 2          ; temp iterator handle

@@ -27,6 +27,7 @@ FONT_OBJS = \
 ITER_OBJS = \
 	$(OBJDIR)/ULI_core.o \
 	$(OBJDIR)/ULI_list.o \
+	$(OBJDIR)/ULI_utf8.o \
 	$(OBJDIR)/ulitr.o
 
 MATH_OBJS = \
@@ -43,7 +44,14 @@ STR_OBJS = \
 	$(OBJDIR)/ULS_access.o \
 	$(OBJDIR)/ULS_utils.o \
 	$(OBJDIR)/ulstr_fromUtf8.o \
-	$(OBJDIR)/ulstr_getlen.o
+	$(OBJDIR)/ulstr_getlen.o \
+	$(OBJDIR)/ulstr_release.o \
+	$(OBJDIR)/ulstr_compare.o \
+	$(OBJDIR)/ulstr_find.o \
+	$(OBJDIR)/ulstr_rfind.o \
+	$(OBJDIR)/ulstr_append.o \
+	$(OBJDIR)/ulstr_mid.o \
+	$(OBJDIR)/ulstr_toUtf8.o
 
 STBL_OBJS = \
 	$(OBJDIR)/ulstb.o
