@@ -30,21 +30,58 @@
 .global ULFT_extraglyph
 .global ULFT_charflags
 
-; Data blocks
+; Pool allocator types
+.enum ULPOOL
+    DATABLOCK   = 0
+    BLOCKLIST   = 1
+    MSGBLOCK    = 2
+.endenum
+
+; Message block types
+.enum ULMBT
+    LIST_ENTRY  = 0
+    STRING_FRAG = 1
+.endenum
+
+; Message block flags
+.enum ULMBF
+    READONLY    = $80
+.endenum
+
+; Data blocks (8 bytes, in ULPOOL::DATABLOCK)
 .struct ULDATA_BLOCK
-refcount    .word       ; reference count
-size        .word       ; size
-brp         .word       ; BRP
-dataptr     .word       ; actual data pointer (bank is high byte of brp)
+refcount    .word       ; reference count (0 = free)
+size        .word       ; logical data size
+brp         .word       ; data BRP (heap allocation)
+dataptr     .word       ; resolved data address (bank in brp high byte)
 .endstruct
 
-; Blocklists
+; Blocklists (8 bytes, in ULPOOL::BLOCKLIST)
 .struct ULBLOCK_LIST
-refcount    .word       ; reference count
-size        .word       ; size
-capacity    .word       ; capacity (>= size)
-brps        .word       ; array of data block handles
+refcount    .word       ; reference count (0 = free)
+size        .word       ; number of entries
+head        .word       ; first message block handle ($FFFF = empty)
+tail        .word       ; last message block handle ($FFFF = empty)
 .endstruct
+
+; Message blocks (16 bytes, in ULPOOL::MSGBLOCK)
+.struct ULMSG_BLOCK
+refcount    .word       ; 0-1:   reference count (0 = free)
+data_block  .word       ; 2-3:   data block pool handle
+rd_ptr      .word       ; 4-5:   start offset into data block's data
+wr_ptr      .word       ; 6-7:   end offset (exclusive)
+cont        .word       ; 8-9:   continuation msg block ($FFFF = none)
+next        .word       ; 10-11: next in list/queue ($FFFF = none)
+prev        .word       ; 12-13: prev in list/queue ($FFFF = none)
+type        .byte       ; 14:    block type
+flags       .byte       ; 15:    flags
+.endstruct
+
+; Pool allocator API
+.global ULPOOL_init
+.global ulpool_alloc
+.global ulpool_free
+.global ulpool_access
 
 ; Iterator internals
 .global ULI_load
@@ -77,9 +114,8 @@ ULI_STATE_END     = 7   ; end address lo, hi, bank (3 bytes)
 ULI_STATE_SIZE    = 10
 
 ; LIST-specific extended state (appended after standard 10 bytes)
-ULI_STATE_LIST_HANDLE = 10  ; blocklist handle BRP (2 bytes)
-ULI_STATE_BLK_IDX     = 12  ; current block index in list (1 byte)
-ULI_STATE_BLK_CNT     = 13  ; total block count (1 byte)
+ULI_STATE_TERM_MB     = 10  ; terminal MB handle (2 bytes) - tail for fwd, head for rev
+ULI_STATE_CUR_MB      = 12  ; current message block handle (2 bytes, pool index)
 ULI_STATE_BLK_START   = 14  ; current block data start (3 bytes: lo, hi, bank)
 ULI_STATE_BLK_END     = 17  ; current block data end (3 bytes: lo, hi, bank)
 ULI_LIST_STATE_SIZE   = 20

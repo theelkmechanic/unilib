@@ -26,7 +26,10 @@
                         lda #1
                         sta BANKSEL::RAM
 
-                        ; Initialize the heap
+                        ; Initialize pool allocator (reserves banks from top, adjusts MEMTOP)
+                        jsr ULPOOL_init
+
+                        ; Initialize the heap (sees reduced MEMTOP)
                         jsr ULM_init
 
                         ; Initialize math multiplication tables

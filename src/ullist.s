@@ -3,18 +3,67 @@
 .code
 
 ; =============================================================================
-; Internal helper
+; Internal helpers
 ; =============================================================================
 
-; ULLIST_access_handle - Access a blocklist handle BRP, store pointer in UL_varptr
-;   In: YX              - handle BRP
+; ULLIST_access_handle - Access a blocklist handle, store pointer in UL_varptr
+;   In: YX              - handle (pool index)
 ;  Out: UL_varptr       - pointer to ULBLOCK_LIST struct
 ;       BANKSEL::RAM    - set to handle's bank
 .proc ULLIST_access_handle
-                        jsr ulmem_access
+                        lda #ULPOOL::BLOCKLIST
+                        jsr ulpool_access
                         stx UL_varptr
                         sty UL_varptr+1
                         rts
+.endproc
+
+; ULLIST_access_mb - Access a message block handle, store pointer in UL_varptr
+;   In: YX              - mb handle (pool index)
+;  Out: UL_varptr       - pointer to ULMSG_BLOCK struct
+;       BANKSEL::RAM    - set to mb's bank
+.proc ULLIST_access_mb
+                        lda #ULPOOL::MSGBLOCK
+                        jsr ulpool_access
+                        stx UL_varptr
+                        sty UL_varptr+1
+                        rts
+.endproc
+
+; ULLIST_walk_to - Walk the message block chain to a given position
+;   In: ULLIST_scratch+4/+5 = list handle
+;       A = position to walk to (0-based)
+;  Out: ULLIST_scratch+8/+9 = mb handle at that position
+;       Clobbers BANKSEL::RAM, UL_varptr
+.proc ULLIST_walk_to
+                        sta ULLIST_walk_count
+
+                        ; Read head from list
+                        ldx ULLIST_scratch+4
+                        ldy ULLIST_scratch+5
+                        jsr ULLIST_access_handle
+                        ldy #ULBLOCK_LIST::head
+                        lda (UL_varptr),y
+                        sta ULLIST_scratch+8    ; cur_mb lo
+                        iny
+                        lda (UL_varptr),y
+                        sta ULLIST_scratch+9    ; cur_mb hi
+
+                        ; Walk position times
+                        lda ULLIST_walk_count
+                        beq @done
+@loop:                  ldx ULLIST_scratch+8
+                        ldy ULLIST_scratch+9
+                        jsr ULLIST_access_mb
+                        ldy #ULMSG_BLOCK::next
+                        lda (UL_varptr),y
+                        sta ULLIST_scratch+8
+                        iny
+                        lda (UL_varptr),y
+                        sta ULLIST_scratch+9
+                        dec ULLIST_walk_count
+                        bne @loop
+@done:                  rts
 .endproc
 
 ; =============================================================================
@@ -23,128 +72,178 @@
 
 ; ullist_create - Create a new blocklist
 ;   In: YX              - initial data block handle (0/0 = empty list)
-;  Out: YX              - list handle BRP
+;  Out: YX              - list handle (pool index)
 ;       carry           - set on error
 .proc ullist_create
                         ; Save caller's bank
                         lda BANKSEL::RAM
                         pha
 
-                        ; Save initial handle
-                        stx ULLIST_scratch      ; initial handle lo
-                        sty ULLIST_scratch+1    ; initial handle hi
+                        ; Save initial db handle
+                        stx ULLIST_scratch      ; db handle lo
+                        sty ULLIST_scratch+1    ; db handle hi
 
-                        ; Allocate brps array BRP: capacity 4 entries = 8 bytes, cleared
-                        ldx #8
-                        ldy #0
-                        sec                     ; clear allocated memory
-                        jsr ulmem_alloc
+                        ; Allocate blocklist header from pool
+                        lda #ULPOOL::BLOCKLIST
+                        jsr ulpool_alloc
                         bcc :+
                         jmp @fail
 :
-                        ; Save brps BRP
-                        stx ULLIST_scratch+2    ; brps BRP lo
-                        sty ULLIST_scratch+3    ; brps BRP hi
+                        ; Save list handle
+                        stx ULLIST_scratch+4    ; list handle lo
+                        sty ULLIST_scratch+5    ; list handle hi
 
-                        ; Allocate 8-byte handle BRP for ULBLOCK_LIST struct
-                        ldx #.sizeof(ULBLOCK_LIST)
-                        ldy #0
-                        clc                     ; don't clear
-                        jsr ulmem_alloc
-                        bcc :+
-                        jmp @fail_free_brps
-:
+                        ; Access list header to write fields
+                        ldx ULLIST_scratch+4
+                        ldy ULLIST_scratch+5
+                        jsr ULLIST_access_handle
 
-                        ; Save handle BRP
-                        stx ULLIST_scratch+4    ; handle BRP lo
-                        sty ULLIST_scratch+5    ; handle BRP hi
-
-                        ; Access the handle to write struct fields
-                        jsr ulmem_access
-                        stx UL_varptr
-                        sty UL_varptr+1
-
-                        ; Write refcount = 1
-                        lda #1
-                        ldy #ULBLOCK_LIST::refcount
-                        sta (UL_varptr),y
-                        lda #0
-                        iny
-                        sta (UL_varptr),y
-
-                        ; Write size = 0
+                        ; refcount = 1 (already set by pool_alloc)
+                        ; size = 0
                         ldy #ULBLOCK_LIST::size
                         lda #0
                         sta (UL_varptr),y
                         iny
                         sta (UL_varptr),y
 
-                        ; Write capacity = 4
-                        ldy #ULBLOCK_LIST::capacity
-                        lda #4
+                        ; head = $FFFF
+                        ldy #ULBLOCK_LIST::head
+                        lda #$FF
                         sta (UL_varptr),y
                         iny
-                        lda #0
                         sta (UL_varptr),y
 
-                        ; Write brps BRP
-                        ldy #ULBLOCK_LIST::brps
+                        ; tail = $FFFF
+                        ldy #ULBLOCK_LIST::tail
+                        lda #$FF
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
+
+                        ; Check if initial handle is non-zero
+                        lda ULLIST_scratch
+                        ora ULLIST_scratch+1
+                        bne :+
+                        jmp @return_handle
+:
+
+                        ; Get data block size for wr_ptr
+                        ldx ULLIST_scratch
+                        ldy ULLIST_scratch+1
+                        jsr uldb_getsize        ; YX = size
+                        stx ULLIST_scratch+2    ; db_size lo
+                        sty ULLIST_scratch+3    ; db_size hi
+
+                        ; Allocate message block
+                        lda #ULPOOL::MSGBLOCK
+                        jsr ulpool_alloc
+                        bcc :+
+                        jmp @fail_free_list
+:
+                        ; Save mb handle
+                        stx ULLIST_scratch+6    ; mb handle lo
+                        sty ULLIST_scratch+7    ; mb handle hi
+
+                        ; Access MB to write fields
+                        ldx ULLIST_scratch+6
+                        ldy ULLIST_scratch+7
+                        jsr ULLIST_access_mb
+
+                        ; refcount = 1 (already set by pool_alloc)
+                        ; data_block = db handle
+                        ldy #ULMSG_BLOCK::data_block
+                        lda ULLIST_scratch
+                        sta (UL_varptr),y
+                        iny
+                        lda ULLIST_scratch+1
+                        sta (UL_varptr),y
+
+                        ; rd_ptr = 0
+                        ldy #ULMSG_BLOCK::rd_ptr
+                        lda #0
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
+
+                        ; wr_ptr = data block size
+                        ldy #ULMSG_BLOCK::wr_ptr
                         lda ULLIST_scratch+2
                         sta (UL_varptr),y
                         iny
                         lda ULLIST_scratch+3
                         sta (UL_varptr),y
 
-                        ; Check if initial handle is non-zero
-                        lda ULLIST_scratch
-                        ora ULLIST_scratch+1
-                        beq @return_handle
-
-                        ; Store initial handle at brps[0] and set size=1
-                        ; Access brps array
-                        ldx ULLIST_scratch+2
-                        ldy ULLIST_scratch+3
-                        jsr ulmem_access
-                        stx UL_var2ptr
-                        sty UL_var2ptr+1
-
-                        ; Write handle at offset 0
-                        lda ULLIST_scratch
-                        ldy #0
-                        sta (UL_var2ptr),y
-                        lda ULLIST_scratch+1
+                        ; cont = $FFFF
+                        ldy #ULMSG_BLOCK::cont
+                        lda #$FF
+                        sta (UL_varptr),y
                         iny
-                        sta (UL_var2ptr),y
+                        sta (UL_varptr),y
 
-                        ; Update size to 1 in list struct
+                        ; next = $FFFF
+                        ldy #ULMSG_BLOCK::next
+                        lda #$FF
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
+
+                        ; prev = $FFFF
+                        ldy #ULMSG_BLOCK::prev
+                        lda #$FF
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
+
+                        ; type = LIST_ENTRY, flags = 0
+                        ldy #ULMSG_BLOCK::type
+                        lda #ULMBT::LIST_ENTRY
+                        sta (UL_varptr),y
+                        iny
+                        lda #0
+                        sta (UL_varptr),y
+
+                        ; Update list: head=tail=mb, size=1
                         ldx ULLIST_scratch+4
                         ldy ULLIST_scratch+5
-                        jsr ulmem_access
-                        stx UL_varptr
-                        sty UL_varptr+1
-                        lda #1
+                        jsr ULLIST_access_handle
+
                         ldy #ULBLOCK_LIST::size
+                        lda #1
                         sta (UL_varptr),y
-                        lda #0
                         iny
+                        lda #0
                         sta (UL_varptr),y
 
-                        ; addref on the initial data block
+                        ldy #ULBLOCK_LIST::head
+                        lda ULLIST_scratch+6
+                        sta (UL_varptr),y
+                        iny
+                        lda ULLIST_scratch+7
+                        sta (UL_varptr),y
+
+                        ldy #ULBLOCK_LIST::tail
+                        lda ULLIST_scratch+6
+                        sta (UL_varptr),y
+                        iny
+                        lda ULLIST_scratch+7
+                        sta (UL_varptr),y
+
+                        ; addref on the data block
                         ldx ULLIST_scratch
                         ldy ULLIST_scratch+1
                         jsr uldb_addref
 
-@return_handle:         ; Return handle BRP in YX
-                        ldx ULLIST_scratch+4
+@return_handle:         ldx ULLIST_scratch+4
                         ldy ULLIST_scratch+5
                         pla
                         sta BANKSEL::RAM
                         clc
                         rts
 
-@fail_free_brps:        ldx ULLIST_scratch+2
-                        ldy ULLIST_scratch+3
-                        jsr ulmem_free
+@fail_free_list:        lda #ULPOOL::BLOCKLIST
+                        ldx ULLIST_scratch+4
+                        ldy ULLIST_scratch+5
+                        jsr ulpool_free
 
 @fail:                  pla
                         sta BANKSEL::RAM
@@ -157,7 +256,7 @@
 ; =============================================================================
 
 ; ullist_getrefcount - Get reference count
-;   In: YX              - list handle BRP
+;   In: YX              - list handle
 ;  Out: YX              - reference count
 .proc ullist_getrefcount
                         lda BANKSEL::RAM
@@ -175,7 +274,7 @@
 .endproc
 
 ; ullist_addref - Increment reference count
-;   In: YX              - list handle BRP
+;   In: YX              - list handle
 .proc ullist_addref
                         lda BANKSEL::RAM
                         pha
@@ -195,7 +294,7 @@
 .endproc
 
 ; ullist_getsize - Get current number of entries
-;   In: YX              - list handle BRP
+;   In: YX              - list handle
 ;  Out: YX              - size
 .proc ullist_getsize
                         lda BANKSEL::RAM
@@ -213,7 +312,7 @@
 .endproc
 
 ; ullist_getat - Get data block handle at position
-;   In: r0              - list handle BRP
+;   In: r0              - list handle
 ;       A               - position
 ;  Out: YX              - data block handle at position
 ;       carry           - set on error, clear on success
@@ -222,52 +321,43 @@
                         lda BANKSEL::RAM
                         pha
 
-                        ; Access list struct
+                        ; Save list handle
+                        lda gREG::r0L
+                        sta ULLIST_scratch+4
+                        lda gREG::r0H
+                        sta ULLIST_scratch+5
+
+                        ; Access list to read size
                         ldx gREG::r0L
                         ldy gREG::r0H
                         jsr ULLIST_access_handle
-
-                        ; Read size
                         ldy #ULBLOCK_LIST::size
                         lda (UL_varptr),y
+                        sta ULLIST_scratch+3    ; size lo
 
-                        ; Save size lo in scratch
-                        sta ULLIST_scratch
-
-                        ; Get requested position (from stack, 3rd byte)
+                        ; Get requested position
                         tsx
-                        lda $102,x              ; the pushed A value
+                        lda $102,x              ; saved A
 
                         ; Compare position to size
-                        cmp ULLIST_scratch
+                        cmp ULLIST_scratch+3
                         bcs @out_of_range
 
-                        ; Compute offset = position * 2
-                        asl
-                        sta ULLIST_scratch+1    ; offset
+                        ; Walk to position
+                        jsr ULLIST_walk_to      ; result in scratch+8/+9
 
-                        ; Read brps BRP from struct
-                        ldy #ULBLOCK_LIST::brps
+                        ; Access the found MB to read data_block
+                        ldx ULLIST_scratch+8
+                        ldy ULLIST_scratch+9
+                        jsr ULLIST_access_mb
+                        ldy #ULMSG_BLOCK::data_block
                         lda (UL_varptr),y
                         tax
                         iny
                         lda (UL_varptr),y
                         tay
 
-                        ; Access brps array
-                        jsr ulmem_access
-                        stx UL_var2ptr
-                        sty UL_var2ptr+1
-
-                        ; Read entry at offset
-                        ldy ULLIST_scratch+1
-                        lda (UL_var2ptr),y
-                        tax
-                        iny
-                        lda (UL_var2ptr),y
-                        tay
-
-                        ; Restore bank, clean stack, return success
+                        ; Return data_block handle in YX
                         pla
                         sta BANKSEL::RAM
                         pla                     ; discard saved A
@@ -288,7 +378,7 @@
 ; =============================================================================
 
 ; ullist_insert - Insert a data block into the list
-;   In: r0              - list handle BRP
+;   In: r0              - list handle
 ;       YX              - data block handle to insert
 ;       A               - position (255 = end, clamped to size)
 ;  Out: carry           - set on error
@@ -298,158 +388,299 @@
                         lda BANKSEL::RAM
                         pha
 
-                        ; Save insert params
+                        ; Save params
                         stx ULLIST_scratch      ; db handle lo
                         sty ULLIST_scratch+1    ; db handle hi
-
-                        ; Save list handle BRP
                         lda gREG::r0L
-                        sta ULLIST_scratch+8    ; list handle lo
+                        sta ULLIST_scratch+4    ; list handle lo
                         lda gREG::r0H
-                        sta ULLIST_scratch+9    ; list handle hi
+                        sta ULLIST_scratch+5    ; list handle hi
 
                         ; Save position
                         tsx
                         lda $102,x              ; original A (position)
                         sta ULLIST_scratch+2    ; position
 
-                        ; Access list struct
-                        ldx gREG::r0L
-                        ldy gREG::r0H
+                        ; Access list struct to read size
+                        ldx ULLIST_scratch+4
+                        ldy ULLIST_scratch+5
                         jsr ULLIST_access_handle
-
-                        ; Read size and capacity
                         ldy #ULBLOCK_LIST::size
                         lda (UL_varptr),y
-                        sta ULLIST_scratch+3    ; size lo
-                        ldy #ULBLOCK_LIST::capacity
-                        lda (UL_varptr),y
-                        sta ULLIST_scratch+4    ; capacity lo
+                        sta ULLIST_scratch+3    ; size
 
                         ; Clamp position: 255 or >= size -> use size (append)
                         lda ULLIST_scratch+2
                         cmp #255
-                        beq @clamp_to_size
+                        beq @clamp
                         cmp ULLIST_scratch+3
                         bcc @pos_ok
-@clamp_to_size:         lda ULLIST_scratch+3
+@clamp:                 lda ULLIST_scratch+3
                         sta ULLIST_scratch+2
 @pos_ok:
-                        ; Check if need to grow: size == capacity?
-                        lda ULLIST_scratch+3
-                        cmp ULLIST_scratch+4
-                        bne @do_shift
+                        ; Get data block size for wr_ptr
+                        ldx ULLIST_scratch
+                        ldy ULLIST_scratch+1
+                        jsr uldb_getsize        ; YX = size
+                        stx ULLIST_scratch+10   ; db_size lo
+                        sty ULLIST_scratch+11   ; db_size hi
 
-                        ; Grow: read brps BRP from struct into scratch+6/+7
-                        ldy #ULBLOCK_LIST::brps
-                        lda (UL_varptr),y
-                        sta ULLIST_scratch+6
-                        iny
-                        lda (UL_varptr),y
-                        sta ULLIST_scratch+7
+                        ; Allocate message block
+                        lda #ULPOOL::MSGBLOCK
+                        jsr ulpool_alloc
+                        bcc :+
+                        jmp @fail
+:
+                        stx ULLIST_scratch+6    ; new mb handle lo
+                        sty ULLIST_scratch+7    ; new mb handle hi
 
-                        ; New capacity = old capacity * 2
-                        lda ULLIST_scratch+4
-                        asl
-                        sta ULLIST_scratch+4
+                        ; Populate common MB fields (next/prev set per case)
+                        ldx ULLIST_scratch+6
+                        ldy ULLIST_scratch+7
+                        jsr ULLIST_access_mb
 
-                        ; Realloc: r0 = brps BRP, YX = new_cap * 2 bytes
-                        lda ULLIST_scratch+6
-                        sta gREG::r0L
-                        lda ULLIST_scratch+7
-                        sta gREG::r0H
-                        lda ULLIST_scratch+4
-                        asl                     ; * 2 for bytes
-                        tax
-                        ldy #0
-                        jsr ulmem_realloc
-                        bcc @grow_ok
-
-                        ; Realloc failed
-                        pla
-                        sta BANKSEL::RAM
-                        pla
-                        sec
-                        rts
-
-@grow_ok:               ; Save new brps BRP
-                        stx ULLIST_scratch+6
-                        sty ULLIST_scratch+7
-
-                        ; Re-access list struct to update brps and capacity
-                        ldx ULLIST_scratch+8
-                        ldy ULLIST_scratch+9
-                        jsr ULLIST_access_handle
-
-                        ; Write new brps BRP
-                        ldy #ULBLOCK_LIST::brps
-                        lda ULLIST_scratch+6
+                        ; data_block
+                        ldy #ULMSG_BLOCK::data_block
+                        lda ULLIST_scratch
                         sta (UL_varptr),y
                         iny
-                        lda ULLIST_scratch+7
+                        lda ULLIST_scratch+1
                         sta (UL_varptr),y
-
-                        ; Write new capacity
-                        ldy #ULBLOCK_LIST::capacity
-                        lda ULLIST_scratch+4
+                        ; rd_ptr = 0
+                        ldy #ULMSG_BLOCK::rd_ptr
+                        lda #0
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
+                        ; wr_ptr = db size
+                        ldy #ULMSG_BLOCK::wr_ptr
+                        lda ULLIST_scratch+10
+                        sta (UL_varptr),y
+                        iny
+                        lda ULLIST_scratch+11
+                        sta (UL_varptr),y
+                        ; cont = $FFFF
+                        ldy #ULMSG_BLOCK::cont
+                        lda #$FF
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
+                        ; type = LIST_ENTRY, flags = 0
+                        ldy #ULMSG_BLOCK::type
+                        lda #ULMBT::LIST_ENTRY
                         sta (UL_varptr),y
                         iny
                         lda #0
                         sta (UL_varptr),y
 
-                        ; Shift entries [pos..size-1] up by 2 bytes (backward copy within brps)
-@do_shift:              ; Access brps array
-                        ldy #ULBLOCK_LIST::brps
-                        lda (UL_varptr),y
-                        tax
-                        iny
-                        lda (UL_varptr),y
-                        tay
-                        jsr ulmem_access
-                        stx UL_var2ptr
-                        sty UL_var2ptr+1
-
-                        ; Backward copy: copy each byte from [pos*2..size*2-1] up by 2
+                        ; Dispatch by insert case
                         lda ULLIST_scratch+3    ; size
-                        beq @no_shift           ; empty list, no shift needed
-                        cmp ULLIST_scratch+2    ; pos
-                        beq @no_shift           ; inserting at end, no shift needed
+                        beq @insert_empty
 
-                        ; Calculate stop point
-                        lda ULLIST_scratch+2    ; pos
-                        asl
-                        sta ULLIST_scratch+5    ; stop at pos*2
+                        lda ULLIST_scratch+2    ; position
+                        cmp ULLIST_scratch+3    ; == size?
+                        beq @insert_append
+                        cmp #0
+                        bne :+
+                        jmp @insert_prepend
+:                       jmp @insert_middle
 
-                        ; Start at last source byte = size*2-1
-                        lda ULLIST_scratch+3    ; size
-                        asl                     ; size*2
-                        dec                     ; size*2-1
-                        tay
-
-@shift_loop:            lda (UL_var2ptr),y      ; read source byte
-                        phy
+                        ; --- Empty list ---
+@insert_empty:
+                        ; Set new_mb: next=$FFFF, prev=$FFFF (already from cont write scope)
+                        ldx ULLIST_scratch+6
+                        ldy ULLIST_scratch+7
+                        jsr ULLIST_access_mb
+                        ldy #ULMSG_BLOCK::next
+                        lda #$FF
+                        sta (UL_varptr),y
                         iny
-                        iny                     ; dest = source + 2
-                        sta (UL_var2ptr),y      ; write dest byte
-                        ply
-                        cpy ULLIST_scratch+5    ; reached pos*2?
-                        beq @no_shift           ; done
-                        dey                     ; previous source byte
-                        bra @shift_loop
-
-@no_shift:              ; Write new handle at pos*2
-                        lda ULLIST_scratch+2
-                        asl
-                        tay
-                        lda ULLIST_scratch      ; db handle lo
-                        sta (UL_var2ptr),y
+                        sta (UL_varptr),y
+                        ldy #ULMSG_BLOCK::prev
+                        sta (UL_varptr),y
                         iny
-                        lda ULLIST_scratch+1    ; db handle hi
-                        sta (UL_var2ptr),y
+                        sta (UL_varptr),y
 
-                        ; Increment size in list struct
+                        ; head = tail = new_mb
+                        ldx ULLIST_scratch+4
+                        ldy ULLIST_scratch+5
+                        jsr ULLIST_access_handle
+                        ldy #ULBLOCK_LIST::head
+                        lda ULLIST_scratch+6
+                        sta (UL_varptr),y
+                        iny
+                        lda ULLIST_scratch+7
+                        sta (UL_varptr),y
+                        ldy #ULBLOCK_LIST::tail
+                        lda ULLIST_scratch+6
+                        sta (UL_varptr),y
+                        iny
+                        lda ULLIST_scratch+7
+                        sta (UL_varptr),y
+                        jmp @finish_insert
+
+                        ; --- Append (position == size) ---
+@insert_append:
+                        ; Read tail from list
+                        ldx ULLIST_scratch+4
+                        ldy ULLIST_scratch+5
+                        jsr ULLIST_access_handle
+                        ldy #ULBLOCK_LIST::tail
+                        lda (UL_varptr),y
+                        sta ULLIST_scratch+8    ; old_tail lo
+                        iny
+                        lda (UL_varptr),y
+                        sta ULLIST_scratch+9    ; old_tail hi
+
+                        ; Set new_mb: next=$FFFF, prev=old_tail
+                        ldx ULLIST_scratch+6
+                        ldy ULLIST_scratch+7
+                        jsr ULLIST_access_mb
+                        ldy #ULMSG_BLOCK::next
+                        lda #$FF
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
+                        ldy #ULMSG_BLOCK::prev
+                        lda ULLIST_scratch+8
+                        sta (UL_varptr),y
+                        iny
+                        lda ULLIST_scratch+9
+                        sta (UL_varptr),y
+
+                        ; Set old_tail.next = new_mb
                         ldx ULLIST_scratch+8
                         ldy ULLIST_scratch+9
+                        jsr ULLIST_access_mb
+                        ldy #ULMSG_BLOCK::next
+                        lda ULLIST_scratch+6
+                        sta (UL_varptr),y
+                        iny
+                        lda ULLIST_scratch+7
+                        sta (UL_varptr),y
+
+                        ; Update list tail = new_mb
+                        ldx ULLIST_scratch+4
+                        ldy ULLIST_scratch+5
+                        jsr ULLIST_access_handle
+                        ldy #ULBLOCK_LIST::tail
+                        lda ULLIST_scratch+6
+                        sta (UL_varptr),y
+                        iny
+                        lda ULLIST_scratch+7
+                        sta (UL_varptr),y
+                        jmp @finish_insert
+
+                        ; --- Prepend (position == 0) ---
+@insert_prepend:
+                        ; Read head from list
+                        ldx ULLIST_scratch+4
+                        ldy ULLIST_scratch+5
+                        jsr ULLIST_access_handle
+                        ldy #ULBLOCK_LIST::head
+                        lda (UL_varptr),y
+                        sta ULLIST_scratch+8    ; old_head lo
+                        iny
+                        lda (UL_varptr),y
+                        sta ULLIST_scratch+9    ; old_head hi
+
+                        ; Set new_mb: next=old_head, prev=$FFFF
+                        ldx ULLIST_scratch+6
+                        ldy ULLIST_scratch+7
+                        jsr ULLIST_access_mb
+                        ldy #ULMSG_BLOCK::next
+                        lda ULLIST_scratch+8
+                        sta (UL_varptr),y
+                        iny
+                        lda ULLIST_scratch+9
+                        sta (UL_varptr),y
+                        ldy #ULMSG_BLOCK::prev
+                        lda #$FF
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
+
+                        ; Set old_head.prev = new_mb
+                        ldx ULLIST_scratch+8
+                        ldy ULLIST_scratch+9
+                        jsr ULLIST_access_mb
+                        ldy #ULMSG_BLOCK::prev
+                        lda ULLIST_scratch+6
+                        sta (UL_varptr),y
+                        iny
+                        lda ULLIST_scratch+7
+                        sta (UL_varptr),y
+
+                        ; Update list head = new_mb
+                        ldx ULLIST_scratch+4
+                        ldy ULLIST_scratch+5
+                        jsr ULLIST_access_handle
+                        ldy #ULBLOCK_LIST::head
+                        lda ULLIST_scratch+6
+                        sta (UL_varptr),y
+                        iny
+                        lda ULLIST_scratch+7
+                        sta (UL_varptr),y
+                        jmp @finish_insert
+
+                        ; --- Middle insert (0 < position < size) ---
+@insert_middle:
+                        ; Walk to position to find cur_mb
+                        lda ULLIST_scratch+2    ; position
+                        jsr ULLIST_walk_to      ; scratch+8/+9 = cur_mb
+
+                        ; Access cur_mb to read its .prev and set .prev = new_mb
+                        ldx ULLIST_scratch+8
+                        ldy ULLIST_scratch+9
+                        jsr ULLIST_access_mb
+                        ldy #ULMSG_BLOCK::prev
+                        lda (UL_varptr),y
+                        sta ULLIST_scratch+10   ; prev_mb lo (reusing db_size slot)
+                        iny
+                        lda (UL_varptr),y
+                        sta ULLIST_scratch+11   ; prev_mb hi
+                        ; Set cur_mb.prev = new_mb
+                        ldy #ULMSG_BLOCK::prev
+                        lda ULLIST_scratch+6
+                        sta (UL_varptr),y
+                        iny
+                        lda ULLIST_scratch+7
+                        sta (UL_varptr),y
+
+                        ; Set new_mb: next=cur_mb, prev=prev_mb
+                        ldx ULLIST_scratch+6
+                        ldy ULLIST_scratch+7
+                        jsr ULLIST_access_mb
+                        ldy #ULMSG_BLOCK::next
+                        lda ULLIST_scratch+8
+                        sta (UL_varptr),y
+                        iny
+                        lda ULLIST_scratch+9
+                        sta (UL_varptr),y
+                        ldy #ULMSG_BLOCK::prev
+                        lda ULLIST_scratch+10
+                        sta (UL_varptr),y
+                        iny
+                        lda ULLIST_scratch+11
+                        sta (UL_varptr),y
+
+                        ; Set prev_mb.next = new_mb
+                        ldx ULLIST_scratch+10
+                        ldy ULLIST_scratch+11
+                        jsr ULLIST_access_mb
+                        ldy #ULMSG_BLOCK::next
+                        lda ULLIST_scratch+6
+                        sta (UL_varptr),y
+                        iny
+                        lda ULLIST_scratch+7
+                        sta (UL_varptr),y
+                        ; (head/tail unchanged for middle insert)
+
+                        ; --- Common finish: increment size, addref ---
+@finish_insert:
+                        ; Increment size in list struct
+                        ldx ULLIST_scratch+4
+                        ldy ULLIST_scratch+5
                         jsr ULLIST_access_handle
                         ldy #ULBLOCK_LIST::size
                         lda (UL_varptr),y
@@ -461,7 +692,7 @@
                         adc #0
                         sta (UL_varptr),y
 
-                        ; addref on the inserted data block
+                        ; addref on the data block
                         ldx ULLIST_scratch
                         ldy ULLIST_scratch+1
                         jsr uldb_addref
@@ -472,10 +703,16 @@
                         pla
                         clc
                         rts
+
+@fail:                  pla
+                        sta BANKSEL::RAM
+                        pla
+                        sec
+                        rts
 .endproc
 
 ; ullist_delete - Remove a data block from the list
-;   In: r0              - list handle BRP
+;   In: r0              - list handle
 ;       A               - position (255 = end)
 ;  Out: carry           - set on error, clear on success
 .proc ullist_delete
@@ -483,23 +720,21 @@
                         lda BANKSEL::RAM
                         pha
 
+                        ; Save params
+                        lda gREG::r0L
+                        sta ULLIST_scratch+4    ; list handle lo
+                        lda gREG::r0H
+                        sta ULLIST_scratch+5    ; list handle hi
+
                         ; Save position
                         tsx
                         lda $102,x              ; original A
                         sta ULLIST_scratch+2    ; position
 
-                        ; Access list struct
-                        ldx gREG::r0L
-                        ldy gREG::r0H
+                        ; Access list to read size
+                        ldx ULLIST_scratch+4
+                        ldy ULLIST_scratch+5
                         jsr ULLIST_access_handle
-
-                        ; Save list handle
-                        lda gREG::r0L
-                        sta ULLIST_scratch+8
-                        lda gREG::r0H
-                        sta ULLIST_scratch+9
-
-                        ; Read size
                         ldy #ULBLOCK_LIST::size
                         lda (UL_varptr),y
                         sta ULLIST_scratch+3    ; size
@@ -519,58 +754,98 @@
                         dec
                         sta ULLIST_scratch+2
 @pos_ok:
+                        ; Walk to position
+                        lda ULLIST_scratch+2
+                        jsr ULLIST_walk_to      ; scratch+8/+9 = target MB
 
-                        ; Access brps array
-                        ldy #ULBLOCK_LIST::brps
-                        lda (UL_varptr),y
-                        tax
-                        iny
-                        lda (UL_varptr),y
-                        tay
-                        jsr ulmem_access
-                        stx UL_var2ptr
-                        sty UL_var2ptr+1
-
-                        ; Read handle at position (to release later)
-                        lda ULLIST_scratch+2    ; pos
-                        asl
-                        tay
-                        lda (UL_var2ptr),y
-                        sta ULLIST_scratch      ; removed handle lo
-                        iny
-                        lda (UL_var2ptr),y
-                        sta ULLIST_scratch+1    ; removed handle hi
-
-                        ; Forward copy: shift [pos+1..size-1] down by 2
-                        lda ULLIST_scratch+2    ; pos
-                        inc                     ; pos+1
-                        cmp ULLIST_scratch+3    ; size
-                        bcs @no_shift           ; pos+1 >= size, nothing to shift
-
-                        ; Stop when source reaches size*2
-                        lda ULLIST_scratch+3    ; size
-                        asl
-                        sta ULLIST_scratch+5    ; stop at size*2
-
-                        ; Start source at (pos+1)*2
-                        lda ULLIST_scratch+2    ; pos
-                        inc                     ; pos+1
-                        asl                     ; (pos+1)*2
-                        tay
-
-@shift_down:            lda (UL_var2ptr),y      ; read source byte
-                        phy
-                        dey
-                        dey                     ; dest = source - 2
-                        sta (UL_var2ptr),y      ; write dest byte
-                        ply
-                        iny                     ; next source byte
-                        cpy ULLIST_scratch+5    ; reached size*2?
-                        bne @shift_down
-
-@no_shift:              ; Decrement size in list struct
+                        ; Access MB to read data_block, prev, next
                         ldx ULLIST_scratch+8
                         ldy ULLIST_scratch+9
+                        jsr ULLIST_access_mb
+                        ldy #ULMSG_BLOCK::data_block
+                        lda (UL_varptr),y
+                        sta ULLIST_scratch      ; db handle lo
+                        iny
+                        lda (UL_varptr),y
+                        sta ULLIST_scratch+1    ; db handle hi
+                        ldy #ULMSG_BLOCK::prev
+                        lda (UL_varptr),y
+                        sta ULLIST_scratch+6    ; prev_mb lo
+                        iny
+                        lda (UL_varptr),y
+                        sta ULLIST_scratch+7    ; prev_mb hi
+                        ldy #ULMSG_BLOCK::next
+                        lda (UL_varptr),y
+                        sta ULLIST_scratch+10   ; next_mb lo
+                        iny
+                        lda (UL_varptr),y
+                        sta ULLIST_scratch+11   ; next_mb hi
+
+                        ; Unlink: if prev != $FFFF, set prev.next = next
+                        lda ULLIST_scratch+6
+                        and ULLIST_scratch+7
+                        cmp #$FF
+                        beq @update_head
+
+                        ldx ULLIST_scratch+6
+                        ldy ULLIST_scratch+7
+                        jsr ULLIST_access_mb
+                        ldy #ULMSG_BLOCK::next
+                        lda ULLIST_scratch+10
+                        sta (UL_varptr),y
+                        iny
+                        lda ULLIST_scratch+11
+                        sta (UL_varptr),y
+                        bra @check_next
+
+                        ; prev == $FFFF: this was the head, update list.head = next
+@update_head:           ldx ULLIST_scratch+4
+                        ldy ULLIST_scratch+5
+                        jsr ULLIST_access_handle
+                        ldy #ULBLOCK_LIST::head
+                        lda ULLIST_scratch+10
+                        sta (UL_varptr),y
+                        iny
+                        lda ULLIST_scratch+11
+                        sta (UL_varptr),y
+
+@check_next:            ; Unlink: if next != $FFFF, set next.prev = prev
+                        lda ULLIST_scratch+10
+                        and ULLIST_scratch+11
+                        cmp #$FF
+                        beq @update_tail
+
+                        ldx ULLIST_scratch+10
+                        ldy ULLIST_scratch+11
+                        jsr ULLIST_access_mb
+                        ldy #ULMSG_BLOCK::prev
+                        lda ULLIST_scratch+6
+                        sta (UL_varptr),y
+                        iny
+                        lda ULLIST_scratch+7
+                        sta (UL_varptr),y
+                        bra @free_mb
+
+                        ; next == $FFFF: this was the tail, update list.tail = prev
+@update_tail:           ldx ULLIST_scratch+4
+                        ldy ULLIST_scratch+5
+                        jsr ULLIST_access_handle
+                        ldy #ULBLOCK_LIST::tail
+                        lda ULLIST_scratch+6
+                        sta (UL_varptr),y
+                        iny
+                        lda ULLIST_scratch+7
+                        sta (UL_varptr),y
+
+@free_mb:               ; Free the message block
+                        lda #ULPOOL::MSGBLOCK
+                        ldx ULLIST_scratch+8
+                        ldy ULLIST_scratch+9
+                        jsr ulpool_free
+
+                        ; Decrement size
+                        ldx ULLIST_scratch+4
+                        ldy ULLIST_scratch+5
                         jsr ULLIST_access_handle
                         ldy #ULBLOCK_LIST::size
                         lda (UL_varptr),y
@@ -582,7 +857,7 @@
                         sbc #0
                         sta (UL_varptr),y
 
-                        ; Release the removed data block
+                        ; Release the data block
                         ldx ULLIST_scratch
                         ldy ULLIST_scratch+1
                         jsr uldb_release
@@ -590,13 +865,13 @@
                         ; Return success
                         pla
                         sta BANKSEL::RAM
-                        pla                     ; discard saved A
+                        pla
                         clc
                         rts
 
 @out_of_range:          pla
                         sta BANKSEL::RAM
-                        pla                     ; discard saved A
+                        pla
                         sec
                         rts
 .endproc
@@ -606,14 +881,14 @@
 ; =============================================================================
 
 ; ullist_release - Decrement reference count, free when zero
-;   In: YX              - list handle BRP
+;   In: YX              - list handle
 .proc ullist_release
                         lda BANKSEL::RAM
                         pha
 
-                        ; Save handle BRP
-                        stx ULLIST_scratch
-                        sty ULLIST_scratch+1
+                        ; Save handle
+                        stx ULLIST_scratch+4
+                        sty ULLIST_scratch+5
 
                         jsr ULLIST_access_handle
 
@@ -633,64 +908,62 @@
                         ora (UL_varptr),y
                         bne @done
 
-                        ; Read size and brps BRP before freeing
-                        ldy #ULBLOCK_LIST::size
+                        ; Read head for chain walk
+                        ldy #ULBLOCK_LIST::head
                         lda (UL_varptr),y
-                        sta ULLIST_scratch+2    ; size lo
+                        sta ULLIST_scratch+8    ; cur_mb lo
                         iny
                         lda (UL_varptr),y
-                        sta ULLIST_scratch+3    ; size hi
+                        sta ULLIST_scratch+9    ; cur_mb hi
 
-                        ldy #ULBLOCK_LIST::brps
+                        ; Walk chain: release each data block, free each MB
+@release_loop:          lda ULLIST_scratch+8
+                        and ULLIST_scratch+9
+                        cmp #$FF
+                        beq @free_list          ; end of chain
+
+                        ; Access current MB
+                        ldx ULLIST_scratch+8
+                        ldy ULLIST_scratch+9
+                        jsr ULLIST_access_mb
+
+                        ; Read data_block and next
+                        ldy #ULMSG_BLOCK::data_block
                         lda (UL_varptr),y
-                        sta ULLIST_scratch+4    ; brps BRP lo
+                        sta ULLIST_scratch      ; db lo
                         iny
                         lda (UL_varptr),y
-                        sta ULLIST_scratch+5    ; brps BRP hi
-
-                        ; Release all data blocks in the list
-                        lda ULLIST_scratch+2
-                        ora ULLIST_scratch+3
-                        beq @free_brps          ; empty list
-
-                        ; Iterate entries and release each
-                        stz ULLIST_scratch+6    ; current index
-
-@release_loop:          ; Access brps array
-                        ldx ULLIST_scratch+4
-                        ldy ULLIST_scratch+5
-                        jsr ulmem_access
-                        stx UL_var2ptr
-                        sty UL_var2ptr+1
-
-                        ; Read entry at index*2
-                        lda ULLIST_scratch+6
-                        asl
-                        tay
-                        lda (UL_var2ptr),y
-                        tax
+                        sta ULLIST_scratch+1    ; db hi
+                        ldy #ULMSG_BLOCK::next
+                        lda (UL_varptr),y
+                        sta ULLIST_scratch+6    ; next_mb lo
                         iny
-                        lda (UL_var2ptr),y
-                        tay
+                        lda (UL_varptr),y
+                        sta ULLIST_scratch+7    ; next_mb hi
 
-                        ; Release this data block
-                        jsr uldb_release
-
-                        ; Next entry
-                        inc ULLIST_scratch+6
-                        lda ULLIST_scratch+6
-                        cmp ULLIST_scratch+2    ; compare to size lo
-                        bcc @release_loop
-
-@free_brps:             ; Free brps BRP
-                        ldx ULLIST_scratch+4
-                        ldy ULLIST_scratch+5
-                        jsr ulmem_free
-
-                        ; Free list handle BRP
+                        ; Release data block
                         ldx ULLIST_scratch
                         ldy ULLIST_scratch+1
-                        jsr ulmem_free
+                        jsr uldb_release
+
+                        ; Free this MB
+                        lda #ULPOOL::MSGBLOCK
+                        ldx ULLIST_scratch+8
+                        ldy ULLIST_scratch+9
+                        jsr ulpool_free
+
+                        ; Advance to next MB
+                        lda ULLIST_scratch+6
+                        sta ULLIST_scratch+8
+                        lda ULLIST_scratch+7
+                        sta ULLIST_scratch+9
+                        bra @release_loop
+
+@free_list:             ; Free list header
+                        lda #ULPOOL::BLOCKLIST
+                        ldx ULLIST_scratch+4
+                        ldy ULLIST_scratch+5
+                        jsr ulpool_free
 
 @done:                  pla
                         sta BANKSEL::RAM
@@ -703,4 +976,5 @@
 
 .bss
 
-ULLIST_scratch:         .res 10
+ULLIST_scratch:         .res 12
+ULLIST_walk_count:      .res 1

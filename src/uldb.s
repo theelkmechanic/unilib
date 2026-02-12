@@ -6,12 +6,13 @@
 ; Internal helper
 ; =============================================================================
 
-; ULDB_access_handle - Access a data block handle BRP, store pointer in UL_varptr
-;   In: YX              - handle BRP
+; ULDB_access_handle - Access a data block handle, store pointer in UL_varptr
+;   In: YX              - handle (pool index)
 ;  Out: UL_varptr       - pointer to ULDATA_BLOCK struct
 ;       BANKSEL::RAM    - set to handle's bank
 .proc ULDB_access_handle
-                        jsr ulmem_access
+                        lda #ULPOOL::DATABLOCK
+                        jsr ulpool_access
                         stx UL_varptr
                         sty UL_varptr+1
                         rts
@@ -23,7 +24,7 @@
 
 ; uldb_create - Allocate a new uninitialized data block of given size
 ;   In: YX              - size of data to allocate
-;  Out: YX              - data block handle BRP
+;  Out: YX              - data block handle (pool index)
 ;       carry           - set on error
 .proc uldb_create
                         ; Save caller's bank
@@ -81,19 +82,18 @@
                         lda gREG::r1H
                         sta ULDB_scratch+5      ; size hi
 
-                        ; Allocate 8-byte handle BRP for ULDATA_BLOCK struct
-                        ldx #.sizeof(ULDATA_BLOCK)
-                        ldy #0
-                        clc                     ; don't clear
-                        jsr ulmem_alloc
+                        ; Allocate handle from pool
+                        lda #ULPOOL::DATABLOCK
+                        jsr ulpool_alloc
                         bcs @fail
 
-                        ; Save handle BRP before calling ulmem_access
-                        stx ULDB_scratch+6      ; handle BRP lo (slot)
-                        sty ULDB_scratch+7      ; handle BRP hi (bank)
+                        ; Save handle before calling ulpool_access
+                        stx ULDB_scratch+6      ; handle lo
+                        sty ULDB_scratch+7      ; handle hi
 
                         ; Access the handle to write struct fields
-                        jsr ulmem_access
+                        lda #ULPOOL::DATABLOCK
+                        jsr ulpool_access
                         stx UL_varptr
                         sty UL_varptr+1
 
@@ -395,10 +395,11 @@
                         tay
                         jsr ulmem_free
 
-                        ; Free handle BRP
+                        ; Free handle to pool
+                        lda #ULPOOL::DATABLOCK
                         ldx ULDB_scratch
                         ldy ULDB_scratch+1
-                        jsr ulmem_free
+                        jsr ulpool_free
 
 @done:                  pla
                         sta BANKSEL::RAM

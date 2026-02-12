@@ -80,30 +80,25 @@ ULI_step_sizes: .byte 1, 2, 3, 4, 5, 0, 0, 0
                         cmp (ULI_ptr),y
                         bne @not_equal
 
-                        ; cur == end. Check if LIST type needs block_index verification
+                        ; cur == end. Check if LIST type needs terminal MB verification
                         lda (ULI_ptr)           ; type_format
                         and #$0F
                         cmp #ULITYP::LIST
                         bne @is_at_end          ; not LIST -> truly at end
 
-                        ; LIST: check if at terminal block
-                        lda (ULI_ptr)           ; type_format
-                        bmi @reverse_end        ; bit 7 = REVERSE
-
-                        ; Forward: must be at last block (block_index + 1 == block_count)
-                        ldy #ULI_STATE_BLK_IDX
+                        ; LIST: check if CUR_MB == TERM_MB
+                        ldy #ULI_STATE_CUR_MB
                         lda (ULI_ptr),y
-                        clc
-                        adc #1
-                        ldy #ULI_STATE_BLK_CNT
-                        cmp (ULI_ptr),y
-                        beq @is_at_end          ; at last block -> truly at end
-                        bne @not_at_end         ; not last block -> false positive
-
-@reverse_end:           ; Reverse: must be at block 0
-                        ldy #ULI_STATE_BLK_IDX
+                        tax                     ; X = CUR_MB lo
+                        ldy #ULI_STATE_TERM_MB
+                        txa
+                        cmp (ULI_ptr),y         ; compare lo bytes
+                        bne @not_at_end
+                        ldy #ULI_STATE_CUR_MB+1
                         lda (ULI_ptr),y
-                        beq @is_at_end          ; block 0 -> truly at end (in reverse)
+                        ldy #ULI_STATE_TERM_MB+1
+                        cmp (ULI_ptr),y         ; compare hi bytes
+                        beq @is_at_end          ; CUR_MB == TERM_MB -> truly at end
 
 @not_at_end:            lda #1                  ; clear Z flag
                         rts
