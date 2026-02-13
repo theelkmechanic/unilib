@@ -12,8 +12,8 @@ UL_src_fptr:    .res 2          ; current target address / source pointer
 .code
 
 ; Format step sizes indexed by (format >> 4)
-; BYTE=1, WORD=2, TBYTE=3, DWORD=4, FLOAT=5, UTF8=0(variable), STRTBL=0(variable)
-ULI_step_sizes: .byte 1, 2, 3, 4, 5, 0, 0, 0
+; BYTE=1, WORD=2, TBYTE=3, DWORD=4, FLOAT=5, UTF8=0(variable), STRTBL=2
+ULI_step_sizes: .byte 1, 2, 3, 4, 5, 0, 2, 0
 
 ; ULI_load - Load iterator state into working area
 ;   In: YX              - iterator BRP handle
@@ -214,17 +214,24 @@ ULI_step_sizes: .byte 1, 2, 3, 4, 5, 0, 0, 0
                         cmp #ULIFMT::UTF8
                         beq @utf8_fetch
 
-                        ; Multi-byte
+                        ; Multi-byte or FLOAT — shared path via indirect pointer
+                        stz UL_temp_h           ; high byte = 0 (page 0 targets)
+                        ldx #<gREG::r0L         ; default: r0L ($02)
+                        cmp #ULIFMT::FLOAT
+                        bne :+
+                        ldx #FACEXP             ; FLOAT: FACEXP ($C3)
+:                       stx UL_temp_l
+
                         lda ULI_type_format
                         jsr ULI_get_step
                         tax
                         ldy #0
 @brp_loop:              lda (ULI_cur),y
-                        sta gREG::r0L,y
+                        sta (UL_temp_l),y
                         iny
                         dex
                         bne @brp_loop
-                        lda gREG::r0L
+                        lda gREG::r0L           ; for ULI_scratch (harmless for FLOAT)
                         sta ULI_scratch
                         rts
 
@@ -248,13 +255,20 @@ ULI_step_sizes: .byte 1, 2, 3, 4, 5, 0, 0, 0
                         and #$70
                         beq @vram_byte
 
-                        ; Multi-byte VRAM
+                        ; Multi-byte VRAM or FLOAT
+                        stz UL_temp_h
+                        ldx #<gREG::r0L
+                        cmp #ULIFMT::FLOAT
+                        bne :+
+                        ldx #FACEXP
+:                       stx UL_temp_l
+
                         lda ULI_type_format
                         jsr ULI_get_step
                         tax
                         ldy #0
 @vram_loop:             lda VERA::DATA0
-                        sta gREG::r0L,y
+                        sta (UL_temp_l),y
                         iny
                         dex
                         bne @vram_loop
@@ -288,12 +302,19 @@ ULI_step_sizes: .byte 1, 2, 3, 4, 5, 0, 0, 0
                         cmp #ULIFMT::UTF8
                         beq @utf8_store
 
-                        ; Multi-byte
+                        ; Multi-byte or FLOAT — shared path via indirect pointer
+                        stz UL_temp_h
+                        ldx #<gREG::r0L
+                        cmp #ULIFMT::FLOAT
+                        bne :+
+                        ldx #FACEXP
+:                       stx UL_temp_l
+
                         lda ULI_type_format
                         jsr ULI_get_step
                         tax
                         ldy #0
-@brp_loop:              lda gREG::r0L,y
+@brp_loop:              lda (UL_temp_l),y
                         sta (ULI_cur),y
                         iny
                         dex
@@ -320,12 +341,19 @@ ULI_step_sizes: .byte 1, 2, 3, 4, 5, 0, 0, 0
                         and #$70
                         beq @vram_byte
 
-                        ; Multi-byte VRAM
+                        ; Multi-byte VRAM or FLOAT
+                        stz UL_temp_h
+                        ldx #<gREG::r0L
+                        cmp #ULIFMT::FLOAT
+                        bne :+
+                        ldx #FACEXP
+:                       stx UL_temp_l
+
                         lda ULI_type_format
                         jsr ULI_get_step
                         tax
                         ldy #0
-@vram_loop:             lda gREG::r0L,y
+@vram_loop:             lda (UL_temp_l),y
                         sta VERA::DATA0
                         iny
                         dex

@@ -170,6 +170,14 @@ str_t_hrgi:     .byte "realloc grow inplace   ", 0
 str_t_hrgc:     .byte "realloc grow copy      ", 0
 str_t_hfre:     .byte "heap free + realloc    ", 0
 
+; FLOAT and STRINGTABLE iterator tests
+str_t_flcs:     .byte "BRP+FLOAT create+store ", 0
+str_t_flf:      .byte "BRP+FLOAT fetch FACC   ", 0
+str_t_istc:     .byte "BRP+STRTBL create      ", 0
+str_t_istf:     .byte "STRTBL fetch entry     ", 0
+str_t_isti:     .byte "STRTBL fai x3+atend    ", 0
+str_t_istcl:    .byte "STRTBL cleanup         ", 0
+
 str_pass:       .byte " OK", 0
 str_fail:       .byte " FAIL", 0
 str_summary:    .byte "Passed: ", 0
@@ -3590,8 +3598,247 @@ start:
 
                         ; If we got here without crashing, heap is functional
                         jsr pass
-                        bra @summary
+                        bra @test_flcs
 @hfre_fail:             jsr fail
+
+; =========================================================================
+; FLOAT iterator tests
+; =========================================================================
+
+; ----- Test: BRP+FLOAT create+store -----
+
+@test_flcs:             ldx #<str_t_flcs
+                        ldy #>str_t_flcs
+                        jsr putmsg
+
+                        ; Allocate 10-byte BRP (2 floats), cleared
+                        ldx #10
+                        ldy #0
+                        sec
+                        jsr ulmem_alloc
+                        bcs @flcs_fail
+                        stx fl_brp
+                        sty fl_brp+1
+
+                        ; Create BRP+FLOAT iterator (r0 = size = 10)
+                        lda #10
+                        sta gREG::r0L
+                        stz gREG::r0H
+                        lda #(ULITYP::BRP | ULIFMT::FLOAT)
+                        ldx fl_brp
+                        ldy fl_brp+1
+                        jsr ulitr_create
+                        bcs @flcs_fail
+                        stx fl_iter
+                        sty fl_iter+1
+
+                        ; Set FACC with known values
+                        lda #$11
+                        sta FACEXP
+                        lda #$22
+                        sta FACHO
+                        lda #$33
+                        sta FACMOH
+                        lda #$44
+                        sta FACMO
+                        lda #$55
+                        sta FACLO
+
+                        ; Store FACC to iterator
+                        ldx fl_iter
+                        ldy fl_iter+1
+                        jsr ulitr_store
+                        bcs @flcs_fail
+
+                        jsr pass
+                        bra @test_flf
+
+@flcs_fail:             jsr fail
+                        jmp @test_istc
+
+; ----- Test: BRP+FLOAT fetch FACC -----
+
+@test_flf:              ldx #<str_t_flf
+                        ldy #>str_t_flf
+                        jsr putmsg
+
+                        ; Zero out FACC
+                        stz FACEXP
+                        stz FACHO
+                        stz FACMOH
+                        stz FACMO
+                        stz FACLO
+
+                        ; Fetch from iterator into FACC
+                        ldx fl_iter
+                        ldy fl_iter+1
+                        jsr ulitr_fetch
+                        bcs @flf_fail
+
+                        ; Verify all 5 bytes
+                        lda FACEXP
+                        cmp #$11
+                        bne @flf_fail
+                        lda FACHO
+                        cmp #$22
+                        bne @flf_fail
+                        lda FACMOH
+                        cmp #$33
+                        bne @flf_fail
+                        lda FACMO
+                        cmp #$44
+                        bne @flf_fail
+                        lda FACLO
+                        cmp #$55
+                        bne @flf_fail
+
+                        jsr pass
+                        bra @fl_cleanup
+
+@flf_fail:              jsr fail
+
+@fl_cleanup:            ; Delete iterator and free BRP
+                        ldx fl_iter
+                        ldy fl_iter+1
+                        jsr ulitr_delete
+                        ldx fl_brp
+                        ldy fl_brp+1
+                        jsr ulmem_free
+
+; =========================================================================
+; STRINGTABLE iterator tests
+; =========================================================================
+
+; ----- Test: BRP+STRTBL create -----
+
+@test_istc:             ldx #<str_t_istc
+                        ldy #>str_t_istc
+                        jsr putmsg
+
+                        ; Allocate 6-byte BRP (3 word entries), cleared
+                        ldx #6
+                        ldy #0
+                        sec
+                        jsr ulmem_alloc
+                        bcs @istc_fail
+                        stx st_brp
+                        sty st_brp+1
+
+                        ; Fill with 3 words via direct access ($1234, $5678, $9ABC)
+                        jsr ulmem_access
+                        stx gREG::r5L
+                        sty gREG::r5H
+                        ldy #0
+                        lda #$34
+                        sta (gREG::r5),y
+                        iny
+                        lda #$12
+                        sta (gREG::r5),y
+                        iny
+                        lda #$78
+                        sta (gREG::r5),y
+                        iny
+                        lda #$56
+                        sta (gREG::r5),y
+                        iny
+                        lda #$BC
+                        sta (gREG::r5),y
+                        iny
+                        lda #$9A
+                        sta (gREG::r5),y
+
+                        ; Create BRP+STRINGTABLE iterator (r0 = size = 6)
+                        lda #6
+                        sta gREG::r0L
+                        stz gREG::r0H
+                        lda #(ULITYP::BRP | ULIFMT::STRINGTABLE)
+                        ldx st_brp
+                        ldy st_brp+1
+                        jsr ulitr_create
+                        bcs @istc_fail
+                        stx st_iter
+                        sty st_iter+1
+
+                        jsr pass
+                        bra @test_istf
+
+@istc_fail:             jsr fail
+                        jmp @summary
+
+; ----- Test: STRTBL fetch entry -----
+
+@test_istf:             ldx #<str_t_istf
+                        ldy #>str_t_istf
+                        jsr putmsg
+
+                        ; Fetch first entry, verify r0 = $1234
+                        ldx st_iter
+                        ldy st_iter+1
+                        jsr ulitr_fetch
+                        bcs @istf_fail
+                        lda gREG::r0L
+                        cmp #$34
+                        bne @istf_fail
+                        lda gREG::r0H
+                        cmp #$12
+                        bne @istf_fail
+
+                        jsr pass
+                        bra @test_isti
+
+@istf_fail:             jsr fail
+
+; ----- Test: STRTBL fai x3+atend -----
+
+@test_isti:             ldx #<str_t_isti
+                        ldy #>str_t_isti
+                        jsr putmsg
+
+                        stz fwd_errs
+                        lda #3
+                        sta fwd_idx
+@isti_loop:             ldx st_iter
+                        ldy st_iter+1
+                        jsr ulitr_fetch_and_inc
+                        bcs @isti_err
+                        dec fwd_idx
+                        bne @isti_loop
+                        bra @isti_check
+@isti_err:              inc fwd_errs
+                        dec fwd_idx
+                        bne @isti_loop
+
+@isti_check:            ; Should be at end
+                        ldx st_iter
+                        ldy st_iter+1
+                        jsr ulitr_atend
+                        bne @isti_fail
+                        lda fwd_errs
+                        bne @isti_fail
+
+                        jsr pass
+                        bra @test_istcl
+
+@isti_fail:             jsr fail
+
+; ----- Test: STRTBL cleanup -----
+
+@test_istcl:            ldx #<str_t_istcl
+                        ldy #>str_t_istcl
+                        jsr putmsg
+
+                        ; Delete iterator and free BRP
+                        ldx st_iter
+                        ldy st_iter+1
+                        jsr ulitr_delete
+                        ldx st_brp
+                        ldy st_brp+1
+                        jsr ulmem_free
+
+                        jsr pass
+                        bra @summary
+
+@istcl_fail:            jsr fail
 
 ; ----- Summary -----
 
@@ -3654,3 +3901,7 @@ stb_str:        .res 2          ; string BRP retrieved from table
 h_brp_a:        .res 2          ; heap test BRP A
 h_brp_b:        .res 2          ; heap test BRP B
 h_saved_brp:    .res 2          ; saved BRP for comparison
+fl_brp:         .res 2          ; FLOAT test data BRP
+fl_iter:        .res 2          ; FLOAT test iterator
+st_brp:         .res 2          ; STRTBL test data BRP
+st_iter:        .res 2          ; STRTBL test iterator
