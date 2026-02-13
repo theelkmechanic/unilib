@@ -20,24 +20,24 @@
                         ; Read start offset
                         ldy #ULMSG_BLOCK::start
                         lda (UL_varptr),y
-                        sta @mb_start
+                        sta ULSA_mb_start
                         iny
                         lda (UL_varptr),y
-                        sta @mb_start+1
+                        sta ULSA_mb_start+1
 
                         ; Read end offset
                         ldy #ULMSG_BLOCK::end
                         lda (UL_varptr),y
-                        sta @mb_end
+                        sta ULSA_mb_end
                         iny
                         lda (UL_varptr),y
-                        sta @mb_end+1
+                        sta ULSA_mb_end+1
 
                         ; Compute bytelen = end - start (low byte only, max 252)
-                        lda @mb_end
+                        lda ULSA_mb_end
                         sec
-                        sbc @mb_start
-                        sta @bytelen
+                        sbc ULSA_mb_start
+                        sta ULSA_bytelen
 
                         ; Read data_block handle
                         ldy #ULMSG_BLOCK::data_block
@@ -59,14 +59,14 @@
                         ; Add start offset to base
                         lda ULS_scratch_fptr
                         clc
-                        adc @mb_start
+                        adc ULSA_mb_start
                         sta ULS_scratch_fptr
                         lda ULS_scratch_fptr+1
-                        adc @mb_start+1
+                        adc ULSA_mb_start+1
                         sta ULS_scratch_fptr+1
 
                         ; Copy bytelen bytes to $400
-                        lda @bytelen
+                        lda ULSA_bytelen
                         beq @nul_terminate
                         tay
 :                       dey
@@ -76,7 +76,7 @@
                         bne :-
 
                         ; NUL-terminate at $400 + bytelen
-@nul_terminate:         ldy @bytelen
+@nul_terminate:         ldy ULSA_bytelen
                         lda #0
                         sta $400,y
 
@@ -94,8 +94,10 @@
                         ldy #$04
                         rts
 
-.bss
-@mb_start:              .res 2
-@mb_end:                .res 2
-@bytelen:               .res 1
 .endproc
+
+.bss
+
+ULSA_mb_start:          .res 2
+ULSA_mb_end:            .res 2
+ULSA_bytelen:           .res 1

@@ -3,12 +3,14 @@
 .code
 
 ULW_worker_moverestofline:
-                        stx ULW_move_srcnopinc
-                        sty ULW_move_destincdec
+                        stx ULWC_src_adj
+                        sty ULWC_dest_adj
                         lda ULW_WINDOW_COPY::ccol
-ULW_move_srcnopinc:     inc
+                        clc
+                        adc ULWC_src_adj
                         sta ULWR_src
-ULW_move_destincdec:    inc
+                        clc
+                        adc ULWC_dest_adj
                         sta ULWR_dest
 
                         lda ULW_WINDOW_COPY::ncol
@@ -32,8 +34,8 @@ ULW_worker_delchar:
                         bcc exitbounce
 
                         ; Shift left one character
-                        ldx #$1A ; INC
-                        ldy #$3A ; DEC
+                        ldx #1      ; src = ccol+1
+                        ldy #$FF    ; dest = src-1 = ccol
                         jsr ULW_worker_moverestofline
 
                         ; And clear last character cell
@@ -62,12 +64,12 @@ ULW_worker_inschar:
                         bcc exit
 
                         ; Shift right one character
-                        ldx #$EA ; NOP
-                        ldy #$1A ; INC
+                        ldx #0      ; src = ccol
+                        ldy #1      ; dest = src+1 = ccol+1
                         jsr ULW_worker_moverestofline
 
                         ; And put character at cursor
-                        lda get_handle+1
+                        lda ULWC_handle
 :                       jsr ulwin_putchar
 exitbounce:             bra exit
 
@@ -108,13 +110,13 @@ exitbounce:             bra exit
 ; ULW_docursorthing helper for cursor-related window functions
 ULW_docursorthing:
                         ; Save X/Y/RAM bank
-                        sta get_handle+1
+                        sta ULWC_handle
                         lda BANKSEL::RAM
                         pha
                         phy
 
                         ; Access the window structure
-get_handle:             lda #$00
+                        lda ULWC_handle
                         phx
                         jsr ULW_getwinstruct
                         plx
@@ -168,14 +170,14 @@ ULW_worker_getchar:
 exit:                   ply
                         pla
                         sta BANKSEL::RAM
-                        lda get_handle+1
+                        lda ULWC_handle
                         plx
                         rts
 
 ULW_worker_insline:
                         ; Shift down one line
-                        ldx #$EA ; NOP
-                        ldy #$1A ; INC
+                        ldx #0      ; src = clin
+                        ldy #1      ; dest = src+1 = clin+1
                         jsr ULW_worker_scrollbelow
 
                         ; And clear current line
@@ -184,8 +186,8 @@ ULW_worker_insline:
 
 ULW_worker_delline:
                         ; Shift up one line
-                        ldx #$1A ; INC
-                        ldy #$3A ; DEC
+                        ldx #1      ; src = clin+1
+                        ldy #$FF    ; dest = src-1 = clin
                         jsr ULW_worker_scrollbelow
 
                         ; And clear last line
@@ -206,12 +208,14 @@ ULW_worker_scrollbelow:
                         bne :+
                         rts
 
-:                       stx ULW_scroll_srcnopinc
-                        sty ULW_scroll_destincdec
+:                       stx ULWC_src_adj
+                        sty ULWC_dest_adj
                         lda ULW_WINDOW_COPY::clin
-ULW_scroll_srcnopinc:   inc
+                        clc
+                        adc ULWC_src_adj
                         sta ULWR_src+1
-ULW_scroll_destincdec:  inc
+                        clc
+                        adc ULWC_dest_adj
                         sta ULWR_dest+1
 
                         lda ULW_WINDOW_COPY::nlin
@@ -242,3 +246,9 @@ ULW_wrkidx_insline = ULW_wrkent_insline - ULW_workers
 ULW_wrkidx_delchar = ULW_wrkent_delchar - ULW_workers
 ULW_wrkidx_delline = ULW_wrkent_delline - ULW_workers
 ULW_wrkidx_eraseeol = ULW_wrkent_eraseeol - ULW_workers
+
+.bss
+
+ULWC_handle:            .res    1
+ULWC_src_adj:           .res    1
+ULWC_dest_adj:          .res    1

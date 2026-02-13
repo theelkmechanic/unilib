@@ -561,13 +561,13 @@ ULW_fillrect_color:
                         bra ULW_fillrect_charorcolor
 ULW_fillrect_char:
                         ldx ULWR_char
-                        stx charloload+1
+                        stx ULWFR_charlo
                         ldx ULWR_char+1
-                        stx charhiload+1
+                        stx ULWFR_charhi
                         ldx ULWR_char+2
                         lda #0
 ULW_fillrect_charorcolor:
-                        stx lastload+1
+                        stx ULWFR_last
                         sta ULW_carryflag
 
                         ; Get the appropriate buffer at our top left
@@ -586,22 +586,22 @@ ULW_fillrect_charorcolor:
                         bmi :+
                         lda #3
                         jsr ulmath_umul8_8
-:                       stx linefill_cmp+1
+:                       stx ULWFR_limit
 
                         ; Write our character/color pattern to the line
 :                       ldy #0
 :                       bit ULW_carryflag
-                        bmi lastload
-charloload:             lda #$00
+                        bmi @lastload
+                        lda ULWFR_charlo
                         sta (UL_dst_fptr),y
                         iny
-charhiload:             lda #$00
+                        lda ULWFR_charhi
                         sta (UL_dst_fptr),y
                         iny
-lastload:               lda #$00
+@lastload:              lda ULWFR_last
                         sta (UL_dst_fptr),y
                         iny
-linefill_cmp:           cpy #$00
+                        cpy ULWFR_limit
                         bcc :-
 
                         ; Advance to the next line
@@ -633,9 +633,9 @@ linefill_cmp:           cpy #$00
                         lda ULWR_destsize
 :                       clc
                         adc ULWR_dest
-                        sta @lastcol_check+1
+                        sta ULWDS_lastcol
                         lda ULWR_dest
-                        sta @startcol_sub+1
+                        sta ULWDS_startcol
 
                         ; Write our string characters/color to the line
 :                       jsr ULS_nextchar
@@ -652,14 +652,14 @@ linefill_cmp:           cpy #$00
                         ; Step ahead one cell if we printed something
                         bcc :-
                         inc ULWR_dest
-@lastcol_check:         cmp #$00
+                        cmp ULWDS_lastcol
                         bcc :-
 
                         ; Number of characters printed is ULWR_dest-@startcol
 @written:               lda ULWR_dest
                         sec
-@startcol_sub:          sbc #$00
-                        ldx @startcol_sub+1
+                        sbc ULWDS_startcol
+                        ldx ULWDS_startcol
                         stx ULWR_dest
                         rts
 .endproc
@@ -801,8 +801,7 @@ linefill_cmp:           cpy #$00
 ;       A               - Bytes to copy
 .proc ULW_copylinehelper
                         ; Save bytes to copy
-                        sta @lencheck+1
-                        sta @moveright+1
+                        sta ULWCL_bytelen
 
                         ; Load source/dest addresses
                         lda ULW_WINDOW_COPY::handle
@@ -829,12 +828,12 @@ linefill_cmp:           cpy #$00
 :                       lda (UL_src_fptr),y
                         sta (UL_dst_fptr),y
                         iny
-@lencheck:              cpy #$00
+                        cpy ULWCL_bytelen
                         bne :-
                         rts
 
                         ; Copy right (start size-1, done at -1)
-@moveright:             ldy #$00
+@moveright:             ldy ULWCL_bytelen
                         dey
 :                       lda (UL_src_fptr),y
                         sta (UL_dst_fptr),y
@@ -860,3 +859,11 @@ ULWR_dest:              .res    2
 ULWR_destsize:          .res    2
 ULWR_char:              .res    3
 ULWR_color:             .res    1
+
+ULWFR_charlo:           .res    1
+ULWFR_charhi:           .res    1
+ULWFR_last:             .res    1
+ULWFR_limit:            .res    1
+ULWDS_lastcol:          .res    1
+ULWDS_startcol:         .res    1
+ULWCL_bytelen:          .res    1

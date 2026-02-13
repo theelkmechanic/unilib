@@ -81,31 +81,8 @@ ULM_multab_neg_hi = ULM_multab_neg_lo + $200
                         rts
 .endproc
 
-; ULM_mulXY - Multiply X * Y, result in YX, bank must be set to 1
-.proc ULM_mulXY
-                        ; Modify the pointers in our code to point to the right slot for one operand
-                        pha
-                        txa
-                        sta @sm1+1
-                        sta @sm3+1
-                        eor #$ff
-                        sta @sm2+1
-                        sta @sm4+1
-
-                        ; Multiply by the other operand by subtracting values from our tables
-                        sec
-@sm1:                   lda ULM_multab_lo,y
-@sm2:                   sbc ULM_multab_neg_lo,y
-                        tax
-@sm3:                   lda ULM_multab_hi,y
-@sm4:                   sbc ULM_multab_neg_hi,y
-                        tay
-                        pla
-                        rts
-.endproc
-
 ; ULM_multbl_init - Build the multiplication square tables
-;   *** WARNING *** This must be the fist memory allocation call, or it will break badly. It 
+;   *** WARNING *** This must be the first memory allocation call, or it will break badly.
 .proc ULM_multbl_init
                         ; Allocate 2048 bytes for our math tables
                         ldx #<2048
@@ -159,3 +136,28 @@ ULM_multab_neg_hi = ULM_multab_neg_lo + $200
                         bne :-
                         rts
 .endproc
+
+; ULM_mulXY - Multiply X * Y, result in YX, bank must be set to 1
+; Lives in .data so the code segment stays read-only (SMC modifies .data instead).
+.data
+
+ULM_mulXY:
+                        ; Modify the pointers in our code to point to the right slot for one operand
+                        pha
+                        txa
+                        sta ULM_mulXY_sm1+1
+                        sta ULM_mulXY_sm3+1
+                        eor #$ff
+                        sta ULM_mulXY_sm2+1
+                        sta ULM_mulXY_sm4+1
+
+                        ; Multiply by the other operand by subtracting values from our tables
+                        sec
+ULM_mulXY_sm1:          lda ULM_multab_lo,y
+ULM_mulXY_sm2:          sbc ULM_multab_neg_lo,y
+                        tax
+ULM_mulXY_sm3:          lda ULM_multab_hi,y
+ULM_mulXY_sm4:          sbc ULM_multab_neg_hi,y
+                        tay
+                        pla
+                        rts

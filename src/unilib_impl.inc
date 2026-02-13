@@ -258,6 +258,7 @@ ULWS_COVERED    = $80
 .global ULW_getcursor
 .global ULW_putcolor
 .global ULW_putcursor
+.global ULW_getwinxy_imp
 .global ULW_freebuf
 
 .global ULW_winlist_loop

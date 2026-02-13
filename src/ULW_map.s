@@ -195,73 +195,75 @@ ULW_temp_tilecount_hi   = $7c0
 ;                           * X = cell column
 ;                           * Y = cell line
 .proc ULW_maprect_loop
-                        ; Update callback address
-                        stx @cell_callback+1
-                        sty @cell_callback+2
+                        ; Store callback address
+                        stx ULWM_callback
+                        sty ULWM_callback+1
 
                         ; Switch to bank 1 to access our window map
                         lda #1
                         sta BANKSEL::RAM
 
-                        ; Calculate and store our start address
+                        ; Compute row pointer = ULW_WINMAP + (start_line * 80)
                         lda ULWR_dest+1
                         ldx #80
                         jsr ulmath_umul8_8
-                        stx @column_loop+1
-                        stx @column_store+1
+                        stx UL_varptr
                         tya
                         clc
                         adc #>ULW_WINMAP
-                        sta @column_loop+2
-                        sta @column_store+2
+                        sta UL_varptr+1
 
-                        ; Calculate our end column index
+                        ; Calculate end column and end line
                         lda ULWR_dest
                         clc
                         adc ULWR_destsize
-                        sta @column_endcheck+1
+                        sta ULWM_end_col
                         lda ULWR_dest+1
                         clc
                         adc ULWR_destsize+1
-                        sta @line_endcheck+1
+                        sta ULWM_end_line
 
-                        ; Initialize X for each line
-                        ldy ULWR_dest+1
-@line_loop:             ldx ULWR_dest
+                        ; Initialize line counter
+                        lda ULWR_dest+1
+                        sta ULWM_cur_line
+
+@line_loop:             ldy ULWR_dest
 
                         ; Read the existing value in the map
-@column_loop:           lda ULW_WINMAP,x
+@column_loop:           lda (UL_varptr),y
 
                         ; Call the function to modify the value
-                        phx
+                        sty ULWM_cur_col
+                        ldx ULWM_cur_col
                         phy
-@cell_callback:         jsr $0000
+                        ldy ULWM_cur_line
+                        jsr ULWM_call_callback
                         ply
-                        plx
 
                         ; Store the updated value and step to the next column
-@column_store:          sta ULW_WINMAP,x
-                        inx
-@column_endcheck:       cpx #$00
+                        sta (UL_varptr),y
+                        iny
+                        cpy ULWM_end_col
                         bne @column_loop
 
-                        ; Check if done
-                        iny
-@line_endcheck:         cpy #$00
-                        beq somebodys_rts
-
-                        ; Add one line
-                        lda @column_loop+1
+                        ; Advance row pointer by 80
+                        lda UL_varptr
                         clc
                         adc #80
-                        sta @column_loop+1
-                        sta @column_store+1
-                        lda @column_loop+2
+                        sta UL_varptr
+                        lda UL_varptr+1
                         adc #0
-                        sta @column_loop+2
-                        sta @column_store+2
-                        bra @line_loop
+                        sta UL_varptr+1
+
+                        ; Check if done
+                        inc ULWM_cur_line
+                        lda ULWM_cur_line
+                        cmp ULWM_end_line
+                        bne @line_loop
+                        rts
 .endproc
+
+ULWM_call_callback:     jmp (ULWM_callback)
 
 ; ULW_set_handle_and_count - cell callback to update window handles in the map and count the changes
 .proc ULW_set_handle_and_count
@@ -342,9 +344,9 @@ somebodys_rts:          rts
 ;   In: YX              - Address of function
 ;       carry           - Set to start at screen window and follow next, clear to start at current window and follow previous
 .proc ULW_winlist_loop
-                        ; Update callback address
-                        stx @call_callback+1
-                        sty @call_callback+2
+                        ; Store callback address
+                        stx ULWL_callback
+                        sty ULWL_callback+1
 
                         ; Where are we starting the list?
                         bcs :+
@@ -366,7 +368,7 @@ somebodys_rts:          rts
                         sta ULW_scratch_fptr+2
 
                         ; Call a given function for each iteration of the loop
-@call_callback:         jsr $0000
+                        jsr ULWL_call_callback
 
                         ; Step to the next window
                         lda ULW_scratch_fptr+2
@@ -377,7 +379,16 @@ somebodys_rts:          rts
                         rts
 .endproc
 
+ULWL_call_callback:     jmp (ULWL_callback)
+
 .bss
 
 ULW_dirty:              .res    1   ; Dirty flag (set if there is a dirty rect)
 ULW_dirtyrect:          .res    4   ; Dirty rectangle (top/left/bottom/right cell)
+
+ULWM_callback:          .res    2   ; maprect_loop callback address
+ULWM_end_col:           .res    1
+ULWM_end_line:          .res    1
+ULWM_cur_line:          .res    1
+ULWM_cur_col:           .res    1
+ULWL_callback:          .res    2   ; winlist_loop callback address

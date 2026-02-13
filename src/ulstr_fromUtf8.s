@@ -31,8 +31,8 @@
                         jsr ULS_copystrdata
 
 @create_db:             ; Save source pointer for later copy
-                        stx @copysrc
-                        sty @copysrc+1
+                        stx ULSFU_copysrc
+                        sty ULSFU_copysrc+1
 
                         ; Create data block with size = bytelen (raw UTF-8 only, no header, no NUL)
                         lda ULS_bytelen
@@ -46,8 +46,8 @@
                         jmp @fail
 :
                         ; Save data block handle
-                        stx @db_handle
-                        sty @db_handle+1
+                        stx ULSFU_db_handle
+                        sty ULSFU_db_handle+1
 
                         ; Get data block's BRP and access it for writing
                         jsr uldb_getbrp         ; YX = data BRP
@@ -57,8 +57,8 @@
 
                         ; Copy bytelen bytes from source to data block
                         lda ULS_bytelen
-                        ldx @copysrc
-                        ldy @copysrc+1
+                        ldx ULSFU_copysrc
+                        ldy ULSFU_copysrc+1
                         jsr ULS_copystrdata     ; NUL-terminates but we don't care, data block ignores it
 
                         ; Allocate MSGBLOCK
@@ -68,8 +68,8 @@
                         jmp @fail_free_db
 :
                         ; Save MB handle
-                        stx @mb_handle
-                        sty @mb_handle+1
+                        stx ULSFU_mb_handle
+                        sty ULSFU_mb_handle+1
 
                         ; Access MB to write fields
                         lda #ULPOOL::MSGBLOCK
@@ -80,10 +80,10 @@
                         ; refcount = 1 (already set by pool_alloc)
                         ; data_block = db handle
                         ldy #ULMSG_BLOCK::data_block
-                        lda @db_handle
+                        lda ULSFU_db_handle
                         sta (UL_varptr),y
                         iny
-                        lda @db_handle+1
+                        lda ULSFU_db_handle+1
                         sta (UL_varptr),y
 
                         ; start = 0
@@ -129,8 +129,8 @@
 
                         ; Return MB handle in YX
                         ; (data block already has refcount=1 from uldb_create, which is the MB's ownership)
-                        ldx @mb_handle
-                        ldy @mb_handle+1
+                        ldx ULSFU_mb_handle
+                        ldy ULSFU_mb_handle+1
                         pla
                         sta BANKSEL::RAM
                         pla                     ; restore A
@@ -142,8 +142,8 @@
                         ldy #0
                         jsr uldb_create
                         bcs @fail
-                        stx @db_handle
-                        sty @db_handle+1
+                        stx ULSFU_db_handle
+                        sty ULSFU_db_handle+1
 
                         ; Allocate MSGBLOCK
                         lda #ULPOOL::MSGBLOCK
@@ -151,8 +151,8 @@
                         bcs @fail_free_db
 
                         ; Save MB handle
-                        stx @mb_handle
-                        sty @mb_handle+1
+                        stx ULSFU_mb_handle
+                        sty ULSFU_mb_handle+1
 
                         ; Access MB
                         lda #ULPOOL::MSGBLOCK
@@ -162,10 +162,10 @@
 
                         ; data_block
                         ldy #ULMSG_BLOCK::data_block
-                        lda @db_handle
+                        lda ULSFU_db_handle
                         sta (UL_varptr),y
                         iny
-                        lda @db_handle+1
+                        lda ULSFU_db_handle+1
                         sta (UL_varptr),y
 
                         ; start = 0, end = 0
@@ -203,16 +203,16 @@
 
                         ; Return MB handle
                         ; (data block already has refcount=1 from uldb_create)
-                        ldx @mb_handle
-                        ldy @mb_handle+1
+                        ldx ULSFU_mb_handle
+                        ldy ULSFU_mb_handle+1
                         pla
                         sta BANKSEL::RAM
                         pla                     ; restore A
                         clc
                         rts
 
-@fail_free_db:          ldx @db_handle
-                        ldy @db_handle+1
+@fail_free_db:          ldx ULSFU_db_handle
+                        ldy ULSFU_db_handle+1
                         jsr uldb_release
 
 @fail:                  pla
@@ -221,8 +221,10 @@
                         sec
                         rts
 
-.bss
-@copysrc:               .res 2
-@db_handle:             .res 2
-@mb_handle:             .res 2
 .endproc
+
+.bss
+
+ULSFU_copysrc:          .res 2
+ULSFU_db_handle:        .res 2
+ULSFU_mb_handle:        .res 2

@@ -7,8 +7,8 @@
 ;  Out: carry set on error
 .proc ulstr_toUtf8
                         ; Save iterator handle
-                        stx @iter
-                        sty @iter+1
+                        stx ULST_iter
+                        sty ULST_iter+1
 
                         ; Save caller's bank
                         lda BANKSEL::RAM
@@ -23,31 +23,31 @@
                         ldx gREG::r0L
                         ldy gREG::r0H
                         jsr ulstr_getrawlen
-                        sta @rawlen
+                        sta ULST_rawlen
 
                         ; Loop rawlen times: store each byte via the byte iterator
-                        lda @rawlen
+                        lda ULST_rawlen
                         beq @done
-                        sta @count
-                        stz @src_idx
+                        sta ULST_count
+                        stz ULST_src_idx
 
 @loop:                  ; Load byte from $400 + src_idx
-                        ldy @src_idx
+                        ldy ULST_src_idx
                         lda $400,y
 
                         ; Store via ulitr_store (A = byte value, YX = iterator)
-                        ldx @iter
-                        ldy @iter+1
+                        ldx ULST_iter
+                        ldy ULST_iter+1
                         jsr ulitr_store
                         bcs @error
 
                         ; Advance iterator
-                        ldx @iter
-                        ldy @iter+1
+                        ldx ULST_iter
+                        ldy ULST_iter+1
                         jsr ulitr_inc
 
-                        inc @src_idx
-                        dec @count
+                        inc ULST_src_idx
+                        dec ULST_count
                         bne @loop
 
 @done:                  pla
@@ -60,9 +60,11 @@
                         sec
                         rts
 
-.bss
-@iter:                  .res 2
-@rawlen:                .res 1
-@count:                 .res 1
-@src_idx:               .res 1
 .endproc
+
+.bss
+
+ULST_iter:              .res 2
+ULST_rawlen:            .res 1
+ULST_count:             .res 1
+ULST_src_idx:           .res 1

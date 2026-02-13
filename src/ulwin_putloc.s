@@ -30,7 +30,7 @@
                         pha
                         phx
                         phy
-                        ror @wrapcheck+1
+                        ror ULWPL_wrapflag
 
                         ; Get the window structure
                         lda ULW_WINDOW_COPY::handle
@@ -51,7 +51,7 @@
                         ldy gREG::r0H
                         jsr ulstr_getprintlen   ; A = printlen
                         beq @exit
-                        sta @saved_printlen
+                        sta ULWPL_saved_printlen
 
                         ; Access the string data
                         ldx gREG::r0L
@@ -59,19 +59,19 @@
                         jsr ULS_access
 
                         ; Load printlen for first @printstr iteration
-                        lda @saved_printlen
+                        lda ULWPL_saved_printlen
 
                         ; Print what we can on this line
 @printstr:              sta ULWR_destsize
-                        sta @remaininglengthcheck+1
+                        sta ULWPL_remaining_len
                         jsr ULW_drawstring
 
                         ; Check if there are characters remaining to print
-@remaininglengthcheck:  cmp #$00
+                        cmp ULWPL_remaining_len
                         beq @updatecursor
 
                         ; Do we want to wrap/scroll?
-@wrapcheck:             ldx #$00
+                        bit ULWPL_wrapflag
                         bpl @updatecursor
 
                         ; Wrap to next line
@@ -109,6 +109,10 @@
                         lda ULW_WINDOW_COPY::handle
                         rts
 
-.bss
-@saved_printlen:        .res 1
 .endproc
+
+.bss
+
+ULWPL_saved_printlen:   .res 1
+ULWPL_wrapflag:         .res 1
+ULWPL_remaining_len:    .res 1

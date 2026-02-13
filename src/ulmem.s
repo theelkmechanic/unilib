@@ -384,14 +384,14 @@ _alloc_adjust_free_count:
                         ; If carry was set on entry, clear the allocated memory
                         plx
                         plp
-                        stx _alloc_reloadslot+1
+                        stx ULM_alloc_slot
                         bcc _alloc_return_brp
 
                         ; Save r0/r1 so we can use memory_fill
                         PUSHREGS 2
 
                         ; Calculate address
-_alloc_reloadslot:      ldx #$00
+                        ldx ULM_alloc_slot
                         jsr ULM_slot2addr
                         stx gREG::r0L
                         sty gREG::r0H
@@ -410,7 +410,7 @@ _alloc_reloadslot:      ldx #$00
                         POPREGS 2
 
                         ; Return bank in Y and slot in X
-_alloc_return_brp:      ldx _alloc_reloadslot+1
+_alloc_return_brp:      ldx ULM_alloc_slot
                         ldy BANKSEL::RAM
                         clc
                         jmp _alloc_done
@@ -560,3 +560,4 @@ _alloc_return_brp:      ldx _alloc_reloadslot+1
 
 ULM_numbanks:           .res    1
 ULM_scratchspace:       .res    6
+ULM_alloc_slot:         .res    1

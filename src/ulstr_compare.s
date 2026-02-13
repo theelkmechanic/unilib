@@ -19,10 +19,10 @@
                         ldx gREG::r0L
                         ldy gREG::r0H
                         jsr ulstr_getrawlen
-                        sta @s1_bytelen
+                        sta ULSC_s1_bytelen
 
                         ; Copy $400 data to $500
-                        lda @s1_bytelen
+                        lda ULSC_s1_bytelen
                         beq @do_s2
                         tay
 :                       dey
@@ -40,10 +40,10 @@
                         ldx gREG::r1L
                         ldy gREG::r1H
                         jsr ulstr_getrawlen
-                        sta @s2_bytelen
+                        sta ULSC_s2_bytelen
 
                         ; Copy $400 data to $600
-                        lda @s2_bytelen
+                        lda ULSC_s2_bytelen
                         beq @compare
                         tay
 :                       dey
@@ -54,10 +54,10 @@
 
                         ; Compare min(bytelen1, bytelen2) data bytes
                         ; Data is at $500 and $600 (no offset — raw data)
-@compare:               lda @s1_bytelen
-                        cmp @s2_bytelen
+@compare:               lda ULSC_s1_bytelen
+                        cmp ULSC_s2_bytelen
                         bcc @use_s1_len
-                        lda @s2_bytelen
+                        lda ULSC_s2_bytelen
 @use_s1_len:            tax                     ; X = min len
                         beq @compare_lengths    ; both empty or one empty
 
@@ -71,8 +71,8 @@
                         bne @cmp_loop
 
                         ; All compared bytes equal, compare lengths
-@compare_lengths:       lda @s1_bytelen
-                        cmp @s2_bytelen
+@compare_lengths:       lda ULSC_s1_bytelen
+                        cmp ULSC_s2_bytelen
                         beq @equal
                         bcc @less
 
@@ -91,7 +91,9 @@
                         lda #0
                         rts
 
-.bss
-@s1_bytelen:            .res 1
-@s2_bytelen:            .res 1
 .endproc
+
+.bss
+
+ULSC_s1_bytelen:        .res 1
+ULSC_s2_bytelen:        .res 1

@@ -42,8 +42,19 @@
   - `cont`: continuation chain for multi-part data ($0000 = none)
   - `next`/`prev`: doubly-linked list pointers ($0000 = none)
   - `type`: `ULMBT::LIST_ENTRY` or `ULMBT::STRING_FRAG`; `flags`: `ULMBF::READONLY = $80`
+  - Null sentinel for all pool handle fields is `$0000` (pool index 0 = invalid)
 - Insert/delete: O(n) walk to position, O(1) append via tail pointer (A=255)
 - `ullist_release`: walks chain freeing all MBs and their data blocks, then frees list header
+
+### Strings (`src/ulstr_*.s`, `src/ULS_*.s`)
+- String handle = MSGBLOCK pool index (YX). The MB holds: refcount, data_block, start, end
+- Data block payload = raw UTF-8 bytes only (no header, no NUL terminator)
+- Byte range defined by MB `start`/`end`; NUL added only in scratch buffer by `ULS_access`
+- Reference counted: `ulstr_addref` increments, `ulstr_release` decrements (frees at 0)
+- Zero-copy substrings: `ulstr_mid` creates a new MB sharing the same data block with adjusted start/end
+- Metadata computed on demand: `ulstr_getrawlen` = end-start, `ulstr_getlen`/`ulstr_getprintlen` scan data
+- `ULS_access`: copies string data to $400 scratch buffer with NUL terminator, sets `ULS_scratch_fptr`
+- `ulstb_put` addrefs the new string; `ulstb_delete` releases all strings in the table
 
 ### LIST Iterator State (`src/ULI_list.s`, `src/ULI_core.s`)
 - Extended state (20 bytes total, appended after standard 10-byte iterator state):
@@ -73,6 +84,7 @@
 - ULM_scratchspace is 6 bytes; ULDB_scratch is 8 bytes; ULLIST_scratch is 12 bytes; ULI_list_scratch is 17 bytes
 - ULPOOL_scratch is 4 bytes; ULPOOL_a_scratch is 6 bytes (alloc); ULPOOL_init temps are 6 bytes
 - `.sizeof(STRUCT)` works for struct allocation sizes
+- `.bss` MUST be at end of file after all `.code`/`.proc` blocks. Putting `.bss` inside a `.proc` leaves the assembler in BSS segment — any following `.proc` code gets assembled into BSS addresses (never loaded, zeroed at startup). Use non-local names for BSS vars (e.g., `ULSA_bytelen` not `@bytelen`)
 
 ## Test Window
 - 78x28 window at (1,1). When outputting >28 lines, scroll with `ulwin_scroll` Y=$FF and stay on line 27

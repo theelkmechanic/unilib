@@ -7,10 +7,7 @@
 ;  Out: X               - Cursor column
 ;       Y               - Cursor line
 .proc ulwin_getcursor
-                        ldy #<ULW_getcursor
-                        sty getfields_call+1
-                        ldy #>ULW_getcursor
-                        sty getfields_call+2
+                        ldy #ULW_WINDOW::ccol
                         bra ULW_getwinfields
 .endproc
 
@@ -19,10 +16,7 @@
 ;  Out: X               - Number of columns
 ;       Y               - Number of lines
 .proc ulwin_getsize
-                        ldy #<ULW_getsize
-                        sty getfields_call+1
-                        ldy #>ULW_getsize
-                        sty getfields_call+2
+                        ldy #ULW_WINDOW::ncol
                         bra ULW_getwinfields
 .endproc
 
@@ -31,17 +25,15 @@
 ;  Out: X               - Start column
 ;       Y               - Start line
 .proc ulwin_getpos
-                        ldy #<ULW_getpos
-                        sty getfields_call+1
-                        ldy #>ULW_getpos
-                        sty getfields_call+2
+                        ldy #ULW_WINDOW::scol
 .endproc
 
 ; FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
 
 ; ULW_getwinfields - Get the desired fields into X/Y
 ULW_getwinfields:
-                        ; Save the handle and bank
+                        ; Save the offset, handle and bank
+                        sty ULWGF_offset
                         pha
                         ldx BANKSEL::RAM
                         phx
@@ -52,7 +44,8 @@ ULW_getwinfields:
                         sty ULW_scratch_fptr+1
 
                         ; Get the fields
-getfields_call:         jsr $FFFF
+                        ldy ULWGF_offset
+                        jsr ULW_getwinxy_imp
 
                         ; Restore and exit
                         pla
@@ -103,3 +96,7 @@ ULW_getlc:
                         plx
                         ply
                         rts
+
+.bss
+
+ULWGF_offset:           .res    1

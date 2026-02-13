@@ -35,7 +35,7 @@
                         cmp #73
                         bcc :+
                         lda #73
-:                       sta @getmsglen+1
+:                       sta ULWB_msglen
 
                         ; Window width is length + 2
                         inc
@@ -47,7 +47,7 @@
                         ; Window left is 75 - length
                         lda #75
                         sec
-@getmsglen:             sbc #$00
+                        sbc ULWB_msglen
                         sta gREG::r0L
                         lda #27
                         sta gREG::r0H
@@ -100,3 +100,4 @@ ULW_busymsg:            .asciiz "Busy..."
 .bss
 
 ULW_busystr:            .res    2
+ULWB_msglen:            .res    1

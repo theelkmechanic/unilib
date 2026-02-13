@@ -19,10 +19,10 @@
                         ldx gREG::r0L
                         ldy gREG::r0H
                         jsr ulstr_getrawlen     ; A = bytelen1
-                        sta @s1_bytelen
+                        sta ULSAP_s1_bytelen
 
                         ; Copy $400 data to $500
-                        lda @s1_bytelen
+                        lda ULSAP_s1_bytelen
                         beq @copy_s2
                         tay
 :                       dey
@@ -40,10 +40,10 @@
                         ldx gREG::r1L
                         ldy gREG::r1H
                         jsr ulstr_getrawlen     ; A = bytelen2
-                        sta @s2_bytelen
+                        sta ULSAP_s2_bytelen
 
                         ; Copy $400 data to $500 + s1_bytelen
-                        lda @s2_bytelen
+                        lda ULSAP_s2_bytelen
                         beq @check_total
                         tax
                         ldy #0
@@ -51,38 +51,38 @@
                         pha
                         tya
                         clc
-                        adc @s1_bytelen
+                        adc ULSAP_s1_bytelen
                         tay
                         pla
                         sta $500,y
                         tya
                         sec
-                        sbc @s1_bytelen
+                        sbc ULSAP_s1_bytelen
                         tay
                         iny
                         dex
                         bne @copy_s2_loop
 
                         ; Check total <= 252
-@check_total:           lda @s1_bytelen
+@check_total:           lda ULSAP_s1_bytelen
                         clc
-                        adc @s2_bytelen
+                        adc ULSAP_s2_bytelen
                         bcc :+
                         jmp @too_long           ; overflow
 :                       cmp #253
                         bcc :+
                         jmp @too_long
-:                       sta @total_bytelen
+:                       sta ULSAP_total_bytelen
 
                         ; Create data block with total size
-                        ldx @total_bytelen
+                        ldx ULSAP_total_bytelen
                         ldy #0
                         jsr uldb_create
                         bcc :+
                         jmp @alloc_fail
 :
-                        stx @db_handle
-                        sty @db_handle+1
+                        stx ULSAP_db_handle
+                        sty ULSAP_db_handle+1
 
                         ; Access data block BRP and copy from $500
                         jsr uldb_getbrp
@@ -90,7 +90,7 @@
                         stx ULS_scratch_fptr
                         sty ULS_scratch_fptr+1
 
-                        lda @total_bytelen
+                        lda ULSAP_total_bytelen
                         beq @alloc_mb
                         tay
 :                       dey
@@ -105,8 +105,8 @@
                         bcs @fail_free_db
 
                         ; Save MB handle
-                        stx @mb_handle
-                        sty @mb_handle+1
+                        stx ULSAP_mb_handle
+                        sty ULSAP_mb_handle+1
 
                         ; Access MB to write fields
                         lda #ULPOOL::MSGBLOCK
@@ -116,10 +116,10 @@
 
                         ; data_block
                         ldy #ULMSG_BLOCK::data_block
-                        lda @db_handle
+                        lda ULSAP_db_handle
                         sta (UL_varptr),y
                         iny
-                        lda @db_handle+1
+                        lda ULSAP_db_handle+1
                         sta (UL_varptr),y
 
                         ; start = 0
@@ -131,7 +131,7 @@
 
                         ; end = total_bytelen
                         ldy #ULMSG_BLOCK::end
-                        lda @total_bytelen
+                        lda ULSAP_total_bytelen
                         sta (UL_varptr),y
                         iny
                         lda #0
@@ -161,8 +161,8 @@
 
                         ; Return MB handle
                         ; (data block already has refcount=1 from uldb_create)
-                        ldx @mb_handle
-                        ldy @mb_handle+1
+                        ldx ULSAP_mb_handle
+                        ldy ULSAP_mb_handle+1
                         pla
                         sta BANKSEL::RAM
                         clc
@@ -175,18 +175,20 @@
                         sec
                         rts
 
-@fail_free_db:          ldx @db_handle
-                        ldy @db_handle+1
+@fail_free_db:          ldx ULSAP_db_handle
+                        ldy ULSAP_db_handle+1
                         jsr uldb_release
                         pla
                         sta BANKSEL::RAM
                         sec
                         rts
 
-.bss
-@s1_bytelen:            .res 1
-@s2_bytelen:            .res 1
-@total_bytelen:         .res 1
-@db_handle:             .res 2
-@mb_handle:             .res 2
 .endproc
+
+.bss
+
+ULSAP_s1_bytelen:       .res 1
+ULSAP_s2_bytelen:       .res 1
+ULSAP_total_bytelen:    .res 1
+ULSAP_db_handle:        .res 2
+ULSAP_mb_handle:        .res 2
