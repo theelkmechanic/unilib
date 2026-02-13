@@ -3,49 +3,68 @@
 .code
 
 ; ulstr_append - Concatenate two strings
-;   In: r0 = first string BRP, r1 = second string BRP
-;  Out: YX = new string BRP, carry set on error
+;   In: r0 = first string handle (MSGBLOCK pool index), r1 = second string handle
+;  Out: YX = new string handle (MSGBLOCK pool index), carry set on error
 .proc ulstr_append
                         ; Save caller's bank
                         lda BANKSEL::RAM
                         pha
 
-                        ; Copy string 1 to $500
+                        ; Access string 1 via ULS_access → copies to $400
                         ldx gREG::r0L
                         ldy gREG::r0H
-                        jsr ulmem_access
-                        stx ULS_scratch_fptr
-                        sty ULS_scratch_fptr+1
-                        lda (ULS_scratch_fptr)  ; bytelen1
+                        jsr ULS_access
+
+                        ; Get bytelen1 from MB
+                        ldx gREG::r0L
+                        ldy gREG::r0H
+                        jsr ulstr_getrawlen     ; A = bytelen1
                         sta @s1_bytelen
-                        clc
-                        adc #4
+
+                        ; Copy $400 data to $500
+                        lda @s1_bytelen
+                        beq @copy_s2
                         tay
 :                       dey
-                        lda (ULS_scratch_fptr),y
+                        lda $400,y
                         sta $500,y
                         cpy #0
                         bne :-
 
-                        ; Copy string 2 to $600
+                        ; Access string 2 via ULS_access → copies to $400
+@copy_s2:               ldx gREG::r1L
+                        ldy gREG::r1H
+                        jsr ULS_access
+
+                        ; Get bytelen2 from MB
                         ldx gREG::r1L
                         ldy gREG::r1H
-                        jsr ulmem_access
-                        stx ULS_scratch_fptr
-                        sty ULS_scratch_fptr+1
-                        lda (ULS_scratch_fptr)  ; bytelen2
+                        jsr ulstr_getrawlen     ; A = bytelen2
                         sta @s2_bytelen
-                        clc
-                        adc #4
-                        tay
-:                       dey
-                        lda (ULS_scratch_fptr),y
-                        sta $600,y
-                        cpy #0
-                        bne :-
 
-                        ; Total bytelen = s1 + s2
-                        lda @s1_bytelen
+                        ; Copy $400 data to $500 + s1_bytelen
+                        lda @s2_bytelen
+                        beq @check_total
+                        tax
+                        ldy #0
+@copy_s2_loop:          lda $400,y
+                        pha
+                        tya
+                        clc
+                        adc @s1_bytelen
+                        tay
+                        pla
+                        sta $500,y
+                        tya
+                        sec
+                        sbc @s1_bytelen
+                        tay
+                        iny
+                        dex
+                        bne @copy_s2_loop
+
+                        ; Check total <= 252
+@check_total:           lda @s1_bytelen
                         clc
                         adc @s2_bytelen
                         bcc :+
@@ -55,94 +74,95 @@
                         jmp @too_long
 :                       sta @total_bytelen
 
-                        ; Allocate: total + 4 (3 header + data + NUL)
-                        tax
-                        inx
-                        inx
-                        inx
-                        inx                     ; size = total + 4
+                        ; Create data block with total size
+                        ldx @total_bytelen
                         ldy #0
-                        jsr ulmem_alloc
-                        bcs @alloc_fail
+                        jsr uldb_create
+                        bcc :+
+                        jmp @alloc_fail
+:
+                        stx @db_handle
+                        sty @db_handle+1
 
-                        ; Save new BRP
-                        phx
-                        phy
-
-                        ; Access new BRP
+                        ; Access data block BRP and copy from $500
+                        jsr uldb_getbrp
                         jsr ulmem_access
                         stx ULS_scratch_fptr
                         sty ULS_scratch_fptr+1
 
-                        ; Write header: bytelen, charlen, printlen
                         lda @total_bytelen
-                        sta (ULS_scratch_fptr)
-                        ldy #1
-                        ; charlen = s1_charlen + s2_charlen
-                        lda $501                ; s1 charlen
-                        clc
-                        adc $601                ; s2 charlen
+                        beq @alloc_mb
+                        tay
+:                       dey
+                        lda $500,y
                         sta (ULS_scratch_fptr),y
+                        cpy #0
+                        bne :-
+
+                        ; Allocate MSGBLOCK
+@alloc_mb:              lda #ULPOOL::MSGBLOCK
+                        jsr ulpool_alloc
+                        bcs @fail_free_db
+
+                        ; Save MB handle
+                        stx @mb_handle
+                        sty @mb_handle+1
+
+                        ; Access MB to write fields
+                        lda #ULPOOL::MSGBLOCK
+                        jsr ulpool_access
+                        stx UL_varptr
+                        sty UL_varptr+1
+
+                        ; data_block
+                        ldy #ULMSG_BLOCK::data_block
+                        lda @db_handle
+                        sta (UL_varptr),y
                         iny
-                        ; printlen = s1_printlen + s2_printlen
-                        lda $502                ; s1 printlen
-                        clc
-                        adc $602                ; s2 printlen
-                        sta (ULS_scratch_fptr),y
+                        lda @db_handle+1
+                        sta (UL_varptr),y
 
-                        ; Copy string 1 data (from $503, s1_bytelen bytes)
-                        ldy #0
-                        ldx @s1_bytelen
-                        beq @copy_s2
-@copy_s1:               lda $503,y
-                        pha
-                        tya
-                        clc
-                        adc #3
-                        tay
-                        pla
-                        sta (ULS_scratch_fptr),y
-                        tya
-                        sec
-                        sbc #3
-                        tay
-                        iny
-                        dex
-                        bne @copy_s1
-
-                        ; Copy string 2 data (from $603, s2_bytelen bytes)
-@copy_s2:               ldx @s2_bytelen
-                        beq @terminate
-                        ; Y = s1_bytelen (offset into dest data area)
-                        stz @src_idx
-@copy_s2_loop:          lda @src_idx
-                        pha
-                        tay
-                        lda $603,y              ; source byte
-                        sta @temp_byte
-                        pla
-                        clc
-                        adc @s1_bytelen
-                        clc
-                        adc #3                  ; dest offset = 3 + s1_bytelen + src_idx
-                        tay
-                        lda @temp_byte
-                        sta (ULS_scratch_fptr),y
-                        inc @src_idx
-                        dex
-                        bne @copy_s2_loop
-
-                        ; NUL terminate
-@terminate:             lda @total_bytelen
-                        clc
-                        adc #3
-                        tay
+                        ; start = 0
+                        ldy #ULMSG_BLOCK::start
                         lda #0
-                        sta (ULS_scratch_fptr),y
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
 
-                        ; Return new BRP
-                        ply
-                        plx
+                        ; end = total_bytelen
+                        ldy #ULMSG_BLOCK::end
+                        lda @total_bytelen
+                        sta (UL_varptr),y
+                        iny
+                        lda #0
+                        sta (UL_varptr),y
+
+                        ; cont/next/prev = $0000
+                        ldy #ULMSG_BLOCK::cont
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
+                        ldy #ULMSG_BLOCK::next
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
+                        ldy #ULMSG_BLOCK::prev
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
+
+                        ; type = STRING_FRAG, flags = 0
+                        ldy #ULMSG_BLOCK::type
+                        lda #ULMBT::STRING_FRAG
+                        sta (UL_varptr),y
+                        iny
+                        lda #0
+                        sta (UL_varptr),y
+
+                        ; Return MB handle
+                        ; (data block already has refcount=1 from uldb_create)
+                        ldx @mb_handle
+                        ldy @mb_handle+1
                         pla
                         sta BANKSEL::RAM
                         clc
@@ -155,10 +175,18 @@
                         sec
                         rts
 
+@fail_free_db:          ldx @db_handle
+                        ldy @db_handle+1
+                        jsr uldb_release
+                        pla
+                        sta BANKSEL::RAM
+                        sec
+                        rts
+
 .bss
 @s1_bytelen:            .res 1
 @s2_bytelen:            .res 1
 @total_bytelen:         .res 1
-@src_idx:               .res 1
-@temp_byte:             .res 1
+@db_handle:             .res 2
+@mb_handle:             .res 2
 .endproc

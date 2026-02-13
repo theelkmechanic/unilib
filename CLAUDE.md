@@ -36,11 +36,11 @@
 ### Blocklists (`src/ullist.s`)
 - `ULBLOCK_LIST` struct (8 bytes in BLOCKLIST pool): refcount, size, head, tail
 - Entries are a doubly-linked chain of message blocks (not an array)
-- `ULMSG_BLOCK` struct (16 bytes in MSGBLOCK pool): refcount, data_block, rd_ptr, wr_ptr, cont, next, prev, type, flags
+- `ULMSG_BLOCK` struct (16 bytes in MSGBLOCK pool): refcount, data_block, start, end, cont, next, prev, type, flags
   - `data_block`: DATABLOCK pool handle (addref'd on insert, released on delete)
-  - `rd_ptr`/`wr_ptr`: byte offsets into data block's buffer (view window)
-  - `cont`: continuation chain for multi-part data ($FFFF = none, used by future string refactoring)
-  - `next`/`prev`: doubly-linked list pointers ($FFFF = none)
+  - `start`/`end`: byte offsets into data block's buffer (view window)
+  - `cont`: continuation chain for multi-part data ($0000 = none)
+  - `next`/`prev`: doubly-linked list pointers ($0000 = none)
   - `type`: `ULMBT::LIST_ENTRY` or `ULMBT::STRING_FRAG`; `flags`: `ULMBF::READONLY = $80`
 - Insert/delete: O(n) walk to position, O(1) append via tail pointer (A=255)
 - `ullist_release`: walks chain freeing all MBs and their data blocks, then frees list header
@@ -53,7 +53,7 @@
   - `ULI_STATE_BLK_END` (offset 17, 3 bytes): current block data end addr
 - Boundary check follows MB `next`/`prev` links (no list handle needed at runtime)
 - `ULI_at_end`: checks `CUR_MB == TERM_MB` (direction-independent, avoids pool access)
-- `ULI_list_load_block`: takes MB handle, reads data_block/rd_ptr/wr_ptr, computes addr = base + rd_ptr, end = base + wr_ptr
+- `ULI_list_load_block`: takes MB handle, reads data_block/start/end, computes addr = base + start, end = base + end
 
 ## Common Patterns
 - Save/restore caller's bank: `lda BANKSEL::RAM; pha` at entry, `pla; sta BANKSEL::RAM` at exit

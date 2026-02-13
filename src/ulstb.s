@@ -73,25 +73,36 @@
 :
                         stz ULSTB_idx
 
-@loop:                  ; Save table bank (release will change it)
+@loop:                  ; Save table bank and slot pointer (release clobbers both)
                         lda BANKSEL::RAM
                         pha
+                        lda UL_varptr
+                        sta ULSTB_slot
+                        lda UL_varptr+1
+                        sta ULSTB_slot+1
 
-                        ; Read slot BRP
+                        ; Read slot handle (check both bytes for zero)
                         ldy #0
                         lda (UL_varptr),y
                         tax
                         iny
                         lda (UL_varptr),y
+                        stx UL_temp_l
+                        ora UL_temp_l
                         beq @next
 
-                        ; Release the string (YX = string BRP)
+                        ; Release the string (YX = string handle)
+                        lda (UL_varptr),y       ; reload hi byte
                         tay
                         jsr ulstr_release
 
-@next:                  ; Restore table bank
+@next:                  ; Restore table bank and slot pointer
                         pla
                         sta BANKSEL::RAM
+                        lda ULSTB_slot
+                        sta UL_varptr
+                        lda ULSTB_slot+1
+                        sta UL_varptr+1
 
                         ; Advance pointer by 2
                         lda UL_varptr
@@ -177,8 +188,9 @@
 .proc ulstb_put
                         ; Validate index != 0
                         cmp #0
-                        beq @error
-
+                        bne :+
+                        jmp @error
+:
                         ; Save string BRP and index
                         stx ULSTB_str
                         sty ULSTB_str+1
@@ -213,13 +225,59 @@
                         adc UL_varptr+1
                         sta UL_varptr+1
 
-                        ; Write string BRP
+                        ; Read old handle from slot
+                        ldy #0
+                        lda (UL_varptr),y
+                        sta ULSTB_old
+                        iny
+                        lda (UL_varptr),y
+                        sta ULSTB_old+1
+
+                        ; Save table bank and slot pointer (addref/release clobber both)
+                        lda BANKSEL::RAM
+                        pha
+                        lda UL_varptr
+                        sta ULSTB_slot
+                        lda UL_varptr+1
+                        sta ULSTB_slot+1
+
+                        ; Addref new string first (if non-zero)
+                        lda ULSTB_str
+                        ora ULSTB_str+1
+                        beq @write_slot
+                        ldx ULSTB_str
+                        ldy ULSTB_str+1
+                        jsr ulstr_addref
+
+@write_slot:            ; Restore table bank and slot pointer
+                        pla
+                        sta BANKSEL::RAM
+                        lda ULSTB_slot
+                        sta UL_varptr
+                        lda ULSTB_slot+1
+                        sta UL_varptr+1
+
+                        ; Write new handle to slot
                         lda ULSTB_str
                         sta (UL_varptr)
                         ldy #1
                         lda ULSTB_str+1
                         sta (UL_varptr),y
 
+                        ; Save table bank and slot pointer again for release
+                        lda BANKSEL::RAM
+                        pha
+
+                        ; Release old string (if non-zero)
+                        lda ULSTB_old
+                        ora ULSTB_old+1
+                        beq @put_done
+                        ldx ULSTB_old
+                        ldy ULSTB_old+1
+                        jsr ulstr_release
+
+@put_done:              pla
+                        sta BANKSEL::RAM
                         clc
                         rts
 
@@ -298,6 +356,12 @@
                         ldx ULSTB_str
                         ldy ULSTB_str+1
                         jsr ulstb_put
+
+                        ; Release the string to balance addref from put
+                        ; (fromUtf8 created with refcount=1, put addref'd to 2, now back to 1)
+                        ldx ULSTB_str
+                        ldy ULSTB_str+1
+                        jsr ulstr_release
 
                         ; Scan past current string to find next
                         lda ULSTB_cur
@@ -434,6 +498,8 @@
 ULSTB_tbl:              .res    2       ; table BRP (used by delete/build)
 ULSTB_count:            .res    1       ; slot count (used by delete/build)
 ULSTB_idx:              .res    1       ; loop index (used by delete/build)
-ULSTB_str:              .res    2       ; temp string BRP (used by put/build)
+ULSTB_str:              .res    2       ; temp string handle (used by put/build)
+ULSTB_old:              .res    2       ; old string handle (used by put)
+ULSTB_slot:             .res    2       ; slot pointer (used by put)
 ULSTB_src:              .res    2       ; source address (used by build)
 ULSTB_cur:              .res    2       ; current position (used by build)

@@ -106,16 +106,15 @@
                         iny
                         sta (UL_varptr),y
 
-                        ; head = $FFFF
+                        ; head = $0000
                         ldy #ULBLOCK_LIST::head
-                        lda #$FF
+                        lda #0
                         sta (UL_varptr),y
                         iny
                         sta (UL_varptr),y
 
-                        ; tail = $FFFF
+                        ; tail = $0000
                         ldy #ULBLOCK_LIST::tail
-                        lda #$FF
                         sta (UL_varptr),y
                         iny
                         sta (UL_varptr),y
@@ -158,38 +157,36 @@
                         lda ULLIST_scratch+1
                         sta (UL_varptr),y
 
-                        ; rd_ptr = 0
-                        ldy #ULMSG_BLOCK::rd_ptr
+                        ; start = 0
+                        ldy #ULMSG_BLOCK::start
                         lda #0
                         sta (UL_varptr),y
                         iny
                         sta (UL_varptr),y
 
-                        ; wr_ptr = data block size
-                        ldy #ULMSG_BLOCK::wr_ptr
+                        ; end = data block size
+                        ldy #ULMSG_BLOCK::end
                         lda ULLIST_scratch+2
                         sta (UL_varptr),y
                         iny
                         lda ULLIST_scratch+3
                         sta (UL_varptr),y
 
-                        ; cont = $FFFF
+                        ; cont = $0000
                         ldy #ULMSG_BLOCK::cont
-                        lda #$FF
+                        lda #0
                         sta (UL_varptr),y
                         iny
                         sta (UL_varptr),y
 
-                        ; next = $FFFF
+                        ; next = $0000
                         ldy #ULMSG_BLOCK::next
-                        lda #$FF
                         sta (UL_varptr),y
                         iny
                         sta (UL_varptr),y
 
-                        ; prev = $FFFF
+                        ; prev = $0000
                         ldy #ULMSG_BLOCK::prev
-                        lda #$FF
                         sta (UL_varptr),y
                         iny
                         sta (UL_varptr),y
@@ -446,22 +443,22 @@
                         iny
                         lda ULLIST_scratch+1
                         sta (UL_varptr),y
-                        ; rd_ptr = 0
-                        ldy #ULMSG_BLOCK::rd_ptr
+                        ; start = 0
+                        ldy #ULMSG_BLOCK::start
                         lda #0
                         sta (UL_varptr),y
                         iny
                         sta (UL_varptr),y
-                        ; wr_ptr = db size
-                        ldy #ULMSG_BLOCK::wr_ptr
+                        ; end = db size
+                        ldy #ULMSG_BLOCK::end
                         lda ULLIST_scratch+10
                         sta (UL_varptr),y
                         iny
                         lda ULLIST_scratch+11
                         sta (UL_varptr),y
-                        ; cont = $FFFF
+                        ; cont = $0000
                         ldy #ULMSG_BLOCK::cont
-                        lda #$FF
+                        lda #0
                         sta (UL_varptr),y
                         iny
                         sta (UL_varptr),y
@@ -487,12 +484,12 @@
 
                         ; --- Empty list ---
 @insert_empty:
-                        ; Set new_mb: next=$FFFF, prev=$FFFF (already from cont write scope)
+                        ; Set new_mb: next=$0000, prev=$0000
                         ldx ULLIST_scratch+6
                         ldy ULLIST_scratch+7
                         jsr ULLIST_access_mb
                         ldy #ULMSG_BLOCK::next
-                        lda #$FF
+                        lda #0
                         sta (UL_varptr),y
                         iny
                         sta (UL_varptr),y
@@ -532,12 +529,12 @@
                         lda (UL_varptr),y
                         sta ULLIST_scratch+9    ; old_tail hi
 
-                        ; Set new_mb: next=$FFFF, prev=old_tail
+                        ; Set new_mb: next=$0000, prev=old_tail
                         ldx ULLIST_scratch+6
                         ldy ULLIST_scratch+7
                         jsr ULLIST_access_mb
                         ldy #ULMSG_BLOCK::next
-                        lda #$FF
+                        lda #0
                         sta (UL_varptr),y
                         iny
                         sta (UL_varptr),y
@@ -584,7 +581,7 @@
                         lda (UL_varptr),y
                         sta ULLIST_scratch+9    ; old_head hi
 
-                        ; Set new_mb: next=old_head, prev=$FFFF
+                        ; Set new_mb: next=old_head, prev=$0000
                         ldx ULLIST_scratch+6
                         ldy ULLIST_scratch+7
                         jsr ULLIST_access_mb
@@ -595,7 +592,7 @@
                         lda ULLIST_scratch+9
                         sta (UL_varptr),y
                         ldy #ULMSG_BLOCK::prev
-                        lda #$FF
+                        lda #0
                         sta (UL_varptr),y
                         iny
                         sta (UL_varptr),y
@@ -781,10 +778,9 @@
                         lda (UL_varptr),y
                         sta ULLIST_scratch+11   ; next_mb hi
 
-                        ; Unlink: if prev != $FFFF, set prev.next = next
+                        ; Unlink: if prev != $0000, set prev.next = next
                         lda ULLIST_scratch+6
-                        and ULLIST_scratch+7
-                        cmp #$FF
+                        ora ULLIST_scratch+7
                         beq @update_head
 
                         ldx ULLIST_scratch+6
@@ -798,7 +794,7 @@
                         sta (UL_varptr),y
                         bra @check_next
 
-                        ; prev == $FFFF: this was the head, update list.head = next
+                        ; prev == $0000: this was the head, update list.head = next
 @update_head:           ldx ULLIST_scratch+4
                         ldy ULLIST_scratch+5
                         jsr ULLIST_access_handle
@@ -809,10 +805,9 @@
                         lda ULLIST_scratch+11
                         sta (UL_varptr),y
 
-@check_next:            ; Unlink: if next != $FFFF, set next.prev = prev
+@check_next:            ; Unlink: if next != $0000, set next.prev = prev
                         lda ULLIST_scratch+10
-                        and ULLIST_scratch+11
-                        cmp #$FF
+                        ora ULLIST_scratch+11
                         beq @update_tail
 
                         ldx ULLIST_scratch+10
@@ -826,7 +821,7 @@
                         sta (UL_varptr),y
                         bra @free_mb
 
-                        ; next == $FFFF: this was the tail, update list.tail = prev
+                        ; next == $0000: this was the tail, update list.tail = prev
 @update_tail:           ldx ULLIST_scratch+4
                         ldy ULLIST_scratch+5
                         jsr ULLIST_access_handle
@@ -918,8 +913,7 @@
 
                         ; Walk chain: release each data block, free each MB
 @release_loop:          lda ULLIST_scratch+8
-                        and ULLIST_scratch+9
-                        cmp #$FF
+                        ora ULLIST_scratch+9
                         beq @free_list          ; end of chain
 
                         ; Access current MB

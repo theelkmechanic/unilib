@@ -46,16 +46,20 @@
                         cmp ULW_WINDOW_COPY::nlin
                         bcs @exit
 
-                        ; Access the string
+                        ; Get printlen first (before ULS_access clobbers things)
+                        ldx gREG::r0L
+                        ldy gREG::r0H
+                        jsr ulstr_getprintlen   ; A = printlen
+                        beq @exit
+                        sta @saved_printlen
+
+                        ; Access the string data
                         ldx gREG::r0L
                         ldy gREG::r0H
                         jsr ULS_access
 
-                        ; Make sure there's something to print
-                        dec ULS_scratch_fptr
-                        lda (ULS_scratch_fptr)
-                        beq @exit
-                        inc ULS_scratch_fptr
+                        ; Load printlen for first @printstr iteration
+                        lda @saved_printlen
 
                         ; Print what we can on this line
 @printstr:              sta ULWR_destsize
@@ -104,4 +108,7 @@
                         sta BANKSEL::RAM
                         lda ULW_WINDOW_COPY::handle
                         rts
+
+.bss
+@saved_printlen:        .res 1
 .endproc

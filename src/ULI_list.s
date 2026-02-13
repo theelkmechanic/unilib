@@ -24,16 +24,16 @@
                         lda (UL_varptr),y
                         sta ULI_list_scratch+5
 
-                        ; Read rd_ptr
-                        ldy #ULMSG_BLOCK::rd_ptr
+                        ; Read start
+                        ldy #ULMSG_BLOCK::start
                         lda (UL_varptr),y
                         sta ULI_list_scratch+6
                         iny
                         lda (UL_varptr),y
                         sta ULI_list_scratch+7
 
-                        ; Read wr_ptr
-                        ldy #ULMSG_BLOCK::wr_ptr
+                        ; Read end
+                        ldy #ULMSG_BLOCK::end
                         lda (UL_varptr),y
                         sta ULI_list_scratch+8
                         iny
@@ -52,7 +52,7 @@
                         lda BANKSEL::RAM
                         sta ULI_list_scratch+12
 
-                        ; addr = base + rd_ptr
+                        ; addr = base + start
                         lda ULI_list_scratch+10
                         clc
                         adc ULI_list_scratch+6
@@ -64,7 +64,7 @@
                         adc #0
                         sta ULI_list_scratch+6  ; addr_bank
 
-                        ; end = base + wr_ptr
+                        ; end = base + end_offset
                         lda ULI_list_scratch+10
                         clc
                         adc ULI_list_scratch+8
@@ -477,10 +477,9 @@
                         lda (UL_varptr),y
                         sta ULI_list_scratch+1  ; next_mb hi
 
-                        ; Check if next == $FFFF (no next block)
+                        ; Check if next == $0000 (no next block)
                         lda ULI_list_scratch+0
-                        and ULI_list_scratch+1
-                        cmp #$FF
+                        ora ULI_list_scratch+1
                         beq @fwd_no_cross       ; at last block
                         bra @do_forward
 
@@ -582,10 +581,9 @@
                         lda (UL_varptr),y
                         sta ULI_list_scratch+1  ; prev_mb hi
 
-                        ; Check if prev == $FFFF (no prev block)
+                        ; Check if prev == $0000 (no prev block)
                         lda ULI_list_scratch+0
-                        and ULI_list_scratch+1
-                        cmp #$FF
+                        ora ULI_list_scratch+1
                         bne :+
                         jmp @bk_done            ; at first block
 :

@@ -2,12 +2,16 @@
 
 .code
 
-; ulstr_fromUtf8 - Allocate a BRP string from a NUL-terminated UTF-8 source
+; ulstr_fromUtf8 - Create a string from a NUL-terminated UTF-8 source
 ;   In: YX              - Pointer to UTF-8 character sequence (must be in currently accessible memory)
-;  Out: YX              - String BRP
+;  Out: YX              - String handle (MSGBLOCK pool index)
 ;       carry           - Set on error
 .proc ulstr_fromUtf8
                         ; Save A
+                        pha
+
+                        ; Save caller's bank
+                        lda BANKSEL::RAM
                         pha
 
                         ; How many bytes are we copying?
@@ -15,68 +19,210 @@
 
                         ; Is the source in banked memory?
                         cpy #$A0
-                        bcc @allocdest
+                        bcc @create_db
                         cpy #$C0
-                        bcs @allocdest
+                        bcs @create_db
 
-                        ; Allocation may be on a different page, so copy to $700 just in case
+                        ; Source is in banked memory — copy to $700 to avoid bank conflicts
                         stz ULS_scratch_fptr
                         lda #$07
                         sta ULS_scratch_fptr+1
                         lda ULS_bytelen
                         jsr ULS_copystrdata
 
-                        ; Okay, save the address to copy from and allocate enough memory for our string data
-                        ; plus 3 length bytes plus NUL-terminator
-@allocdest:             stx @getcopysrclo+1
-                        sty @getcopysrchi+1
+@create_db:             ; Save source pointer for later copy
+                        stx @copysrc
+                        sty @copysrc+1
+
+                        ; Create data block with size = bytelen (raw UTF-8 only, no header, no NUL)
+                        lda ULS_bytelen
+                        bne :+
+                        jmp @empty_string
+:
                         ldx ULS_bytelen
                         ldy #0
-                        inx
-                        inx
-                        inx
-                        inx
-                        bne :+
-                        iny
-:                       jsr ulmem_alloc
-                        bcs @done
+                        jsr uldb_create         ; YX = data block handle
+                        bcc :+
+                        jmp @fail
+:
+                        ; Save data block handle
+                        stx @db_handle
+                        sty @db_handle+1
 
-                        ; Save bank/BRP
-                        lda BANKSEL::RAM
-                        pha
-                        phx
-                        phy
-
-                        ; Access allocated memory
-                        jsr ulmem_access
-
-                        ; Set lengths in first three bytes(byte, char, print)
+                        ; Get data block's BRP and access it for writing
+                        jsr uldb_getbrp         ; YX = data BRP
+                        jsr ulmem_access        ; YX = base address, bank set
                         stx ULS_scratch_fptr
                         sty ULS_scratch_fptr+1
-                        lda ULS_bytelen
-                        sta (ULS_scratch_fptr)
-                        inc ULS_scratch_fptr
-                        lda ULS_charlen
-                        sta (ULS_scratch_fptr)
-                        inc ULS_scratch_fptr
-                        lda ULS_printlen
-                        sta (ULS_scratch_fptr)
-                        inc ULS_scratch_fptr
 
-                        ; Copy the UTF-8 character sequence
+                        ; Copy bytelen bytes from source to data block
                         lda ULS_bytelen
-@getcopysrclo:          ldx #$00
-@getcopysrchi:          ldy #$00
-                        jsr ULS_copystrdata
+                        ldx @copysrc
+                        ldy @copysrc+1
+                        jsr ULS_copystrdata     ; NUL-terminates but we don't care, data block ignores it
 
-                        ; Restore BRP/bank and set success
-                        ply
-                        plx
+                        ; Allocate MSGBLOCK
+                        lda #ULPOOL::MSGBLOCK
+                        jsr ulpool_alloc
+                        bcc :+
+                        jmp @fail_free_db
+:
+                        ; Save MB handle
+                        stx @mb_handle
+                        sty @mb_handle+1
+
+                        ; Access MB to write fields
+                        lda #ULPOOL::MSGBLOCK
+                        jsr ulpool_access
+                        stx UL_varptr
+                        sty UL_varptr+1
+
+                        ; refcount = 1 (already set by pool_alloc)
+                        ; data_block = db handle
+                        ldy #ULMSG_BLOCK::data_block
+                        lda @db_handle
+                        sta (UL_varptr),y
+                        iny
+                        lda @db_handle+1
+                        sta (UL_varptr),y
+
+                        ; start = 0
+                        ldy #ULMSG_BLOCK::start
+                        lda #0
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
+
+                        ; end = bytelen
+                        ldy #ULMSG_BLOCK::end
+                        lda ULS_bytelen
+                        sta (UL_varptr),y
+                        iny
+                        lda #0
+                        sta (UL_varptr),y
+
+                        ; cont = $0000
+                        ldy #ULMSG_BLOCK::cont
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
+
+                        ; next = $0000
+                        ldy #ULMSG_BLOCK::next
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
+
+                        ; prev = $0000
+                        ldy #ULMSG_BLOCK::prev
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
+
+                        ; type = STRING_FRAG, flags = 0
+                        ldy #ULMSG_BLOCK::type
+                        lda #ULMBT::STRING_FRAG
+                        sta (UL_varptr),y
+                        iny
+                        lda #0
+                        sta (UL_varptr),y
+
+                        ; Return MB handle in YX
+                        ; (data block already has refcount=1 from uldb_create, which is the MB's ownership)
+                        ldx @mb_handle
+                        ldy @mb_handle+1
                         pla
                         sta BANKSEL::RAM
+                        pla                     ; restore A
                         clc
-
-                        ; Restore A
-@done:                  pla
                         rts
+
+@empty_string:          ; Create a data block of size 0 (will still allocate a minimal BRP)
+                        ldx #1                  ; minimum 1 byte allocation
+                        ldy #0
+                        jsr uldb_create
+                        bcs @fail
+                        stx @db_handle
+                        sty @db_handle+1
+
+                        ; Allocate MSGBLOCK
+                        lda #ULPOOL::MSGBLOCK
+                        jsr ulpool_alloc
+                        bcs @fail_free_db
+
+                        ; Save MB handle
+                        stx @mb_handle
+                        sty @mb_handle+1
+
+                        ; Access MB
+                        lda #ULPOOL::MSGBLOCK
+                        jsr ulpool_access
+                        stx UL_varptr
+                        sty UL_varptr+1
+
+                        ; data_block
+                        ldy #ULMSG_BLOCK::data_block
+                        lda @db_handle
+                        sta (UL_varptr),y
+                        iny
+                        lda @db_handle+1
+                        sta (UL_varptr),y
+
+                        ; start = 0, end = 0
+                        ldy #ULMSG_BLOCK::start
+                        lda #0
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
+                        ldy #ULMSG_BLOCK::end
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
+
+                        ; cont/next/prev = $0000
+                        ldy #ULMSG_BLOCK::cont
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
+                        ldy #ULMSG_BLOCK::next
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
+                        ldy #ULMSG_BLOCK::prev
+                        sta (UL_varptr),y
+                        iny
+                        sta (UL_varptr),y
+
+                        ; type = STRING_FRAG, flags = 0
+                        ldy #ULMSG_BLOCK::type
+                        lda #ULMBT::STRING_FRAG
+                        sta (UL_varptr),y
+                        iny
+                        lda #0
+                        sta (UL_varptr),y
+
+                        ; Return MB handle
+                        ; (data block already has refcount=1 from uldb_create)
+                        ldx @mb_handle
+                        ldy @mb_handle+1
+                        pla
+                        sta BANKSEL::RAM
+                        pla                     ; restore A
+                        clc
+                        rts
+
+@fail_free_db:          ldx @db_handle
+                        ldy @db_handle+1
+                        jsr uldb_release
+
+@fail:                  pla
+                        sta BANKSEL::RAM
+                        pla                     ; restore A
+                        sec
+                        rts
+
+.bss
+@copysrc:               .res 2
+@db_handle:             .res 2
+@mb_handle:             .res 2
 .endproc

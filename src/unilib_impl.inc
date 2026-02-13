@@ -60,19 +60,19 @@ dataptr     .word       ; resolved data address (bank in brp high byte)
 .struct ULBLOCK_LIST
 refcount    .word       ; reference count (0 = free)
 size        .word       ; number of entries
-head        .word       ; first message block handle ($FFFF = empty)
-tail        .word       ; last message block handle ($FFFF = empty)
+head        .word       ; first message block handle ($0000 = empty)
+tail        .word       ; last message block handle ($0000 = empty)
 .endstruct
 
 ; Message blocks (16 bytes, in ULPOOL::MSGBLOCK)
 .struct ULMSG_BLOCK
 refcount    .word       ; 0-1:   reference count (0 = free)
 data_block  .word       ; 2-3:   data block pool handle
-rd_ptr      .word       ; 4-5:   start offset into data block's data
-wr_ptr      .word       ; 6-7:   end offset (exclusive)
-cont        .word       ; 8-9:   continuation msg block ($FFFF = none)
-next        .word       ; 10-11: next in list/queue ($FFFF = none)
-prev        .word       ; 12-13: prev in list/queue ($FFFF = none)
+start       .word       ; 4-5:   start offset into data block's data
+end         .word       ; 6-7:   end offset (exclusive)
+cont        .word       ; 8-9:   continuation msg block ($0000 = none)
+next        .word       ; 10-11: next in list/queue ($0000 = none)
+prev        .word       ; 12-13: prev in list/queue ($0000 = none)
 type        .byte       ; 14:    block type
 flags       .byte       ; 15:    flags
 .endstruct
@@ -132,7 +132,9 @@ ULI_LIST_STATE_SIZE   = 20
 .global ULM_slot2addr
 
 ; String utilities
+.global ulstr_addref
 .global ULS_access
+.global ULS_str_scratch
 .global ULS_length ; Get NUL-terminated UTF-8 sequence length
 .global     ULS_bytelen ; resulting length (in bytes)
 .global     ULS_charlen ; resulting length (in characters)

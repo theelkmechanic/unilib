@@ -156,7 +156,8 @@
 .global ulstr_toPETSCII     ; r0 = string, YX = byte iterator to copy string as PETSCII into (must have enough storage to hold ulstr_getlen bytes); carry set on error
 .global ulstr_toISO8859     ; r0 = string, YX = byte iterator to copy string as ISO-8859-15 into (must have enough storage to hold ulstr_getlen bytes); carry set on error
 
-.global ulstr_release       ; YX = string; releases the string (will free any underlying string buffer(s) that have no owners left)
+.global ulstr_addref        ; YX = string; increments reference count
+.global ulstr_release       ; YX = string; decrements reference count, frees string when count reaches zero
 
 ; Unicode stringtable functions - Manage tables of Unicode strings
 .global ulstb_create        ; A = # of string slots (1-255); return stringtable BRP in YX, carry set on error

@@ -3,6 +3,7 @@
 .include "cbm_kernal.inc"
 
 .import __BSS_RUN__, __BSS_SIZE__
+.import ULS_access
 
 EMU_STDOUT = $9FBB      ; emulator host stdout register
 
@@ -133,6 +134,13 @@ str_t_srfnd:    .byte "rfind(Hello,4,'l')=3   ", 0
 str_t_sapp:     .byte "append(Hello,World)    ", 0
 str_t_smid:     .byte "mid(Hello,1,3)=ell     ", 0
 str_t_sto8:     .byte "toUtf8(Hello,iter)     ", 0
+
+; Refcount test strings
+str_t_rc1:      .byte "addref rc=2            ", 0
+str_t_rc2:      .byte "release 2->1 still ok  ", 0
+str_t_rc3:      .byte "release 1->0 freed     ", 0
+str_t_zcm:      .byte "mid zero-copy substr   ", 0
+str_t_zcr:      .byte "mid src released ok    ", 0
 
 str_hello:      .byte "Hello", 0
 str_world:      .byte "World", 0
@@ -2755,10 +2763,9 @@ start:
                         sty s_temp+1
 
                         ; Check rawlen = 10
-                        jsr ulmem_access
-                        stx gREG::r5L
-                        sty gREG::r5H
-                        lda (gREG::r5)          ; bytelen
+                        ldx s_temp
+                        ldy s_temp+1
+                        jsr ulstr_getrawlen
                         cmp #10
                         bne @sapp_fail2
 
@@ -2796,24 +2803,23 @@ start:
                         sty s_temp+1
 
                         ; Check rawlen = 3
-                        jsr ulmem_access
-                        stx gREG::r5L
-                        sty gREG::r5H
-                        lda (gREG::r5)          ; bytelen
+                        ldx s_temp
+                        ldy s_temp+1
+                        jsr ulstr_getrawlen
                         cmp #3
                         bne @smid_fail2
 
-                        ; Verify data is 'e','l','l'
-                        ldy #3
-                        lda (gREG::r5),y
+                        ; Verify data is 'e','l','l' via ULS_access (data at $400)
+                        ldx s_temp
+                        ldy s_temp+1
+                        jsr ULS_access
+                        lda $400
                         cmp #$65                ; 'e'
                         bne @smid_fail2
-                        iny
-                        lda (gREG::r5),y
+                        lda $401
                         cmp #$6C                ; 'l'
                         bne @smid_fail2
-                        iny
-                        lda (gREG::r5),y
+                        lda $402
                         cmp #$6C                ; 'l'
                         bne @smid_fail2
 
@@ -2914,7 +2920,7 @@ start:
                         jsr ulmem_free
 
                         jsr pass
-                        jmp @test_stc
+                        jmp @test_rc1
 
 @sto8_fail2:            ldx s_temp2
                         ldy s_temp2+1
@@ -2923,6 +2929,161 @@ start:
                         ldy s_temp+1
                         jsr ulmem_free
 @sto8_fail:             jsr fail
+
+; =========================================================================
+; Refcount tests
+; =========================================================================
+
+; ----- Test: addref increments refcount to 2 -----
+
+@test_rc1:              ldx #<str_t_rc1
+                        ldy #>str_t_rc1
+                        jsr putmsg
+
+                        ; Create a fresh string for refcount testing
+                        ldx #<str_cafe
+                        ldy #>str_cafe
+                        jsr ulstr_fromUtf8
+                        stx s_temp
+                        sty s_temp+1
+
+                        ; addref: refcount should be 2
+                        jsr ulstr_addref
+
+                        ; Verify rawlen still works (string is valid)
+                        ldx s_temp
+                        ldy s_temp+1
+                        jsr ulstr_getrawlen
+                        cmp #5                  ; "Caf\xC3\xA9" = 5 bytes
+                        bne @rc1_fail
+
+                        jsr pass
+                        bra @test_rc2
+
+@rc1_fail:              jsr fail
+
+; ----- Test: release 2->1, string still valid -----
+
+@test_rc2:              ldx #<str_t_rc2
+                        ldy #>str_t_rc2
+                        jsr putmsg
+
+                        ; Release once (2 -> 1)
+                        ldx s_temp
+                        ldy s_temp+1
+                        jsr ulstr_release
+
+                        ; String should still be valid — check rawlen
+                        ldx s_temp
+                        ldy s_temp+1
+                        jsr ulstr_getrawlen
+                        cmp #5
+                        bne @rc2_fail
+
+                        jsr pass
+                        bra @test_rc3
+
+@rc2_fail:              jsr fail
+
+; ----- Test: release 1->0, string freed (no crash) -----
+
+@test_rc3:              ldx #<str_t_rc3
+                        ldy #>str_t_rc3
+                        jsr putmsg
+
+                        ; Release again (1 -> 0, string freed)
+                        ldx s_temp
+                        ldy s_temp+1
+                        jsr ulstr_release
+
+                        ; If we get here without crashing, pass
+                        jsr pass
+
+; ----- Test: mid creates zero-copy substring -----
+
+@test_zcm:              ldx #<str_t_zcm
+                        ldy #>str_t_zcm
+                        jsr putmsg
+
+                        ; mid(Hello, 1, 3) = "ell"
+                        lda s_hello
+                        sta gREG::r0L
+                        lda s_hello+1
+                        sta gREG::r0H
+                        lda #1
+                        sta gREG::r1L
+                        stz gREG::r1H
+                        lda #3
+                        sta gREG::r2L
+                        stz gREG::r2H
+                        jsr ulstr_mid
+                        bcs @zcm_fail
+                        stx s_temp
+                        sty s_temp+1
+
+                        ; Verify rawlen = 3
+                        jsr ulstr_getrawlen
+                        cmp #3
+                        bne @zcm_fail2
+
+                        ; Verify data via ULS_access
+                        ldx s_temp
+                        ldy s_temp+1
+                        jsr ULS_access
+                        lda $400
+                        cmp #$65                ; 'e'
+                        bne @zcm_fail2
+                        lda $401
+                        cmp #$6C                ; 'l'
+                        bne @zcm_fail2
+                        lda $402
+                        cmp #$6C                ; 'l'
+                        bne @zcm_fail2
+
+                        jsr pass
+                        bra @test_zcr
+
+@zcm_fail2:            ldx s_temp
+                        ldy s_temp+1
+                        jsr ulstr_release
+@zcm_fail:              jsr fail
+                        jmp @test_stc
+
+; ----- Test: release source, mid substring still valid -----
+
+@test_zcr:              ldx #<str_t_zcr
+                        ldy #>str_t_zcr
+                        jsr putmsg
+
+                        ; Addref s_hello so we can release it and get it back
+                        ldx s_hello
+                        ldy s_hello+1
+                        jsr ulstr_addref
+
+                        ; Release s_hello (data block still held by mid's addref)
+                        ldx s_hello
+                        ldy s_hello+1
+                        jsr ulstr_release
+
+                        ; Mid substring should still work
+                        ldx s_temp
+                        ldy s_temp+1
+                        jsr ulstr_getrawlen
+                        cmp #3
+                        bne @zcr_fail
+
+                        ; Release the mid substring
+                        ldx s_temp
+                        ldy s_temp+1
+                        jsr ulstr_release
+
+                        jsr pass
+                        jmp @test_stc
+
+@zcr_fail:              ldx s_temp
+                        ldy s_temp+1
+                        jsr ulstr_release
+                        jsr fail
 
 ; ----- Test: ulstb_create 3 -----
 
@@ -3028,20 +3189,8 @@ start:
                         ldy #>str_t_std
                         jsr putmsg
 
-                        ; Delete table (this will release s_hello via the table)
-                        ; First addref s_hello so it survives the table delete
-                        ; Actually, strings are BRPs not data blocks - ulstr_release frees them
-                        ; So we need to remove s_hello from the table before delete, or accept it's freed
-                        ; Simplest: put 0/0 in slot 1 first so delete doesn't free s_hello
-                        lda stb_handle
-                        sta gREG::r0L
-                        lda stb_handle+1
-                        sta gREG::r0H
-                        lda #1
-                        ldx #0
-                        ldy #0
-                        jsr ulstb_put
-
+                        ; Delete table (refcounting means s_hello survives —
+                        ; put addref'd it, delete will release back to original refcount)
                         ldx stb_handle
                         ldy stb_handle+1
                         jsr ulstb_delete
