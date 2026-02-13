@@ -159,6 +159,17 @@ str_t_stbg:     .byte "ulstb_get after build  ", 0
 ; Test data for ulstb_build: three NUL-terminated strings + empty terminator
 stb_build_data: .byte "Alpha", 0, "Beta", 0, "Gamma", 0, 0
 
+; Heap function tests
+str_t_ha32:     .byte "heap_alloc 32 bytes    ", 0
+str_t_hcap:     .byte "heap_capacity = 32     ", 0
+str_t_hclr:     .byte "heap_alloc cleared     ", 0
+str_t_h0:       .byte "heap_alloc 0 = error   ", 0
+str_t_hrsm:     .byte "realloc same size      ", 0
+str_t_hrsh:     .byte "realloc shrink 64->32  ", 0
+str_t_hrgi:     .byte "realloc grow inplace   ", 0
+str_t_hrgc:     .byte "realloc grow copy      ", 0
+str_t_hfre:     .byte "heap free + realloc    ", 0
+
 str_pass:       .byte " OK", 0
 str_fail:       .byte " FAIL", 0
 str_summary:    .byte "Passed: ", 0
@@ -3271,6 +3282,317 @@ start:
                         ldy s_world+1
                         jsr ulstr_release
 
+; =====================================================================
+; Heap function tests
+; =====================================================================
+
+; ----- Test: heap_alloc 32 bytes -----
+
+                        ldx #<str_t_ha32
+                        ldy #>str_t_ha32
+                        jsr putmsg
+
+                        ldx #32
+                        ldy #0
+                        clc
+                        jsr ulmem_alloc
+                        bcs @ha32_fail
+                        stx h_brp_a
+                        sty h_brp_a+1
+                        ; BRP must be non-zero
+                        cpx #0
+                        bne @ha32_pass
+                        cpy #0
+                        beq @ha32_fail
+@ha32_pass:             jsr pass
+                        bra @test_hcap
+@ha32_fail:             jsr fail
+                        jmp @summary
+
+; ----- Test: heap_capacity = 32 -----
+
+@test_hcap:             ldx #<str_t_hcap
+                        ldy #>str_t_hcap
+                        jsr putmsg
+
+                        ldx h_brp_a
+                        ldy h_brp_a+1
+                        jsr ulmem_capacity
+                        cpx #32
+                        bne @hcap_fail
+                        cpy #0
+                        bne @hcap_fail
+                        jsr pass
+                        bra @test_hclr
+@hcap_fail:             jsr fail
+
+; ----- Test: heap_alloc cleared -----
+
+@test_hclr:             ldx #<str_t_hclr
+                        ldy #>str_t_hclr
+                        jsr putmsg
+
+                        ldx #64
+                        ldy #0
+                        sec                     ; clear memory
+                        jsr ulmem_alloc
+                        bcs @hclr_fail
+                        stx h_brp_b
+                        sty h_brp_b+1
+                        ; Access BRP and check byte 0 and byte 63 are zero
+                        jsr ulmem_access
+                        stx gREG::r5L
+                        sty gREG::r5H
+                        ldy #0
+                        lda (gREG::r5),y
+                        bne @hclr_fail
+                        ldy #63
+                        lda (gREG::r5),y
+                        bne @hclr_fail
+                        jsr pass
+                        bra @test_h0
+@hclr_fail:             jsr fail
+
+; ----- Test: heap_alloc 0 = error -----
+
+@test_h0:               ldx #<str_t_h0
+                        ldy #>str_t_h0
+                        jsr putmsg
+
+                        ldx #0
+                        ldy #0
+                        clc
+                        jsr ulmem_alloc
+                        bcs @h0_pass
+                        ; Should have failed — free the accidental alloc and fail
+                        jsr ulmem_free
+                        jsr fail
+                        bra @test_hrsm
+@h0_pass:               jsr pass
+
+; ----- Test: realloc same size -----
+
+@test_hrsm:             ldx #<str_t_hrsm
+                        ldy #>str_t_hrsm
+                        jsr putmsg
+
+                        lda h_brp_a
+                        sta gREG::r0L
+                        lda h_brp_a+1
+                        sta gREG::r0H
+                        ldx #32
+                        ldy #0
+                        jsr ulmem_realloc
+                        bcs @hrsm_fail
+                        ; Returned BRP should match original
+                        cpx h_brp_a
+                        bne @hrsm_fail
+                        cpy h_brp_a+1
+                        bne @hrsm_fail
+                        jsr pass
+                        bra @test_hrsh
+@hrsm_fail:             jsr fail
+
+; ----- Test: realloc shrink 64->32 -----
+
+@test_hrsh:             ldx #<str_t_hrsh
+                        ldy #>str_t_hrsh
+                        jsr putmsg
+
+                        lda h_brp_b
+                        sta gREG::r0L
+                        lda h_brp_b+1
+                        sta gREG::r0H
+                        ldx #32
+                        ldy #0
+                        jsr ulmem_realloc
+                        bcs @hrsh_fail
+                        ; Same BRP returned
+                        cpx h_brp_b
+                        bne @hrsh_fail
+                        cpy h_brp_b+1
+                        bne @hrsh_fail
+                        stx h_brp_b
+                        sty h_brp_b+1
+                        ; Verify capacity is now 32
+                        jsr ulmem_capacity
+                        cpx #32
+                        bne @hrsh_fail
+                        cpy #0
+                        bne @hrsh_fail
+                        jsr pass
+                        bra @test_hrgi
+@hrsh_fail:             jsr fail
+
+; ----- Test: realloc grow inplace -----
+
+@test_hrgi:             ldx #<str_t_hrgi
+                        ldy #>str_t_hrgi
+                        jsr putmsg
+
+                        ; Free h_brp_b (shrunk block, no longer needed)
+                        ldx h_brp_b
+                        ldy h_brp_b+1
+                        jsr ulmem_free
+                        ; Free h_brp_a too (start fresh)
+                        ldx h_brp_a
+                        ldy h_brp_a+1
+                        jsr ulmem_free
+
+                        ; Allocate fresh 32 bytes
+                        ldx #32
+                        ldy #0
+                        clc
+                        jsr ulmem_alloc
+                        bcs @hrgi_fail
+                        stx h_brp_a
+                        sty h_brp_a+1
+
+                        ; Write sentinel values
+                        jsr ulmem_access
+                        stx gREG::r5L
+                        sty gREG::r5H
+                        lda #$A5
+                        ldy #0
+                        sta (gREG::r5),y
+                        lda #$5A
+                        ldy #31
+                        sta (gREG::r5),y
+
+                        ; Realloc to 64 bytes (should grow in-place since heap is mostly empty)
+                        lda h_brp_a
+                        sta gREG::r0L
+                        lda h_brp_a+1
+                        sta gREG::r0H
+                        ldx #64
+                        ldy #0
+                        jsr ulmem_realloc
+                        bcs @hrgi_fail
+
+                        ; Save result
+                        stx h_brp_a
+                        sty h_brp_a+1
+
+                        ; Access and verify sentinel data preserved
+                        jsr ulmem_access
+                        stx gREG::r5L
+                        sty gREG::r5H
+                        ldy #0
+                        lda (gREG::r5),y
+                        cmp #$A5
+                        bne @hrgi_fail
+                        ldy #31
+                        lda (gREG::r5),y
+                        cmp #$5A
+                        bne @hrgi_fail
+
+                        jsr pass
+                        bra @test_hrgc
+@hrgi_fail:             jsr fail
+
+; ----- Test: realloc grow copy -----
+
+@test_hrgc:             ldx #<str_t_hrgc
+                        ldy #>str_t_hrgc
+                        jsr putmsg
+
+                        ; Free previous allocation
+                        ldx h_brp_a
+                        ldy h_brp_a+1
+                        jsr ulmem_free
+
+                        ; Allocate 32 bytes for A
+                        ldx #32
+                        ldy #0
+                        clc
+                        jsr ulmem_alloc
+                        bcs @hrgc_fail
+                        stx h_brp_a
+                        sty h_brp_a+1
+
+                        ; Write sentinels to A
+                        jsr ulmem_access
+                        stx gREG::r5L
+                        sty gREG::r5H
+                        lda #$C3
+                        ldy #0
+                        sta (gREG::r5),y
+                        lda #$3C
+                        ldy #31
+                        sta (gREG::r5),y
+
+                        ; Allocate 32 bytes for B (blocks in-place growth of A)
+                        ldx #32
+                        ldy #0
+                        clc
+                        jsr ulmem_alloc
+                        bcs @hrgc_fail
+                        stx h_brp_b
+                        sty h_brp_b+1
+
+                        ; Realloc A to 96 bytes (3 slots) — must copy
+                        lda h_brp_a
+                        sta gREG::r0L
+                        lda h_brp_a+1
+                        sta gREG::r0H
+                        ldx #96
+                        ldy #0
+                        jsr ulmem_realloc
+                        bcs @hrgc_fail
+
+                        ; Save new BRP
+                        stx h_saved_brp
+                        sty h_saved_brp+1
+
+                        ; Access new location and verify sentinel data copied
+                        jsr ulmem_access
+                        stx gREG::r5L
+                        sty gREG::r5H
+                        ldy #0
+                        lda (gREG::r5),y
+                        cmp #$C3
+                        bne @hrgc_fail
+                        ldy #31
+                        lda (gREG::r5),y
+                        cmp #$3C
+                        bne @hrgc_fail
+
+                        jsr pass
+                        bra @test_hfre
+@hrgc_fail:             jsr fail
+
+; ----- Test: heap free + realloc -----
+
+@test_hfre:             ldx #<str_t_hfre
+                        ldy #>str_t_hfre
+                        jsr putmsg
+
+                        ; Free h_brp_b (if set)
+                        ldx h_brp_b
+                        ldy h_brp_b+1
+                        beq :+
+                        jsr ulmem_free
+:
+                        ; Free h_saved_brp (if set)
+                        ldx h_saved_brp
+                        ldy h_saved_brp+1
+                        beq :+
+                        jsr ulmem_free
+:
+
+                        ; Allocate 32 bytes, then immediately free
+                        ldx #32
+                        ldy #0
+                        clc
+                        jsr ulmem_alloc
+                        bcs @hfre_fail
+                        jsr ulmem_free
+
+                        ; If we got here without crashing, heap is functional
+                        jsr pass
+                        bra @summary
+@hfre_fail:             jsr fail
+
 ; ----- Summary -----
 
 @summary:               ldx #<str_summary
@@ -3329,3 +3651,6 @@ s_temp:         .res 2          ; temp string/BRP
 s_temp2:        .res 2          ; temp iterator handle
 stb_handle:     .res 2          ; stringtable BRP
 stb_str:        .res 2          ; string BRP retrieved from table
+h_brp_a:        .res 2          ; heap test BRP A
+h_brp_b:        .res 2          ; heap test BRP B
+h_saved_brp:    .res 2          ; saved BRP for comparison

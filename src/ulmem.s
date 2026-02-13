@@ -63,9 +63,98 @@
                         rts
 .endproc
 
-_realloc_need_more:
+_realloc_try_inplace:
 _realloc_numslots = ULM_scratchspace
 _realloc_origslots = ULM_scratchspace+1
+                        ; A = old_count, X = old_slot, BANKSEL::RAM = old_bank
+                        sta _realloc_origslots  ; save old count (fixes origslots bug)
+
+                        ; Check if extension would go past slot 255
+                        lda gREG::r0L           ; old_slot
+                        clc
+                        adc _realloc_numslots   ; old_slot + new_count
+                        beq :+                  ; sum = 256 is OK (fills bank)
+                        bcc :+                  ; sum < 256 is OK
+                        jmp _realloc_need_more  ; sum > 256, can't extend
+:
+                        ; Scan: check if extra free slots exist after current alloc
+                        lda gREG::r0L
+                        clc
+                        adc _realloc_origslots  ; A = first slot after current alloc
+                        tax                     ; X = scan position
+                        lda _realloc_numslots
+                        sec
+                        sbc _realloc_origslots  ; A = extra slots needed
+                        tay                     ; Y = count
+
+@ip_check_free:         lda BANK::RAM,x
+                        bne _realloc_need_more  ; not free -> fall back to alloc-copy
+                        inx
+                        dey
+                        bne @ip_check_free
+
+                        ; All free! Extend in-place.
+
+                        ; 1. Clear any small-chunk entry pointing to the free region
+                        lda gREG::r0L
+                        clc
+                        adc _realloc_origslots  ; A = start of free region
+                        ldx #7
+@ip_clr_small:          cmp BANK::RAM,x
+                        bne :+
+                        stz BANK::RAM,x
+                        bra @ip_small_done
+:                       dex
+                        bne @ip_clr_small
+@ip_small_done:
+
+                        ; 2. Update slotmap[old_slot] = new count, mark new continuation as $FF
+                        ldx gREG::r0L
+                        lda _realloc_numslots
+                        sta BANK::RAM,x         ; new length
+                        txa
+                        clc
+                        adc _realloc_origslots
+                        tax                     ; X = first new continuation slot
+                        lda _realloc_numslots
+                        sec
+                        sbc _realloc_origslots
+                        tay                     ; Y = extra slots to mark
+                        lda #$ff
+:                       sta BANK::RAM,x
+                        inx
+                        dey
+                        bne :-
+
+                        ; 3. Register trailing free slots if small (1-7)
+                        cpx #0
+                        beq @ip_adj_free        ; at end of bank, no trailing
+                        stx ULM_scratchspace+2  ; save start of remainder
+                        ldy #0
+@ip_cnt_trail:          lda BANK::RAM,x
+                        bne @ip_trail_done
+                        iny
+                        inx
+                        beq @ip_trail_done
+                        cpy #8
+                        bcc @ip_cnt_trail
+@ip_trail_done:         cpy #0
+                        beq @ip_adj_free
+                        cpy #8
+                        bcs @ip_adj_free
+                        lda ULM_scratchspace+2
+                        sta BANK::RAM,y
+
+@ip_adj_free:           ; 4. Update free count
+                        lda BANK::RAM           ; byte 0 = free count
+                        sec
+                        sbc _realloc_numslots
+                        clc
+                        adc _realloc_origslots  ; subtract (new - old) = subtract extra
+                        sta BANK::RAM
+                        jmp _return_r0          ; return original BRP
+
+_realloc_need_more:
                         ; Need to allocate more memory, so get back our needed size and allocate
                         ldx _realloc_numslots
                         jsr UL_mulxby32
@@ -79,66 +168,84 @@ _realloc_origslots = ULM_scratchspace+1
                         stx ULM_scratchspace+2  ; new BRP lo
                         sty ULM_scratchspace+3  ; new BRP hi
 
-                        ; Compute copy count = origslots * 32
-                        ldx _realloc_origslots
-                        jsr UL_mulxby32
-                        stx ULM_scratchspace+4  ; count lo
-                        sty ULM_scratchspace+5  ; count hi
+                        ; Re-read original slot count from slot map (r0 preserved, alloc intact)
+                        ldy gREG::r0H
+                        sty BANKSEL::RAM
+                        ldx gREG::r0L
+                        lda BANK::RAM,x         ; A = original slot count
+                        sta ULM_scratchspace+4  ; save as slot counter for copy loop
 
-                        ; Get old source address (r0 preserved through clc alloc)
+                        ; Setup source address
                         ldx gREG::r0L
                         ldy gREG::r0H
                         jsr ulmem_access
                         stx UL_varptr           ; old data ptr
                         sty UL_varptr+1
                         lda BANKSEL::RAM
-                        sta ULM_scratchspace+0  ; old bank
+                        sta ULM_scratchspace+0  ; source bank
 
-                        ; Get new dest address
+                        ; Setup dest address
                         ldx ULM_scratchspace+2
                         ldy ULM_scratchspace+3
                         jsr ulmem_access
                         stx UL_var2ptr          ; new data ptr
                         sty UL_var2ptr+1
                         lda BANKSEL::RAM
-                        sta ULM_scratchspace+1  ; new bank
+                        sta ULM_scratchspace+1  ; dest bank
 
-                        ; Cross-bank byte copy loop
-                        ldy #0
-@copy_loop:             lda ULM_scratchspace+4
-                        ora ULM_scratchspace+5
-                        beq @copy_done
-                        lda ULM_scratchspace+0  ; old bank
+                        ; 32-byte slot-at-a-time copy through $0400 cache
+@chunk_loop:            ; Copy 32 bytes: source bank -> $0400
+                        lda ULM_scratchspace+0
                         sta BANKSEL::RAM
-                        lda (UL_varptr),y
-                        pha
-                        lda ULM_scratchspace+1  ; new bank
+                        ldy #31
+:                       lda (UL_varptr),y
+                        sta $0400,y
+                        dey
+                        bpl :-
+
+                        ; Copy 32 bytes: $0400 -> dest bank
+                        lda ULM_scratchspace+1
                         sta BANKSEL::RAM
-                        pla
+                        ldy #31
+:                       lda $0400,y
                         sta (UL_var2ptr),y
-                        ; Increment source pointer
-                        inc UL_varptr
-                        bne :+
-                        inc UL_varptr+1
-:                       ; Increment dest pointer
-                        inc UL_var2ptr
-                        bne :+
-                        inc UL_var2ptr+1
-:                       ; 16-bit decrement count
-                        lda ULM_scratchspace+4
-                        bne :+
-                        dec ULM_scratchspace+5
-:                       dec ULM_scratchspace+4
-                        bra @copy_loop
+                        dey
+                        bpl :-
 
-@copy_done:             ; Free old BRP (still in r0)
+                        ; Advance source pointer +32
+                        lda UL_varptr
+                        clc
+                        adc #32
+                        sta UL_varptr
+                        bcc :+
+                        inc UL_varptr+1
+:
+                        ; Advance dest pointer +32
+                        lda UL_var2ptr
+                        clc
+                        adc #32
+                        sta UL_var2ptr
+                        bcc :+
+                        inc UL_var2ptr+1
+:
+                        ; Decrement slot counter
+                        dec ULM_scratchspace+4
+                        bne @chunk_loop
+
+@copy_done:             ; Save new BRP to stack before free (ulmem_free clobbers scratchspace)
+                        lda ULM_scratchspace+3
+                        pha
+                        lda ULM_scratchspace+2
+                        pha
+
+                        ; Free old BRP (still in r0)
                         ldx gREG::r0L
                         ldy gREG::r0H
                         jsr ulmem_free
 
                         ; Return new BRP
-                        ldx ULM_scratchspace+2
-                        ldy ULM_scratchspace+3
+                        plx
+                        ply
                         clc
                         jmp _alloc_done
 
@@ -153,7 +260,7 @@ ulmem_realloc:
                         lda BANKSEL::RAM
                         pha
                         jsr ULM_calcslots
-                        bcs :+
+                        bcc :+
                         jmp _realloc_failed
 
                         ; See how many slots are in the original
@@ -164,7 +271,7 @@ ulmem_realloc:
                         lda BANK::RAM,x
                         cmp _realloc_numslots
                         bcs :+
-                        jmp _realloc_need_more
+                        jmp _realloc_try_inplace
 :
                         beq _return_r0
 
