@@ -1,7 +1,7 @@
 .include "unilib_impl.inc"
 
 ULFT_CACHE_SIZE = 256
-ULFT_fontcache = $A900
+ULFT_fontcache = $A940
 
 ULFT_fontcache_hi       = ULFT_fontcache + (ULFT_CACHE_SIZE * 0)
 ULFT_fontcache_plane    = ULFT_fontcache + (ULFT_CACHE_SIZE * 1)

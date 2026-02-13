@@ -6,6 +6,7 @@ ULM_multab_lo = BANK::RAM + $100
 ULM_multab_hi = ULM_multab_lo + $200
 ULM_multab_neg_lo = ULM_multab_hi + $200
 ULM_multab_neg_hi = ULM_multab_neg_lo + $200
+ULM_mulXY_ram = ULM_multab_neg_hi + $200       ; $A900 - RAM copy of ULM_mulXY in bank 1
 
 .code
 
@@ -23,7 +24,7 @@ ULM_multab_neg_hi = ULM_multab_neg_lo + $200
 
                         ; Multiply X*A
                         tay
-                        jsr ULM_mulXY
+                        jsr ULM_mulXY_ram
 
                         ; Restore the original bank
                         pla
@@ -46,7 +47,7 @@ ULM_multab_neg_hi = ULM_multab_neg_lo + $200
 
                         ; Multiply A*X
                         tay
-                        jsr ULM_mulXY
+                        jsr ULM_mulXY_ram
 
                         ; X is product low byte, so hang onto it, and save Y for addition
                         phx
@@ -55,7 +56,7 @@ ULM_multab_neg_hi = ULM_multab_neg_lo + $200
                         ; Multiply A*Y
                         ldy UL_temp_l
                         tax
-                        jsr ULM_mulXY
+                        jsr ULM_mulXY_ram
 
                         ; Y is product high byte, so hang onto it
                         phy
@@ -84,9 +85,9 @@ ULM_multab_neg_hi = ULM_multab_neg_lo + $200
 ; ULM_multbl_init - Build the multiplication square tables
 ;   *** WARNING *** This must be the first memory allocation call, or it will break badly.
 .proc ULM_multbl_init
-                        ; Allocate 2048 bytes for our math tables
-                        ldx #<2048
-                        ldy #>2048
+                        ; Allocate space for math tables (2048 bytes) + ULM_mulXY RAM copy
+                        ldx #<(2048 + ULM_mulXY_size)
+                        ldy #>(2048 + ULM_mulXY_size)
                         clc
                         jsr ulmem_alloc
 
@@ -134,22 +135,29 @@ ULM_multab_neg_hi = ULM_multab_neg_lo + $200
                         dey
                         inx
                         bne :-
+
+                        ; Copy ULM_mulXY template to bank 1 RAM at ULM_mulXY_ram
+                        ldx #ULM_mulXY_size - 1
+:                       lda ULM_mulXY,x
+                        sta ULM_mulXY_ram,x
+                        dex
+                        bpl :-
+
                         rts
 .endproc
 
 ; ULM_mulXY - Multiply X * Y, result in YX, bank must be set to 1
-; Lives in .data so the code segment stays read-only (SMC modifies .data instead).
-.data
-
+; Read-only template copied to bank 1 RAM by ULM_multbl_init.
+; The STA targets are pre-computed to point into the RAM copy, not this template.
 ULM_mulXY:
-                        ; Modify the pointers in our code to point to the right slot for one operand
+                        ; Modify the pointers in the RAM copy to index the right table slot
                         pha
                         txa
-                        sta ULM_mulXY_sm1+1
-                        sta ULM_mulXY_sm3+1
+                        sta ULM_mulXY_ram + (ULM_mulXY_sm1 - ULM_mulXY) + 1
+                        sta ULM_mulXY_ram + (ULM_mulXY_sm3 - ULM_mulXY) + 1
                         eor #$ff
-                        sta ULM_mulXY_sm2+1
-                        sta ULM_mulXY_sm4+1
+                        sta ULM_mulXY_ram + (ULM_mulXY_sm2 - ULM_mulXY) + 1
+                        sta ULM_mulXY_ram + (ULM_mulXY_sm4 - ULM_mulXY) + 1
 
                         ; Multiply by the other operand by subtracting values from our tables
                         sec
@@ -161,3 +169,6 @@ ULM_mulXY_sm4:          sbc ULM_multab_neg_hi,y
                         tay
                         pla
                         rts
+ULM_mulXY_end:
+
+ULM_mulXY_size = ULM_mulXY_end - ULM_mulXY

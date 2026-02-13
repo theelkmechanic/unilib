@@ -273,7 +273,7 @@ ULWS_COVERED    = $80
 .global ULW_set_dirty_rect
 .global ULW_dirty
 .global ULW_dirtyrect
-ULW_WINMAP = $AE00
+ULW_WINMAP = $AE40
 
 .global ULW_getwinbufptr
 .global ULW_linelen
