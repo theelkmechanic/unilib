@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ULV_copyrect - copy rectangle contents to new location
 ;   In: ULVR_srcpos     - Top/left of source (L=column, H=line)

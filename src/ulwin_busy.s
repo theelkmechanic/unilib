@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulwin_busy - Draw a "Busy..." window in the bottom left corner (refreshes, displayed until the next refresh)
 ;   In: carry           - Use custom message in YX
@@ -22,13 +22,13 @@
                         bne @openbusywindow
                         ldx #<ULW_busymsg
                         ldy #>ULW_busymsg
-                        jsr ulstr_fromUtf8
+                        XCALL ulstr_fromUtf8, UNILIB_BANK_A
                         bcs @exit
                         stx ULW_busystr
                         sty ULW_busystr+1
 
                         ; Get the string printable length (if empty then do nothing)
-@openbusywindow:        jsr ulstr_getprintlen
+@openbusywindow:        XCALL ulstr_getprintlen, UNILIB_BANK_A
                         beq @exit
 
                         ; We need at least 7 extra characters for borders/margins, so max length is 73
@@ -93,11 +93,11 @@
                         rts
 .endproc
 
-.rodata
+UL_RODATA
 
 ULW_busymsg:            .asciiz "Busy..."
 
-.bss
+UL_BSS
 
 ULW_busystr:            .res    2
 ULWB_msglen:            .res    1

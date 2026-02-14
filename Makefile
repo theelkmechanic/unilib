@@ -27,6 +27,7 @@ FONT_OBJS = \
 ITER_OBJS = \
 	$(OBJDIR)/ULI_core.o \
 	$(OBJDIR)/ULI_list.o \
+	$(OBJDIR)/ULI_string.o \
 	$(OBJDIR)/ULI_utf8.o \
 	$(OBJDIR)/ulitr.o
 
@@ -119,12 +120,168 @@ $(OBJDIR):
 $(OBJDIR)/%.o: $(SRCDIR)/%.s $(HEADERS) | $(OBJDIR)
 	ca65 $(FLAGS) -I. -I.. -o $@ $<
 
-.PHONY: all clean test
+.PHONY: all clean test rom romtest
 clean:
-	-rm -r $(OBJDIR)
+	-rm -r $(OBJDIR) $(ROM_OBJDIR)
 	-rm $(LIBRARY)
 	-rm $(TESTAPP) $(TEST_SOURCES:.s=.o) *.map *.sym
+	-rm -f unilib_b0.bin unilib_b1.bin unilib_b2.bin .rom_stamp
+	-rm -f $(ROMTESTAPP) run/$(ROMTESTAPP) run/rom_unilib.bin
 
 test: $(TESTAPP)
 	cp $(TESTAPP) run/
 	X16EMU=$(EMU) python3 test/run_tests.py
+
+# =============================================================================
+# ROM build
+# =============================================================================
+
+ROM_CONFIGFILE = cx16-rom.cfg
+ROM_OBJDIR = ./romobj
+X16ROM_DIR = ../x16-rom
+ROM_INC = -I. -I.. -I$(X16ROM_DIR)/inc -I$(X16ROM_DIR)/kernsup
+ROM_FLAGS = $(FLAGS) -D ROM_BUILD
+
+LZSA ?= ../lzsa/lzsa
+
+# --- Bank A: Foundation + Data ---
+# Jump table + jsrfar/KSUP + core, file, iter, math, mem, strings, strtbl
+ROM_A_OBJS = \
+	$(ROM_OBJDIR)/a/UL_jumptable_a.o \
+	$(ROM_OBJDIR)/a/UL_ksup.o \
+	$(ROM_OBJDIR)/a/ul_init.o \
+	$(ROM_OBJDIR)/a/ul_geterror.o \
+	$(ROM_OBJDIR)/a/ul_isprint.o \
+	$(ROM_OBJDIR)/a/UL_core.o \
+	$(ROM_OBJDIR)/a/ULF_readblock.o \
+	$(ROM_OBJDIR)/a/ULI_core.o \
+	$(ROM_OBJDIR)/a/ULI_list.o \
+	$(ROM_OBJDIR)/a/ULI_string.o \
+	$(ROM_OBJDIR)/a/ULI_utf8.o \
+	$(ROM_OBJDIR)/a/ulitr.o \
+	$(ROM_OBJDIR)/a/ulmath_idiv.o \
+	$(ROM_OBJDIR)/a/ulmath_imul.o \
+	$(ROM_OBJDIR)/a/ulmath_signed.o \
+	$(ROM_OBJDIR)/a/ulmem.o \
+	$(ROM_OBJDIR)/a/ulpool.o \
+	$(ROM_OBJDIR)/a/uldb.o \
+	$(ROM_OBJDIR)/a/ullist.o \
+	$(ROM_OBJDIR)/a/ULS_access.o \
+	$(ROM_OBJDIR)/a/ulstr_fromUtf8.o \
+	$(ROM_OBJDIR)/a/ulstr_getlen.o \
+	$(ROM_OBJDIR)/a/ulstr_release.o \
+	$(ROM_OBJDIR)/a/ulstr_compare.o \
+	$(ROM_OBJDIR)/a/ulstr_find.o \
+	$(ROM_OBJDIR)/a/ulstr_rfind.o \
+	$(ROM_OBJDIR)/a/ulstr_append.o \
+	$(ROM_OBJDIR)/a/ulstr_mid.o \
+	$(ROM_OBJDIR)/a/ulstr_toUtf8.o \
+	$(ROM_OBJDIR)/a/ulstb.o
+
+# --- Bank B: Display ---
+# Jump table + jsrfar/KSUP + font, VERA, window, ULS_utils
+ROM_B_OBJS = \
+	$(ROM_OBJDIR)/b/UL_jumptable_b.o \
+	$(ROM_OBJDIR)/b/UL_ksup.o \
+	$(ROM_OBJDIR)/b/ULFT_findcharinfo.o \
+	$(ROM_OBJDIR)/b/ULS_utils.o \
+	$(ROM_OBJDIR)/b/ULV_blt.o \
+	$(ROM_OBJDIR)/b/ULV_copy.o \
+	$(ROM_OBJDIR)/b/ULV_fill.o \
+	$(ROM_OBJDIR)/b/ULV_glyphcolor.o \
+	$(ROM_OBJDIR)/b/ULV_setpaletteentry.o \
+	$(ROM_OBJDIR)/b/ULV_swap.o \
+	$(ROM_OBJDIR)/b/ULW_map.o \
+	$(ROM_OBJDIR)/b/ULW_utils.o \
+	$(ROM_OBJDIR)/b/ulwin_box.o \
+	$(ROM_OBJDIR)/b/ulwin_busy.o \
+	$(ROM_OBJDIR)/b/ulwin_clear.o \
+	$(ROM_OBJDIR)/b/ulwin_close.o \
+	$(ROM_OBJDIR)/b/ulwin_csredit.o \
+	$(ROM_OBJDIR)/b/ulwin_error.o \
+	$(ROM_OBJDIR)/b/ulwin_flash.o \
+	$(ROM_OBJDIR)/b/ulwin_flashwait.o \
+	$(ROM_OBJDIR)/b/ulwin_getcolor.o \
+	$(ROM_OBJDIR)/b/ulwin_gethit.o \
+	$(ROM_OBJDIR)/b/ulwin_getkey.o \
+	$(ROM_OBJDIR)/b/ulwin_getstr.o \
+	$(ROM_OBJDIR)/b/ulwin_getwin.o \
+	$(ROM_OBJDIR)/b/ulwin_getwinfields.o \
+	$(ROM_OBJDIR)/b/ulwin_idlecfg.o \
+	$(ROM_OBJDIR)/b/ulwin_move.o \
+	$(ROM_OBJDIR)/b/ulwin_open.o \
+	$(ROM_OBJDIR)/b/ulwin_putchar.o \
+	$(ROM_OBJDIR)/b/ulwin_putcolor.o \
+	$(ROM_OBJDIR)/b/ulwin_putcursor.o \
+	$(ROM_OBJDIR)/b/ulwin_putloc.o \
+	$(ROM_OBJDIR)/b/ulwin_puttitle.o \
+	$(ROM_OBJDIR)/b/ulwin_refresh.o \
+	$(ROM_OBJDIR)/b/ulwin_scroll.o \
+	$(ROM_OBJDIR)/b/ulwin_select.o
+
+# --- Bank C: Font data (LZSA2 compressed) ---
+ROM_C_OBJS = \
+	$(ROM_OBJDIR)/c/UL_fontdata.o
+
+ROM_ALL_OBJS = $(ROM_A_OBJS) $(ROM_B_OBJS) $(ROM_C_OBJS)
+
+# ROM object directories
+$(ROM_OBJDIR)/a $(ROM_OBJDIR)/b $(ROM_OBJDIR)/c:
+	mkdir -p $@
+
+# Bank A compilation: -D ROM_BUILD -D BANK_A
+$(ROM_OBJDIR)/a/%.o: $(SRCDIR)/%.s $(HEADERS) | $(ROM_OBJDIR)/a
+	ca65 $(ROM_FLAGS) $(ROM_INC) -D BANK_A -o $@ $<
+
+# Bank B compilation: -D ROM_BUILD -D BANK_B
+$(ROM_OBJDIR)/b/%.o: $(SRCDIR)/%.s $(HEADERS) | $(ROM_OBJDIR)/b
+	ca65 $(ROM_FLAGS) $(ROM_INC) -D BANK_B -o $@ $<
+
+# Bank C compilation: -D ROM_BUILD (no bank define — uses explicit segment names)
+$(ROM_OBJDIR)/c/%.o: $(SRCDIR)/%.s $(HEADERS) | $(ROM_OBJDIR)/c
+	ca65 $(ROM_FLAGS) $(ROM_INC) -o $@ $<
+
+# Font data depends on compressed font file
+$(ROM_OBJDIR)/c/UL_fontdata.o: run/unilib.ulf.lzsa2
+
+# Font compression (requires lzsa tool — build from https://github.com/emmanuel-marty/lzsa)
+run/unilib.ulf.lzsa2: run/unilib.ulf
+	$(LZSA) -r -f2 $< $@
+
+# Link all three ROM banks in a single ld65 invocation
+.rom_stamp: $(ROM_ALL_OBJS) $(ROM_CONFIGFILE)
+	ld65 -C $(ROM_CONFIGFILE) -m unilib_rom.map -Ln unilib_rom.sym $(ROM_ALL_OBJS)
+	touch $@
+
+unilib_b0.bin unilib_b1.bin unilib_b2.bin: .rom_stamp
+
+rom: unilib_b0.bin
+
+# =============================================================================
+# ROM test
+# =============================================================================
+
+ROMTESTAPP = ULTEST_ROM.PRG
+ROM_IMAGE ?= $(dir $(EMU))rom.bin
+CUSTOM_ROM = run/rom_unilib.bin
+
+# Compile test with ROM_TEST flag (uses thunks instead of library)
+$(ROM_OBJDIR)/ultest_rom.o: test/ultest.s $(HEADERS) | $(ROM_OBJDIR)/a
+	ca65 $(FLAGS) -I. -D ROM_TEST -o $@ $<
+
+# Compile thunks (provides jsrfar wrappers for all API functions)
+$(ROM_OBJDIR)/unilib_thunks.o: unilib_thunks.s unilib_rom.inc | $(ROM_OBJDIR)/a
+	ca65 $(FLAGS) -I. -o $@ $<
+
+# Link ROM test app: test code + thunks + cx16 runtime (no library needed)
+$(ROMTESTAPP): $(ROM_OBJDIR)/ultest_rom.o $(ROM_OBJDIR)/unilib_thunks.o
+	cl65 $(FLAGS) -C $(CONFIGFILE) -m ultest_rom.map -Ln ultest_rom.sym -o $@ $^
+
+# Build and run ROM tests: patch UniLib banks into ROM image, run test
+romtest: rom $(ROMTESTAPP)
+	cp $(ROMTESTAPP) run/
+	cp $(ROM_IMAGE) $(CUSTOM_ROM)
+	dd if=unilib_b0.bin of=$(CUSTOM_ROM) bs=16384 seek=16 conv=notrunc 2>/dev/null
+	dd if=unilib_b1.bin of=$(CUSTOM_ROM) bs=16384 seek=17 conv=notrunc 2>/dev/null
+	dd if=unilib_b2.bin of=$(CUSTOM_ROM) bs=16384 seek=18 conv=notrunc 2>/dev/null
+	X16EMU=$(EMU) python3 test/run_tests.py --prg run/$(ROMTESTAPP) --sym ultest_rom.sym --rom $(CUSTOM_ROM)

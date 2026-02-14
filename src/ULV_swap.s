@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ULV_swap - Switch backbuffer to front and update new backbuffer dirty lines
 .proc ULV_swap
@@ -66,7 +66,7 @@
                         rts
 .endproc
 
-.bss
+UL_BSS
 
 ULV_backbuf_offset:     .res    1
 ULV_dirtylines:         .res    30

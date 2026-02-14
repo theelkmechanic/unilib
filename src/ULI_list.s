@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; =============================================================================
 ; ULI_list_load_block - Load a message block's data address range
@@ -672,6 +672,6 @@
 ; BSS
 ; =============================================================================
 
-.bss
+UL_BSS
 
 ULI_list_scratch:       .res 17         ; 16 bytes + 1 for step during reverse create

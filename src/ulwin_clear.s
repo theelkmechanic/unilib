@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulwin_clear - Clear the contents of a window and put the cursor at top left
 ;   In: A               - Handle of window to clear

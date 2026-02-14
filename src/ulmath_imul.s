@@ -2,13 +2,14 @@
 
 .include "unilib_impl.inc"
 
-ULM_multab_lo = BANK::RAM + $100
-ULM_multab_hi = ULM_multab_lo + $200
-ULM_multab_neg_lo = ULM_multab_hi + $200
-ULM_multab_neg_hi = ULM_multab_neg_lo + $200
-ULM_mulXY_ram = ULM_multab_neg_hi + $200       ; $A900 - RAM copy of ULM_mulXY in bank 1
+; Hardcoded addresses on RAM bank 1 ($A000-$A7FF = 2KB math tables, $B660 = SMC copy)
+ULM_multab_lo = BANK::RAM                      ; $A000
+ULM_multab_hi = ULM_multab_lo + $200           ; $A200
+ULM_multab_neg_lo = ULM_multab_hi + $200       ; $A400
+ULM_multab_neg_hi = ULM_multab_neg_lo + $200   ; $A600
+ULM_mulXY_ram = $B660                          ; RAM copy of ULM_mulXY in bank 1
 
-.code
+UL_CODE
 
 ; ulmath_umul8_8 - Multiply 8-bit by 8-bit (unsigned)
 ;   In: X               ; Multiplier
@@ -85,45 +86,53 @@ ULM_mulXY_ram = ULM_multab_neg_hi + $200       ; $A900 - RAM copy of ULM_mulXY i
 ; ULM_multbl_init - Build the multiplication square tables
 ;   *** WARNING *** This must be the first memory allocation call, or it will break badly.
 .proc ULM_multbl_init
-                        ; Allocate space for math tables (2048 bytes) + ULM_mulXY RAM copy
-                        ldx #<(2048 + ULM_mulXY_size)
-                        ldy #>(2048 + ULM_mulXY_size)
-                        clc
-                        jsr ulmem_alloc
+                        ; Tables live at hardcoded addresses on bank 1 (already selected by caller)
+                        ; No heap allocation needed
 
-                        ; *** WARNING *** We're assuming that this was the first ulmem_alloc, so the
-                        ; allocated memory is at $A100 on bank 1. If this was NOT the first ulmem_alloc,
-                        ; this will trash whatever was in there and things will not go well for you.
+                        ; Initialize accumulator (replaces self-modifying ADC immediate)
+                        stz ULM_init_accum
 
-                        ; Switch to bank 1
-                        sty BANKSEL::RAM
-
-                        ; Build the multab table
+                        ; Build the multab table: f(n) = floor(n^2 / 4), n = 0..511
                         ldy #$00
                         tya
                         tax
                         clc
-@table_loop:            tya
+
+                        ; Page 1: entries 0-255
+@page1_loop:            tya
                         adc #$00
-@ml1:                   sta ULM_multab_hi,x
+                        sta ULM_multab_hi,x
                         tay
                         cmp #$40
                         txa
                         ror
-@ml9:                   adc #$00
-                        sta @ml9+1
+                        adc ULM_init_accum
+                        sta ULM_init_accum
                         inx
-@ml0:                   sta ULM_multab_lo,x
-                        bne @table_loop
-                        inc @ml0+2
-                        inc @ml1+2
+                        sta ULM_multab_lo,x
+                        bne @page1_loop
+
+                        ; Transition to page 2
                         clc
                         iny
-                        bne @table_loop
+
+                        ; Page 2: entries 256-511
+@page2_loop:            tya
+                        adc #$00
+                        sta ULM_multab_hi+$100,x
+                        tay
+                        cmp #$40
+                        txa
+                        ror
+                        adc ULM_init_accum
+                        sta ULM_init_accum
+                        inx
+                        sta ULM_multab_lo+$100,x
+                        bne @page2_loop
 
                         ; Now build the multab_neg table
                         ldx #$00
-                        dey
+                        ldy #$ff
 :                       lda ULM_multab_hi+1,x
                         sta ULM_multab_neg_hi+$100,x
                         lda ULM_multab_hi,x
@@ -172,3 +181,7 @@ ULM_mulXY_sm4:          sbc ULM_multab_neg_hi,y
 ULM_mulXY_end:
 
 ULM_mulXY_size = ULM_mulXY_end - ULM_mulXY
+
+UL_BSS
+
+ULM_init_accum:         .res    1

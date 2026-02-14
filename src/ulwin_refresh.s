@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulwin_refresh - Refresh the screen
 .proc ulwin_refresh

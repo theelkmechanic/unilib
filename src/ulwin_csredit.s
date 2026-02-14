@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ULW_worker_moverestofline:
                         stx ULWC_src_adj
@@ -53,7 +53,7 @@ ULW_worker_inschar:
                         ldx gREG::r0L
                         ldy gREG::r0H
                         lda gREG::r1L
-                        jsr ul_isprint
+                        XCALL ul_isprint, UNILIB_BANK_A
                         bcc exit
 
                         ; Make sure we are onscreen
@@ -229,7 +229,7 @@ ULW_worker_scrollbelow:
                         sta ULWR_destsize
                         jmp ULW_copyrect
 
-.rodata
+UL_RODATA
 
 ULW_workers:
 
@@ -247,7 +247,7 @@ ULW_wrkidx_delchar = ULW_wrkent_delchar - ULW_workers
 ULW_wrkidx_delline = ULW_wrkent_delline - ULW_workers
 ULW_wrkidx_eraseeol = ULW_wrkent_eraseeol - ULW_workers
 
-.bss
+UL_BSS
 
 ULWC_handle:            .res    1
 ULWC_src_adj:           .res    1

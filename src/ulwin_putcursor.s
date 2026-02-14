@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulwin_putcolor - Set cursor position in window
 ;   In: A               - Window handle

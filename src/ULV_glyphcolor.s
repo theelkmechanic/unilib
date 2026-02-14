@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ULV_calcglyphcolors - Given character flags and color nibbles, build the base and overlay color bytes
 ;   In: ULFT_charflags  - Character flags
@@ -43,7 +43,7 @@
                         rts
 .endproc
 
-.bss
+UL_BSS
 
 ULV_basecolor:          .res    1
 ULV_extracolor:         .res    1

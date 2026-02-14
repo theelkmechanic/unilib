@@ -9,7 +9,7 @@ UL_dst_fptr:    .res 2          ; pointer to iterator state / destination pointe
 ULI_cur:
 UL_src_fptr:    .res 2          ; current target address / source pointer
 
-.code
+UL_CODE
 
 ; Format step sizes indexed by (format >> 4)
 ; BYTE=1, WORD=2, TBYTE=3, DWORD=4, FLOAT=5, UTF8=0(variable), STRTBL=2
@@ -80,13 +80,16 @@ ULI_step_sizes: .byte 1, 2, 3, 4, 5, 0, 2, 0
                         cmp (ULI_ptr),y
                         bne @not_equal
 
-                        ; cur == end. Check if LIST type needs terminal MB verification
+                        ; cur == end. Check if LIST/STRING type needs terminal MB verification
                         lda (ULI_ptr)           ; type_format
                         and #$0F
                         cmp #ULITYP::LIST
-                        bne @is_at_end          ; not LIST -> truly at end
+                        beq @check_term_mb
+                        cmp #ULITYP::STRING
+                        bne @is_at_end          ; not LIST/STRING -> truly at end
 
-                        ; LIST: check if CUR_MB == TERM_MB
+                        ; LIST/STRING: check if CUR_MB == TERM_MB
+@check_term_mb:
                         ldy #ULI_STATE_CUR_MB
                         lda (ULI_ptr),y
                         tax                     ; X = CUR_MB lo
@@ -365,7 +368,7 @@ ULI_step_sizes: .byte 1, 2, 3, 4, 5, 0, 2, 0
                         rts
 .endproc
 
-.bss
+UL_BSS
 
 ULI_cur_bank:   .res 1          ; current target bank
 ULI_state_bank: .res 1          ; bank where iterator state BRP lives

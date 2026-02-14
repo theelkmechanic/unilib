@@ -2,7 +2,7 @@
 
 .import __EXTZP_RUN__, __EXTZP_SIZE__
 
-.code
+UL_CODE
 
 ; ul_init - Initialize UniLib
 ;   In: r0              Font filename
@@ -12,6 +12,16 @@
 ;       r2H             Initial screen background color
 ;  Out: A               Error code (0 = OK)
 .proc ul_init
+.ifdef ROM_BUILD
+                        ; Zero BSS in non-banked low RAM ($0400-$05FF) FIRST,
+                        ; before any code writes to BSS variables
+                        lda #0
+                        ldy #0
+:                       sta $0400,y
+                        sta $0500,y
+                        iny
+                        bne :-
+.endif
                         ; Initialize our zeropage
                         ldx #<(__EXTZP_SIZE__-1)
 :                       stz __EXTZP_RUN__,x
@@ -19,6 +29,12 @@
                         bpl :-
                         stx ULW_screen_handle
                         stx ULW_current_handle
+
+                        ; Initialize screen size (BSS, must be set explicitly)
+                        lda #80
+                        sta ULW_screen_size
+                        lda #30
+                        sta ULW_screen_size+1
 
                         ; Save whatever bank we were on and switch to bank 1
                         lda BANKSEL::RAM
@@ -29,27 +45,64 @@
                         ; Initialize pool allocator (reserves banks from top, adjusts MEMTOP)
                         jsr ULPOOL_init
 
-                        ; Initialize the heap (sees reduced MEMTOP)
+.ifdef ROM_BUILD
+                        lda #'C'
+                        sta $9FBB
+                        lda #$0A
+                        sta $9FBB
+.endif
+                        ; Initialize the heap (starts at bank 2, sees reduced MEMTOP)
                         jsr ULM_init
 
-                        ; Initialize math multiplication tables + SMC code copy
-                        ;   *** WARNING *** This MUST be the first memory allocation call, or it will break badly; the multiplication
-                        ; functions assume they're on the first page of bank RAM starting at $A100 (tables) and $A900 (code),
-                        ; and if this is not the first call, they won't be
+.ifdef ROM_BUILD
+                        lda #'D'
+                        sta $9FBB
+                        lda #$0A
+                        sta $9FBB
+.endif
+
+                        ; --- Hardcoded bank 1 initialization ---
+                        ; Bank 1 layout:
+                        ;   $A000-$A7FF: Math multiplication tables (2KB)
+                        ;   $A800-$ACFF: Font glyph cache (5 pages)
+                        ;   $AD00-$B65F: Window map (80x30)
+                        ;   $B660-$B680: Math SMC code copy
+
+                        ; Zero all of bank 1 ($A000-$BFFF, 8KB)
+                        lda #1
+                        sta BANKSEL::RAM
+                        stz UL_varptr
+                        lda #$A0
+                        sta UL_varptr+1
+                        ldy #0
+                        tya
+@zero_bank1:            sta (UL_varptr),y
+                        iny
+                        bne @zero_bank1
+                        inc UL_varptr+1
+                        ldx UL_varptr+1
+                        cpx #$C0
+                        bne @zero_bank1
+
+.ifdef ROM_BUILD
+                        lda #'E'
+                        sta $9FBB
+                        lda #$0A
+                        sta $9FBB
+.endif
+                        ; Build multiplication tables at $A000 + copy SMC to $B660
                         jsr ULM_multbl_init
 
-                        ; Initialize the font cache
-                        ;   *** WARNING *** This MUST be the second memory allocation call, or it will break badly; the font glyph info
-                        ; lookup assumes it's on bank RAM starting at $A940, and if this is not the second call, it won't be
-                        jsr ULFT_initfontcache
+.ifdef ROM_BUILD
+                        lda #'F'
+                        sta $9FBB
+                        lda #$0A
+                        sta $9FBB
+.endif
+                        ; Initialize font glyph cache at $A800 (bank 1 already zeroed)
+                        XCALL ULFT_initfontcache, UNILIB_BANK_B
 
-                        ; Allocate the window map
-                        ;   *** WARNING *** This MUST be the third memory allocation call, or it will break badly; the windowing code
-                        ; assumes it's on bank RAM starting at $AE40, and if this is not the third call, it won't be
-                        ldx #<(80*30)
-                        ldy #>(80*30)
-                        sec
-                        jsr ulmem_alloc
+                        ; Window map at $AD00 is already zeroed
 
                         ; Initialize VERA to display 80x30 Unicode text:
                         ;   - Map size = 128x32, tile size = 8x16
@@ -64,7 +117,80 @@
                         ;       - line stride is 256
                         ;       - tile set is at $08000 (32k)
 
-                        ; Load font to $08000 in VRAM (headerless, 4K layer 0 base glyphs, 32K layer 1 overlay glyphs, followed by glyph maps)
+.ifdef ROM_BUILD
+                        lda #'G'
+                        sta $9FBB
+                        lda #$0A
+                        sta $9FBB
+.endif
+                        ; Load font to $08000 in VRAM
+.ifdef ROM_BUILD
+                        ; ROM mode: if no filename provided (r1L=0), decompress from ROM bank C
+                        lda gREG::r1L
+                        bne @load_font_from_file
+
+                        ; --- Decompress font from ROM bank C to VRAM ---
+
+                        ; Copy font reader routine to low RAM at $02E2
+                        ldx #UL_font_reader_end - UL_font_reader - 1
+:                       lda UL_font_reader,x
+                        sta $02E2,x
+                        dex
+                        bpl :-
+
+                        ; Set up VERA data port 0 at $08000 with auto-increment 1
+                        lda VERA::CTRL
+                        and #$FE
+                        sta VERA::CTRL
+                        lda #VERA::INC1
+                        sta VERA::ADDR+2
+                        lda #$80
+                        sta VERA::ADDR+1
+                        stz VERA::ADDR
+
+                        ; r0 = $C000 (start of compressed data in ROM bank C)
+                        lda #$00
+                        sta gREG::r0L
+                        lda #$C0
+                        sta gREG::r0H
+
+                        ; r1 = VERA::DATA0 ($9F23) for VRAM output
+                        lda #$23
+                        sta gREG::r1L
+                        lda #$9F
+                        sta gREG::r1H
+
+                        ; r4 = font reader function at $02E2
+                        lda #$E2
+                        sta gREG::r4L
+                        lda #$02
+                        sta gREG::r4H
+
+                        ; Breadcrumb H: about to decompress
+                        lda #'H'
+                        sta $9FBB
+                        lda #$0A
+                        sta $9FBB
+
+                        ; Call memory_decompress_internal via extapi #15
+                        lda #15
+                        jsr $FEAB
+
+                        ; Breadcrumb I: decompression done
+                        lda #'I'
+                        sta $9FBB
+                        lda #$0A
+                        sta $9FBB
+                        bra @font_loaded
+
+@load_font_from_file:
+                        ; Breadcrumb X: file load path taken!
+                        lda #'X'
+                        sta $9FBB
+                        lda #$0A
+                        sta $9FBB
+.endif
+                        ; Load font from file (headerless, to VRAM $08000)
                         lda #1
                         ldx gREG::r1H
                         ldy #2
@@ -77,15 +203,16 @@
                         ldx #0
                         ldy #$80
                         jsr LOAD
-                        bcc :+
+                        bcc @font_loaded
 
                         ; Font load failed, so restore RAM bank, set and return error
                         lda #ULERR::LOAD_FAILED
                         sta UL_lasterr
                         jmp @init_done
 
+@font_loaded:
                         ; Clear screen memory
-:                       lda VERA::CTRL
+                        lda VERA::CTRL
                         and #$fe
                         sta VERA::CTRL
                         lda #VERA::INC1
@@ -145,6 +272,12 @@
                         stz VERA::L1::VSCROLL
                         stz VERA::L1::VSCROLL+1
 
+.ifdef ROM_BUILD
+                        lda #'J'
+                        sta $9FBB
+                        lda #$0A
+                        sta $9FBB
+.endif
                         ; Setup palette colors
                         ldx #15
 :                       txa
@@ -157,15 +290,27 @@
                         tay
                         txa
                         plx
-                        jsr ULV_setpaletteentry
+                        XCALL ULV_setpaletteentry, UNILIB_BANK_B
                         tax
                         dex
                         bne :-
 
+.ifdef ROM_BUILD
+                        lda #'K'
+                        sta $9FBB
+                        lda #$0A
+                        sta $9FBB
+.endif
                         ; Initialize double buffering
                         stz ULV_backbuf_offset
-                        jsr ULV_swap
+                        XCALL ULV_swap, UNILIB_BANK_B
 
+.ifdef ROM_BUILD
+                        lda #'L'
+                        sta $9FBB
+                        lda #$0A
+                        sta $9FBB
+.endif
                         ; Lastly, initialize the windowing system; first we need our array of window BRPs,
                         ; so allocate an array to hold 64 BRPs (128 bytes); window handle will be 0-based
                         ; index into this list
@@ -176,6 +321,12 @@
                         stx ULW_winlist
                         sty ULW_winlist+1
 
+.ifdef ROM_BUILD
+                        lda #'M'
+                        sta $9FBB
+                        lda #$0A
+                        sta $9FBB
+.endif
                         ; Open a window for the screen (color params are already in the right register)
                         stz gREG::r0L
                         stz gREG::r0H
@@ -188,8 +339,14 @@
                         stz gREG::r4L
                         stz gREG::r4H
                         stz UL_lasterr
-                        jsr ulwin_open
+                        XCALL ulwin_open, UNILIB_BANK_B
 
+.ifdef ROM_BUILD
+                        lda #'N'
+                        sta $9FBB
+                        lda #$0A
+                        sta $9FBB
+.endif
                         ; Restore the RAM bank and return success/failure
 @init_done:             pla
                         sta BANKSEL::RAM
@@ -197,7 +354,7 @@
                         rts
 .endproc
 
-.rodata
+UL_RODATA
 
 ULV_colors:
                         .word   $000    ; (color 0 not used, set to black)
@@ -217,15 +374,37 @@ ULV_colors:
                         .word   $bf8    ; ULCOLOR::LIGHTGREEN
                         .word   $1af    ; ULCOLOR::LIGHTBLUE
 
-.data
+.ifdef ROM_BUILD
+; Font byte reader for memory_decompress_internal
+; Copied to low RAM at $02E2 during init, called indirectly via r4
+; Reads one byte from ROM bank C, advances r0, returns byte in A
+; Preserves X, Y; disables interrupts while ROM bank C is active
+UL_font_reader:
+                        sei
+                        lda #UNILIB_BANK_C
+                        sta $0001               ; switch to ROM bank C
+                        lda (gREG::r0L)         ; read byte from compressed data
+                        inc gREG::r0L
+                        bne :+
+                        inc gREG::r0H
+:                       stz $0001               ; restore KERNAL bank 0
+                        cli
+                        rts
+UL_font_reader_end:
+.endif
+
+UL_DATA
 
 ULW_keyfg:              .byte   ULCOLOR::WHITE      ; keyboard entry window foreground color
 ULW_keybg:              .byte   ULCOLOR::BLUE       ; keyboard entry window background color
-ULW_screen_size:        .byte   80, 30              ; Size of screen (lo=columns, hi=lines)
 
-.bss
+UL_BSS
 
 ULW_keyidle:            .res    2       ; keyboard idle routine address
 
 ULW_screen_handle:      .res    1       ; Window handle of screen
 ULW_current_handle:     .res    1       ; Window handle of current topmost window
+
+; ULW_screen_size must be in BSS (non-banked RAM), not DATA (ROM bank A),
+; because ulwin_open in Bank B needs to read it. Initialized by ul_init.
+ULW_screen_size:        .res    2       ; Size of screen (lo=columns, hi=lines)

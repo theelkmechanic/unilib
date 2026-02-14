@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; =============================================================================
 ; Internal helper
@@ -467,6 +467,6 @@
 ; BSS
 ; =============================================================================
 
-.bss
+UL_BSS
 
 ULDB_scratch:           .res 8          ; temp storage for intermediate BRPs/sizes

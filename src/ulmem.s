@@ -1,6 +1,10 @@
 .include "unilib_impl.inc"
 
-.code
+; Bank 1 is reserved for hardcoded layout (math tables, font cache, window map, BSS).
+; Heap starts at bank 2.
+ULM_HEAP_START_BANK = 2
+
+UL_CODE
 
 ; ulmem_access - Access the memory at a banked RAM pointer (BRP)
 ;   In: YX              - BRP
@@ -193,21 +197,21 @@ _realloc_need_more:
                         lda BANKSEL::RAM
                         sta ULM_scratchspace+1  ; dest bank
 
-                        ; 32-byte slot-at-a-time copy through $0400 cache
-@chunk_loop:            ; Copy 32 bytes: source bank -> $0400
+                        ; 32-byte slot-at-a-time copy through scratch cache
+@chunk_loop:            ; Copy 32 bytes: source bank -> scratch
                         lda ULM_scratchspace+0
                         sta BANKSEL::RAM
                         ldy #31
 :                       lda (UL_varptr),y
-                        sta $0400,y
+                        sta UL_SCRATCH_BASE,y
                         dey
                         bpl :-
 
-                        ; Copy 32 bytes: $0400 -> dest bank
+                        ; Copy 32 bytes: scratch -> dest bank
                         lda ULM_scratchspace+1
                         sta BANKSEL::RAM
                         ldy #31
-:                       lda $0400,y
+:                       lda UL_SCRATCH_BASE,y
                         sta (UL_var2ptr),y
                         dey
                         bpl :-
@@ -312,12 +316,12 @@ _alloc_roomybankstart = ULM_scratchspace+2
 _alloc_roomybanksize = ULM_scratchspace+3
 _alloc_chunkstart = ULM_scratchspace+4
 _alloc_inused = ULM_scratchspace+5
-                        ; Switch to bank 1 to start
+                        ; Switch to first heap bank to start
                         pha
                         lda BANKSEL::RAM
                         pha
                         php
-                        lda #1
+                        lda #ULM_HEAP_START_BANK
                         sta BANKSEL::RAM
 
                         ; Figure out how many slots we need
@@ -332,7 +336,7 @@ _alloc_inused = ULM_scratchspace+5
                         ; For small numbers, we have the index of a matching slot count saved in the corresponding byte of
                         ; each page; scan the pages to see if there's one there
 _alloc_check_small_blocks:
-                        ldy #1
+                        ldy #ULM_HEAP_START_BANK
                         sty BANKSEL::RAM
                         tax
 :                       lda BANK::RAM,x
@@ -345,7 +349,7 @@ _alloc_check_small_blocks:
 
                         ; Need to scan for a chunk of slots; first look for an exact match, and also save the first bank
                         ; with enough room along the way
-_alloc_need_scan:       ldy #1
+_alloc_need_scan:       ldy #ULM_HEAP_START_BANK
                         sty BANKSEL::RAM
                         stz _alloc_roomybank
 
@@ -645,6 +649,10 @@ _alloc_return_brp:      ldx ULM_alloc_slot
                         jsr MEMTOP
                         sta ULM_numbanks
 
+                        ; Start heap at bank 2 (bank 1 is hardcoded layout)
+                        lda #ULM_HEAP_START_BANK
+                        sta BANKSEL::RAM
+
                         ; First page of each bank is slot tracking. First byte is # of free slots, then the next 7 are
                         ; the index of the first free entry that is exactly 1 slot, 2 slots, etc., or 0 if there is no
                         ; exact match. Since there isn't to begin with, the whole first page gets set to 0, and the first
@@ -663,7 +671,7 @@ _alloc_return_brp:      ldx ULM_alloc_slot
                         rts
 .endproc
 
-.bss
+UL_BSS
 
 ULM_numbanks:           .res    1
 ULM_scratchspace:       .res    6

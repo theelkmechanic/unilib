@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulstr_compare - Compare two strings
 ;   In: r0 = first string handle (MSGBLOCK pool index), r1 = second string handle, A = flags (ignored)
@@ -10,7 +10,7 @@
                         lda BANKSEL::RAM
                         pha
 
-                        ; Access string 1 via ULS_access → data at $400
+                        ; Access string 1 via ULS_access → data at UL_SCRATCH_BASE
                         ldx gREG::r0L
                         ldy gREG::r0H
                         jsr ULS_access
@@ -21,17 +21,17 @@
                         jsr ulstr_getrawlen
                         sta ULSC_s1_bytelen
 
-                        ; Copy $400 data to $500
+                        ; Copy UL_SCRATCH_BASE data to UL_SCRATCH2_BASE
                         lda ULSC_s1_bytelen
                         beq @do_s2
                         tay
 :                       dey
-                        lda $400,y
-                        sta $500,y
+                        lda UL_SCRATCH_BASE,y
+                        sta UL_SCRATCH2_BASE,y
                         cpy #0
                         bne :-
 
-                        ; Access string 2 via ULS_access → data at $400
+                        ; Access string 2 via ULS_access → data at UL_SCRATCH_BASE
 @do_s2:                 ldx gREG::r1L
                         ldy gREG::r1H
                         jsr ULS_access
@@ -42,18 +42,8 @@
                         jsr ulstr_getrawlen
                         sta ULSC_s2_bytelen
 
-                        ; Copy $400 data to $600
-                        lda ULSC_s2_bytelen
-                        beq @compare
-                        tay
-:                       dey
-                        lda $400,y
-                        sta $600,y
-                        cpy #0
-                        bne :-
-
                         ; Compare min(bytelen1, bytelen2) data bytes
-                        ; Data is at $500 and $600 (no offset — raw data)
+                        ; String 1 data is at UL_SCRATCH2_BASE, string 2 at UL_SCRATCH_BASE
 @compare:               lda ULSC_s1_bytelen
                         cmp ULSC_s2_bytelen
                         bcc @use_s1_len
@@ -62,8 +52,8 @@
                         beq @compare_lengths    ; both empty or one empty
 
                         ldy #0
-@cmp_loop:              lda $500,y
-                        cmp $600,y
+@cmp_loop:              lda UL_SCRATCH2_BASE,y
+                        cmp UL_SCRATCH_BASE,y
                         bcc @less
                         bne @greater
                         iny
@@ -93,7 +83,7 @@
 
 .endproc
 
-.bss
+UL_BSS
 
 ULSC_s1_bytelen:        .res 1
 ULSC_s2_bytelen:        .res 1

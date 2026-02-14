@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulstr_find - Find first occurrence of a codepoint in a string
 ;   In: r0 = string BRP, r1 = start index (char), AYX = codepoint to find
@@ -29,7 +29,7 @@
 
                         lda gREG::r1L           ; skip count
                         sta ULSF_skip_count
-@skip_loop:             jsr ULS_nextchar
+@skip_loop:             XCALL ULS_nextchar, UNILIB_BANK_B
                         bcs @not_found          ; hit end while skipping
                         inc ULSF_char_idx
                         bne :+
@@ -38,7 +38,7 @@
                         bne @skip_loop
 
                         ; Scan for target codepoint
-@scan:                  jsr ULS_nextchar
+@scan:                  XCALL ULS_nextchar, UNILIB_BANK_B
                         bcs @not_found
 
                         ; Compare AYX with target (X=low, Y=mid, A=high)
@@ -69,7 +69,7 @@
 
 .endproc
 
-.bss
+UL_BSS
 
 ULSF_target:            .res 3
 ULSF_char_idx:          .res 2

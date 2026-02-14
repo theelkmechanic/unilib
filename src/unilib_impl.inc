@@ -2,6 +2,96 @@
 .include "cx16.inc"
 .include "cbm_kernal.inc"
 
+; --- ROM bank assignments ---
+UNILIB_BANK_A = $10     ; Foundation + Data
+UNILIB_BANK_B = $11     ; Display
+UNILIB_BANK_C = $12     ; Font data (compressed)
+
+; --- Scratch buffer locations in non-banked low RAM ---
+; In ROM builds, BSS occupies $0400-$05FF, so scratch moves to $0600/$0700.
+; In RAM builds, BSS is in the program data area, so $0400/$0500 are free.
+.ifdef ROM_BUILD
+    UL_SCRATCH_BASE  = $0600    ; Primary scratch (ULS_access output, ulmem copy cache)
+    UL_SCRATCH2_BASE = $0700    ; Secondary scratch (string compare/append workspace)
+.else
+    UL_SCRATCH_BASE  = $0400
+    UL_SCRATCH2_BASE = $0500
+.endif
+
+; --- Segment macros ---
+; In RAM builds: UL_CODE → .code, UL_BSS → .bss, etc.
+; In ROM builds: routes to BANK_A_CODE/BANK_B_CODE etc. based on BANK_A/BANK_B define.
+.macro UL_CODE
+    .ifdef ROM_BUILD
+        .ifdef BANK_A
+            .segment "BANK_A_CODE"
+        .else
+            .segment "BANK_B_CODE"
+        .endif
+    .else
+        .code
+    .endif
+.endmacro
+
+.macro UL_BSS
+    .ifdef ROM_BUILD
+        .segment "BSS"
+    .else
+        .bss
+    .endif
+.endmacro
+
+.macro UL_RODATA
+    .ifdef ROM_BUILD
+        .ifdef BANK_A
+            .segment "BANK_A_RODATA"
+        .else
+            .segment "BANK_B_RODATA"
+        .endif
+    .else
+        .rodata
+    .endif
+.endmacro
+
+.macro UL_DATA
+    .ifdef ROM_BUILD
+        .ifdef BANK_A
+            .segment "BANK_A_DATA"
+        .else
+            .segment "BANK_B_DATA"
+        .endif
+    .else
+        .data
+    .endif
+.endmacro
+
+; --- Cross-bank call macro ---
+; In RAM builds: plain jsr (zero overhead).
+; In ROM builds: call through uljsrfar with target address and bank byte.
+; Each bank has its own jsrfar copy (uljsrfar_a / uljsrfar_b) to avoid
+; duplicate symbol errors when all banks are linked together.
+.macro XCALL target, bank
+    .ifdef ROM_BUILD
+        .ifdef BANK_A
+            jsr uljsrfar_a
+        .else
+            jsr uljsrfar_b
+        .endif
+        .word target
+        .byte bank
+    .else
+        jsr target
+    .endif
+.endmacro
+
+.ifdef ROM_BUILD
+    .ifdef BANK_A
+        .global uljsrfar_a
+    .else
+        .global uljsrfar_b
+    .endif
+.endif
+
 ; Utilities/data
 .global UL_getrng
 .global UL_chkrng
@@ -123,6 +213,9 @@ ULI_LIST_STATE_SIZE   = 20
 .global ULI_list_create
 .global ULI_list_boundary_check
 .global ULI_list_scratch
+
+.global ULI_string_create
+.global ULI_string_boundary_check
 
 ; Math utilities
 .global ULM_multbl_init
@@ -273,7 +366,7 @@ ULWS_COVERED    = $80
 .global ULW_set_dirty_rect
 .global ULW_dirty
 .global ULW_dirtyrect
-ULW_WINMAP = $AE40
+ULW_WINMAP = $AD00                  ; Hardcoded address on RAM bank 1
 
 .global ULW_getwinbufptr
 .global ULW_linelen

@@ -2,7 +2,7 @@
 
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 .proc ulwin_move
     rts

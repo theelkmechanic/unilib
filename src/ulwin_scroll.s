@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulwin_scroll - Scroll window contents by a specified amount
 ;   In: A               - Window handle
@@ -11,19 +11,19 @@
                         sta ULW_WINDOW_COPY::handle
                         lda BANKSEL::RAM
                         pha
-                        stx @savedx+1
-                        sty @savedy+1
+                        stx ULWS_savedx
+                        sty ULWS_savedy
 
                         ; Access the window structure
                         lda ULW_WINDOW_COPY::handle
                         jsr ULW_getwinstruct
 
                         ; Destination is our start line/column plus our Y/X
-                        lda @savedy+1
+                        lda ULWS_savedy
                         clc
                         adc ULW_WINDOW_COPY::slin
                         sta ULWR_dest+1
-                        lda @savedx+1
+                        lda ULWS_savedx
                         clc
                         adc ULW_WINDOW_COPY::scol
                         sta ULWR_dest
@@ -37,7 +37,9 @@
 
                         ; Did we scroll completely off?
                         lda ULWR_destsize
-                        beq @fillall
+                        bne :+
+                        jmp @fillall
+:
                         dec
                         cmp ULW_WINDOW_COPY::ncol
                         bcs @fillall
@@ -53,30 +55,30 @@
                         sec
                         sbc ULW_WINDOW_COPY::scol
                         sta ULWR_dest
-                        sbc @savedx+1
+                        sbc ULWS_savedx
                         sta ULWR_src
                         lda ULWR_dest+1
                         sec
                         sbc ULW_WINDOW_COPY::slin
                         sta ULWR_dest+1
-                        sbc @savedy+1
+                        sbc ULWS_savedy
                         sta ULWR_src+1
 
                         ; Scroll is copy plus fill, so do copy first
                         jsr ULW_copyrect
 
                         ; What do we need to fill? First check if we scrolled left/right
-                        ldx @savedx+1
+                        ldx ULWS_savedx
                         beq @checklines ; didn't scroll left/right so don't need to fill side
                         bpl @fillleft   ; if scrolling right need to fill left
 
                         ; Fill right columns
                         txa
-                        jsr ulmath_negate_8
+                        XCALL ulmath_negate_8, UNILIB_BANK_A
                         tax
                         lda ULW_WINDOW_COPY::ncol
                         clc
-                        adc @savedx+1
+                        adc ULWS_savedx
                         bra @fillcolumns
 
                         ; Fill left columns
@@ -94,17 +96,17 @@
                         jsr ULW_clearrect
 
                         ; Okay, now check if we scrolled up/down
-@checklines:            ldy @savedy+1
+@checklines:            ldy ULWS_savedy
                         beq @alldone    ; didn't scroll up/down so don't need to fill top/bottom
                         bpl @filltop    ; if scrolling down need to fill top
 
                         ; Fill bottom lines
                         tya
-                        jsr ulmath_negate_8
+                        XCALL ulmath_negate_8, UNILIB_BANK_A
                         tay
                         lda ULW_WINDOW_COPY::nlin
                         clc
-                        adc @savedy+1
+                        adc ULWS_savedy
                         bra @filllines
 
                         ; Fill whole window
@@ -128,7 +130,12 @@
 @alldone:               pla
                         sta BANKSEL::RAM
                         lda ULW_WINDOW_COPY::handle
-@savedx:                ldx #$00
-@savedy:                ldy #$00
+                        ldx ULWS_savedx
+                        ldy ULWS_savedy
                         rts
 .endproc
+
+UL_BSS
+
+ULWS_savedx:            .res    1
+ULWS_savedy:            .res    1

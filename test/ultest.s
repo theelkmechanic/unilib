@@ -118,9 +118,25 @@ str_t_u8e:      .byte "UTF8 inc->atend        ", 0
 str_t_u8d:      .byte "UTF8 dec,fetch=U+1F600 ", 0
 str_t_u8ds:     .byte "UTF8 dec x3->atstart   ", 0
 
+; REVERSE+UTF8 tests
+str_t_ru8c:     .byte "REV+UTF8 create        ", 0
+str_t_ru8f:     .byte "REV+UTF8 fetch=U+1F600 ", 0
+str_t_ru8i:     .byte "REV+UTF8 fai x4+atend  ", 0
+str_t_ru8d:     .byte "REV+UTF8 last fai=0041 ", 0
+
+; STRING iterator tests
+str_t_sic:      .byte "STRING create          ", 0
+str_t_sif:      .byte "STRING fetch=U+0041    ", 0
+str_t_sii:      .byte "STRING fai x4+atend    ", 0
+str_t_sirc:     .byte "REV+STRING create      ", 0
+str_t_sirf:     .byte "REV+STRING fetch=1F600 ", 0
+str_t_sicl:     .byte "STRING cleanup         ", 0
+
 ; UTF-8 test data: 'A' (1 byte) + e-acute U+00E9 (2 bytes) + CJK U+4E2D (3 bytes) + grinning U+1F600 (4 bytes)
 utf8_testdata:  .byte $41, $C3, $A9, $E4, $B8, $AD, $F0, $9F, $98, $80
 UTF8_TESTLEN = 10
+; NUL-terminated version for ulstr_fromUtf8
+utf8_teststr:   .byte $41, $C3, $A9, $E4, $B8, $AD, $F0, $9F, $98, $80, $00
 
 ; String function tests
 str_t_srel:     .byte "ulstr_release          ", 0
@@ -240,6 +256,28 @@ str_got:        .byte " got:", 0
 @hexchars:              .byte "0123456789ABCDEF"
 .endproc
 
+; puthex_stdout - Write A as 2 hex digits to EMU_STDOUT only
+;   In: A = byte value
+.proc puthex_stdout
+                        pha
+                        lsr
+                        lsr
+                        lsr
+                        lsr
+                        tax
+                        lda hexchars,x
+                        sta EMU_STDOUT
+                        pla
+                        pha
+                        and #$0f
+                        tax
+                        lda hexchars,x
+                        sta EMU_STDOUT
+                        pla
+                        rts
+hexchars:               .byte "0123456789ABCDEF"
+.endproc
+
 ; putdec - Write A as unsigned decimal (0-255) to the test window
 ;   In: A = byte value
 .proc putdec
@@ -307,7 +345,8 @@ str_got:        .byte " got:", 0
                         ldy #27
                         ldx #0
                         lda win
-                        jmp ulwin_putcursor
+                        jsr ulwin_putcursor
+                        rts
 @no_scroll:             ina
                         tay
                         ldx #0
@@ -328,7 +367,8 @@ str_got:        .byte " got:", 0
                         ldy #>str_pass
                         jsr putmsg
                         jsr newline
-                        jmp delay_and_refresh
+                        jsr ulwin_refresh
+                        rts
 .endproc
 
 ; fail - Print " FAIL" and increment fail counter
@@ -359,6 +399,10 @@ start:
                         jsr MEMORY_FILL
 
                         ; Initialize UniLib
+.ifdef ROM_TEST
+                        ; ROM mode: decompress font from ROM bank C (r1L=0)
+                        stz gREG::r1L
+.else
                         lda #(end_filenames-font_fn)
                         sta gREG::r1L
                         lda #8
@@ -367,6 +411,7 @@ start:
                         sta gREG::r0L
                         lda #>font_fn
                         sta gREG::r0H
+.endif
                         lda #ULCOLOR::WHITE
                         sta gREG::r2L
                         lda #ULCOLOR::DGREY
@@ -1124,6 +1169,56 @@ start:
                         ldy #>str_t_ri
                         jsr putmsg
 
+.ifdef ROM_TEST
+                        ; DEBUG: dump iterator state before loop
+                        ; iter handle = bank:slot BRP
+                        ldx iter
+                        ldy iter+1
+                        jsr ulmem_access        ; YX = address, bank set
+                        stx gREG::r13L
+                        sty gREG::r13H
+                        ; Byte 0 = type_format
+                        lda (gREG::r13)
+                        jsr puthex_stdout
+                        lda #':'
+                        sta EMU_STDOUT
+                        ; Bytes 1-3 = cur (addr_lo, addr_hi, bank)
+                        ldy #1
+                        lda (gREG::r13),y
+                        jsr puthex_stdout
+                        iny
+                        lda (gREG::r13),y
+                        jsr puthex_stdout
+                        iny
+                        lda (gREG::r13),y
+                        jsr puthex_stdout
+                        lda #'/'
+                        sta EMU_STDOUT
+                        ; Bytes 4-6 = start
+                        iny
+                        lda (gREG::r13),y
+                        jsr puthex_stdout
+                        iny
+                        lda (gREG::r13),y
+                        jsr puthex_stdout
+                        iny
+                        lda (gREG::r13),y
+                        jsr puthex_stdout
+                        lda #'-'
+                        sta EMU_STDOUT
+                        ; Bytes 7-9 = end
+                        iny
+                        lda (gREG::r13),y
+                        jsr puthex_stdout
+                        iny
+                        lda (gREG::r13),y
+                        jsr puthex_stdout
+                        iny
+                        lda (gREG::r13),y
+                        jsr puthex_stdout
+                        lda #$0A
+                        sta EMU_STDOUT
+.endif
                         lda #7
                         sta fwd_idx             ; expected value starts at 7
                         stz fwd_errs
@@ -1131,9 +1226,18 @@ start:
                         ldy iter+1
                         jsr ulitr_fetch_and_inc
                         bcs @ri_err
+                        ; DEBUG: print actual value
+                        pha
+                        clc
+                        adc #'0'
+                        sta EMU_STDOUT
+                        pla
                         cmp fwd_idx
                         beq @ri_next
-@ri_err:                inc fwd_errs
+                        bra @ri_err2
+@ri_err:                lda #'C'                ; DEBUG: 'C' = carry set error
+                        sta EMU_STDOUT
+@ri_err2:               inc fwd_errs
 @ri_next:               dec fwd_idx             ; next expected value
                         lda fwd_idx
                         cmp #$FF                ; went past 0?
@@ -1232,8 +1336,19 @@ start:
                         ldy #>str_t_ds
                         jsr putmsg
 
+                        ; DEBUG: try fetch before store to verify iterator is valid
+                        ldx iter
+                        ldy iter+1
+                        jsr ulitr_fetch
+                        bcc @ds_fetchok
+                        lda #'!'
+                        sta EMU_STDOUT          ; '!' = fetch also fails
+                        bra @ds_dostore
+@ds_fetchok:            lda #'.'
+                        sta EMU_STDOUT          ; '.' = fetch ok
+
                         ; DWORD in little-endian: $EF, $BE, $AD, $DE
-                        lda #$EF
+@ds_dostore:            lda #$EF
                         sta gREG::r0L
                         lda #$BE
                         sta gREG::r0H
@@ -2539,8 +2654,126 @@ start:
                         jsr ulitr_atstart
                         beq :+
                         jsr fail
-                        bra @u8_cleanup
+                        jmp @u8_cleanup
 :                       jsr pass
+
+; =========================================================================
+; REVERSE+UTF8 Iterator tests (reuse u8_brp)
+; =========================================================================
+
+; ----- Test: Create REVERSE+BRP+UTF8 iterator -----
+
+@test_ru8c:             ldx #<str_t_ru8c
+                        ldy #>str_t_ru8c
+                        jsr putmsg
+
+                        lda #UTF8_TESTLEN
+                        sta gREG::r0L
+                        stz gREG::r0H
+                        lda #(ULITYP::REVERSE | ULITYP::BRP | ULIFMT::UTF8)
+                        ldx u8_brp
+                        ldy u8_brp+1
+                        jsr ulitr_create
+                        bcs @ru8c_fail
+                        stx ru8_iter
+                        sty ru8_iter+1
+
+                        jsr pass
+                        bra @test_ru8f
+
+@ru8c_fail:             jsr fail
+                        jmp @u8_cleanup
+
+; ----- Test: REV+UTF8 fetch = U+1F600 (last char) -----
+
+@test_ru8f:             ldx #<str_t_ru8f
+                        ldy #>str_t_ru8f
+                        jsr putmsg
+
+                        ldx ru8_iter
+                        ldy ru8_iter+1
+                        jsr ulitr_fetch
+                        bcs @ru8f_fail
+                        lda gREG::r0L
+                        cmp #$00
+                        bne @ru8f_fail
+                        lda gREG::r0H
+                        cmp #$F6
+                        bne @ru8f_fail
+                        lda gREG::r1L
+                        cmp #$01
+                        bne @ru8f_fail
+
+                        jsr pass
+                        bra @test_ru8i
+
+@ru8f_fail:             jsr fail
+
+; ----- Test: REV+UTF8 fai x4 + atend -----
+
+@test_ru8i:             ldx #<str_t_ru8i
+                        ldy #>str_t_ru8i
+                        jsr putmsg
+
+                        stz fwd_errs
+                        lda #4
+                        sta fwd_idx
+@ru8i_loop:             ldx ru8_iter
+                        ldy ru8_iter+1
+                        jsr ulitr_fetch_and_inc
+                        bcs @ru8i_err
+                        ; Save last fetched codepoint
+                        lda gREG::r0L
+                        sta ru8_last_r0l
+                        lda gREG::r0H
+                        sta ru8_last_r0h
+                        lda gREG::r1L
+                        sta ru8_last_r1l
+                        dec fwd_idx
+                        bne @ru8i_loop
+                        bra @ru8i_check
+@ru8i_err:              inc fwd_errs
+                        dec fwd_idx
+                        bne @ru8i_loop
+
+@ru8i_check:            ; Should be at end
+                        ldx ru8_iter
+                        ldy ru8_iter+1
+                        jsr ulitr_atend
+                        bne @ru8i_fail
+                        lda fwd_errs
+                        bne @ru8i_fail
+
+                        jsr pass
+                        bra @test_ru8d
+
+@ru8i_fail:             jsr fail
+
+; ----- Test: REV+UTF8 last fai returned U+0041 ('A') -----
+
+@test_ru8d:             ldx #<str_t_ru8d
+                        ldy #>str_t_ru8d
+                        jsr putmsg
+
+                        ; The last successful fai should have returned 'A' (U+0041)
+                        lda ru8_last_r0l
+                        cmp #$41
+                        bne @ru8d_fail
+                        lda ru8_last_r0h
+                        bne @ru8d_fail
+                        lda ru8_last_r1l
+                        bne @ru8d_fail
+
+                        jsr pass
+                        bra @ru8_cleanup
+
+@ru8d_fail:             jsr fail
+
+; ----- REVERSE+UTF8 cleanup -----
+
+@ru8_cleanup:           ldx ru8_iter
+                        ldy ru8_iter+1
+                        jsr ulitr_delete
 
 ; ----- UTF-8 cleanup -----
 
@@ -2550,6 +2783,161 @@ start:
                         ldx u8_brp
                         ldy u8_brp+1
                         jsr ulmem_free
+
+; =========================================================================
+; STRING Iterator tests
+; =========================================================================
+
+; ----- Test: STRING create -----
+
+@test_sic:              ldx #<str_t_sic
+                        ldy #>str_t_sic
+                        jsr putmsg
+
+                        ; Create string from UTF-8 test data "Aé中😀"
+                        ldx #<utf8_teststr
+                        ldy #>utf8_teststr
+                        jsr ulstr_fromUtf8
+                        bcs @sic_fail
+                        stx si_str
+                        sty si_str+1
+
+                        ; Create STRING+UTF8 iterator
+                        lda #(ULITYP::STRING | ULIFMT::UTF8)
+                        ldx si_str
+                        ldy si_str+1
+                        jsr ulitr_create
+                        bcs @sic_fail2
+                        stx si_iter
+                        sty si_iter+1
+
+                        jsr pass
+                        bra @test_sif
+
+@sic_fail2:             ldx si_str
+                        ldy si_str+1
+                        jsr ulstr_release
+@sic_fail:              jsr fail
+                        jmp @test_str_setup
+
+; ----- Test: STRING fetch = U+0041 ('A') -----
+
+@test_sif:              ldx #<str_t_sif
+                        ldy #>str_t_sif
+                        jsr putmsg
+
+                        ldx si_iter
+                        ldy si_iter+1
+                        jsr ulitr_fetch
+                        bcs @sif_fail
+                        lda gREG::r0L
+                        cmp #$41
+                        bne @sif_fail
+                        lda gREG::r0H
+                        bne @sif_fail
+                        lda gREG::r1L
+                        bne @sif_fail
+
+                        jsr pass
+                        bra @test_sii
+
+@sif_fail:              jsr fail
+
+; ----- Test: STRING fai x4 + atend -----
+
+@test_sii:              ldx #<str_t_sii
+                        ldy #>str_t_sii
+                        jsr putmsg
+
+                        stz fwd_errs
+                        lda #4
+                        sta fwd_idx
+@sii_loop:              ldx si_iter
+                        ldy si_iter+1
+                        jsr ulitr_fetch_and_inc
+                        bcs @sii_err
+                        dec fwd_idx
+                        bne @sii_loop
+                        bra @sii_check
+@sii_err:               inc fwd_errs
+                        dec fwd_idx
+                        bne @sii_loop
+
+@sii_check:             ; Should be at end
+                        ldx si_iter
+                        ldy si_iter+1
+                        jsr ulitr_atend
+                        bne @sii_fail
+                        lda fwd_errs
+                        bne @sii_fail
+
+                        jsr pass
+                        bra @test_sirc
+
+@sii_fail:              jsr fail
+
+; ----- Test: REVERSE+STRING create -----
+
+@test_sirc:             ldx #<str_t_sirc
+                        ldy #>str_t_sirc
+                        jsr putmsg
+
+                        lda #(ULITYP::REVERSE | ULITYP::STRING | ULIFMT::UTF8)
+                        ldx si_str
+                        ldy si_str+1
+                        jsr ulitr_create
+                        bcs @sirc_fail
+                        stx si_riter
+                        sty si_riter+1
+
+                        jsr pass
+                        bra @test_sirf
+
+@sirc_fail:             jsr fail
+                        jmp @test_sicl
+
+; ----- Test: REV+STRING fetch = U+1F600 -----
+
+@test_sirf:             ldx #<str_t_sirf
+                        ldy #>str_t_sirf
+                        jsr putmsg
+
+                        ldx si_riter
+                        ldy si_riter+1
+                        jsr ulitr_fetch
+                        bcs @sirf_fail
+                        lda gREG::r0L
+                        cmp #$00
+                        bne @sirf_fail
+                        lda gREG::r0H
+                        cmp #$F6
+                        bne @sirf_fail
+                        lda gREG::r1L
+                        cmp #$01
+                        bne @sirf_fail
+
+                        jsr pass
+                        bra @test_sicl
+
+@sirf_fail:             jsr fail
+
+; ----- Test: STRING cleanup -----
+
+@test_sicl:             ldx #<str_t_sicl
+                        ldy #>str_t_sicl
+                        jsr putmsg
+
+@si_cleanup:            ldx si_riter
+                        ldy si_riter+1
+                        jsr ulitr_delete
+                        ldx si_iter
+                        ldy si_iter+1
+                        jsr ulitr_delete
+                        ldx si_str
+                        ldy si_str+1
+                        jsr ulstr_release
+
+                        jsr pass
 
 ; =========================================================================
 ; String function tests
@@ -2828,17 +3216,21 @@ start:
                         cmp #3
                         bne @smid_fail2
 
-                        ; Verify data is 'e','l','l' via ULS_access (data at $400)
+                        ; Verify data is 'e','l','l' via ULS_access
                         ldx s_temp
                         ldy s_temp+1
                         jsr ULS_access
-                        lda $400
+                        stx gREG::r13L
+                        sty gREG::r13H
+                        lda (gREG::r13)
                         cmp #$65                ; 'e'
                         bne @smid_fail2
-                        lda $401
+                        ldy #1
+                        lda (gREG::r13),y
                         cmp #$6C                ; 'l'
                         bne @smid_fail2
-                        lda $402
+                        iny
+                        lda (gREG::r13),y
                         cmp #$6C                ; 'l'
                         bne @smid_fail2
 
@@ -3049,13 +3441,17 @@ start:
                         ldx s_temp
                         ldy s_temp+1
                         jsr ULS_access
-                        lda $400
+                        stx gREG::r13L
+                        sty gREG::r13H
+                        lda (gREG::r13)
                         cmp #$65                ; 'e'
                         bne @zcm_fail2
-                        lda $401
+                        ldy #1
+                        lda (gREG::r13),y
                         cmp #$6C                ; 'l'
                         bne @zcm_fail2
-                        lda $402
+                        iny
+                        lda (gREG::r13),y
                         cmp #$6C                ; 'l'
                         bne @zcm_fail2
 
@@ -3905,3 +4301,10 @@ fl_brp:         .res 2          ; FLOAT test data BRP
 fl_iter:        .res 2          ; FLOAT test iterator
 st_brp:         .res 2          ; STRTBL test data BRP
 st_iter:        .res 2          ; STRTBL test iterator
+ru8_iter:       .res 2          ; REVERSE+UTF8 iterator handle
+ru8_last_r0l:   .res 1          ; last fai r0L
+ru8_last_r0h:   .res 1          ; last fai r0H
+ru8_last_r1l:   .res 1          ; last fai r1L
+si_str:         .res 2          ; STRING test string handle
+si_iter:        .res 2          ; STRING iterator handle
+si_riter:       .res 2          ; REVERSE+STRING iterator handle

@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulwin_open - Open a new window
 ;   In: r0L             Start column of the inside of the window
@@ -82,7 +82,7 @@
 @find_empty_slot:       stz @winhandle
                         ldx ULW_winlist
                         ldy ULW_winlist+1
-@access_next:           jsr ulmem_access
+@access_next:           XCALL ulmem_access, UNILIB_BANK_A
                         stx @listptr
                         sty @listptr+1
 
@@ -110,7 +110,7 @@
                         ldy #0
                         ldx #.sizeof(ULW_WINDOW)
                         sec ; clear the allocated memory
-                        jsr ulmem_alloc
+                        XCALL ulmem_alloc, UNILIB_BANK_A
                         bcs @out_of_memory
 
                         ; Okay, need to save the window structure BRP in the right slot,
@@ -135,7 +135,7 @@
                         ; Get our window structure into the scratch pointer
                         ldy ULW_newwin_brp+1
                         sty ULW_scratch_fptr+2
-                        jsr ulmem_access
+                        XCALL ulmem_access, UNILIB_BANK_A
                         stx ULW_scratch_fptr
                         sty ULW_scratch_fptr+1
 
@@ -150,11 +150,11 @@
                         inx
                         inc
                         inc
-:                       jsr ulmath_umul8_8
+:                       XCALL ulmath_umul8_8, UNILIB_BANK_A
                         phx
                         phy
                         clc
-                        jsr ulmem_alloc
+                        XCALL ulmem_alloc, UNILIB_BANK_A
                         bcc :++
                         pla
                         pla
@@ -170,9 +170,9 @@
                         ply
                         plx
                         lda #3
-                        jsr ulmath_umul16_8
+                        XCALL ulmath_umul16_8, UNILIB_BANK_A
                         clc
-                        jsr ulmem_alloc
+                        XCALL ulmem_alloc, UNILIB_BANK_A
                         bcs :--
                         tya
                         ldy #ULW_WINDOW::charbuf+1
@@ -264,7 +264,7 @@
                         rts
 .endproc
 
-.bss
+UL_BSS
 
 ULW_winlist:            .res    2       ; BRP to start block of list of windows
 

@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ULI_utf8_charlen - Get byte-length of a UTF-8 character from its leading byte
 ;   In: A = leading byte

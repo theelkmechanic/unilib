@@ -8,7 +8,7 @@ ULW_temp_tiletotal_hi   = $740
 ULW_temp_tilecount_lo   = $780
 ULW_temp_tilecount_hi   = $7c0
 
-.code
+UL_CODE
 
 ; ULW_update_occlusion - Update the window map and occlusion/covered status
 .proc ULW_update_occlusion
@@ -165,7 +165,7 @@ ULW_temp_tilecount_hi   = $7c0
                         sta ULWR_destsize
 
                         ; Calculate the total number of tiles for the window
-                        jsr ulmath_umul8_8
+                        XCALL ulmath_umul8_8, UNILIB_BANK_A
                         phy
                         phx
 
@@ -206,7 +206,7 @@ ULW_temp_tilecount_hi   = $7c0
                         ; Compute row pointer = ULW_WINMAP + (start_line * 80)
                         lda ULWR_dest+1
                         ldx #80
-                        jsr ulmath_umul8_8
+                        XCALL ulmath_umul8_8, UNILIB_BANK_A
                         stx UL_varptr
                         tya
                         clc
@@ -381,7 +381,7 @@ somebodys_rts:          rts
 
 ULWL_call_callback:     jmp (ULWL_callback)
 
-.bss
+UL_BSS
 
 ULW_dirty:              .res    1   ; Dirty flag (set if there is a dirty rect)
 ULW_dirtyrect:          .res    4   ; Dirty rectangle (top/left/bottom/right cell)

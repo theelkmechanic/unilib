@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ULV_plotchar - Draw a Unicode character at a specified screen location
 ;   In: AYX             - Unicode character (X=lo, Y=hi, A=plane)
@@ -133,7 +133,7 @@
                         jmp ULV_exitfill
 .endproc
 
-.bss
+UL_BSS
 
 ULVR_srcpos:            .res    2
 ULVR_destpos:           .res    2

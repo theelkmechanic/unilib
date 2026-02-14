@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulwin_getcursor - Get the location of a given window's cursor
 ;   In: A               - Window handle
@@ -97,6 +97,6 @@ ULW_getlc:
                         ply
                         rts
 
-.bss
+UL_BSS
 
 ULWGF_offset:           .res    1

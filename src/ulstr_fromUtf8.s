@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulstr_fromUtf8 - Create a string from a NUL-terminated UTF-8 source
 ;   In: YX              - Pointer to UTF-8 character sequence (must be in currently accessible memory)
@@ -15,7 +15,7 @@
                         pha
 
                         ; How many bytes are we copying?
-                        jsr ULS_length
+                        XCALL ULS_length, UNILIB_BANK_B
 
                         ; Is the source in banked memory?
                         cpy #$A0
@@ -28,7 +28,7 @@
                         lda #$07
                         sta ULS_scratch_fptr+1
                         lda ULS_bytelen
-                        jsr ULS_copystrdata
+                        XCALL ULS_copystrdata, UNILIB_BANK_B
 
 @create_db:             ; Save source pointer for later copy
                         stx ULSFU_copysrc
@@ -59,7 +59,7 @@
                         lda ULS_bytelen
                         ldx ULSFU_copysrc
                         ldy ULSFU_copysrc+1
-                        jsr ULS_copystrdata     ; NUL-terminates but we don't care, data block ignores it
+                        XCALL ULS_copystrdata, UNILIB_BANK_B ; NUL-terminates but we don't care, data block ignores it
 
                         ; Allocate MSGBLOCK
                         lda #ULPOOL::MSGBLOCK
@@ -223,7 +223,7 @@
 
 .endproc
 
-.bss
+UL_BSS
 
 ULSFU_copysrc:          .res 2
 ULSFU_db_handle:        .res 2

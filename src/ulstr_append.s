@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulstr_append - Concatenate two strings
 ;   In: r0 = first string handle (MSGBLOCK pool index), r1 = second string handle
@@ -10,7 +10,7 @@
                         lda BANKSEL::RAM
                         pha
 
-                        ; Access string 1 via ULS_access → copies to $400
+                        ; Access string 1 via ULS_access → copies to UL_SCRATCH_BASE
                         ldx gREG::r0L
                         ldy gREG::r0H
                         jsr ULS_access
@@ -21,17 +21,17 @@
                         jsr ulstr_getrawlen     ; A = bytelen1
                         sta ULSAP_s1_bytelen
 
-                        ; Copy $400 data to $500
+                        ; Copy UL_SCRATCH_BASE data to UL_SCRATCH2_BASE
                         lda ULSAP_s1_bytelen
                         beq @copy_s2
                         tay
 :                       dey
-                        lda $400,y
-                        sta $500,y
+                        lda UL_SCRATCH_BASE,y
+                        sta UL_SCRATCH2_BASE,y
                         cpy #0
                         bne :-
 
-                        ; Access string 2 via ULS_access → copies to $400
+                        ; Access string 2 via ULS_access → copies to UL_SCRATCH_BASE
 @copy_s2:               ldx gREG::r1L
                         ldy gREG::r1H
                         jsr ULS_access
@@ -42,19 +42,19 @@
                         jsr ulstr_getrawlen     ; A = bytelen2
                         sta ULSAP_s2_bytelen
 
-                        ; Copy $400 data to $500 + s1_bytelen
+                        ; Copy UL_SCRATCH_BASE data to UL_SCRATCH2_BASE + s1_bytelen
                         lda ULSAP_s2_bytelen
                         beq @check_total
                         tax
                         ldy #0
-@copy_s2_loop:          lda $400,y
+@copy_s2_loop:          lda UL_SCRATCH_BASE,y
                         pha
                         tya
                         clc
                         adc ULSAP_s1_bytelen
                         tay
                         pla
-                        sta $500,y
+                        sta UL_SCRATCH2_BASE,y
                         tya
                         sec
                         sbc ULSAP_s1_bytelen
@@ -84,7 +84,7 @@
                         stx ULSAP_db_handle
                         sty ULSAP_db_handle+1
 
-                        ; Access data block BRP and copy from $500
+                        ; Access data block BRP and copy from UL_SCRATCH2_BASE
                         jsr uldb_getbrp
                         jsr ulmem_access
                         stx ULS_scratch_fptr
@@ -94,7 +94,7 @@
                         beq @alloc_mb
                         tay
 :                       dey
-                        lda $500,y
+                        lda UL_SCRATCH2_BASE,y
                         sta (ULS_scratch_fptr),y
                         cpy #0
                         bne :-
@@ -185,7 +185,7 @@
 
 .endproc
 
-.bss
+UL_BSS
 
 ULSAP_s1_bytelen:       .res 1
 ULSAP_s2_bytelen:       .res 1

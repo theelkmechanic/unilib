@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulwin_box - Draw a box around an area in a window
 ;   In: A               - window handle
@@ -163,7 +163,7 @@
                         jmp ULW_fillrect
 .endproc
 
-.bss
+UL_BSS
 
 ULW_boxtop:             .res    1
 ULW_boxbottom:          .res    1

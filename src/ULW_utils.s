@@ -2,7 +2,7 @@
 
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ULW_getend - Internal get end line/column helper
 ;   In: BANKSEL::RAM/ULW_scratch_fptr - pointer to window structure
@@ -90,7 +90,8 @@ ULW_putpair:            sta (ULW_scratch_fptr),y
                         iny
                         lda (ULW_scratch_fptr),y
                         tay
-                        jmp ulmem_free
+                        XCALL ulmem_free, UNILIB_BANK_A
+                        rts
 .endproc
 
 ; ULW_getwinstruct - access window structure and copy to known location
@@ -136,7 +137,7 @@ ULW_putpair:            sta (ULW_scratch_fptr),y
                         inc ULW_scratch_fptr
                         lda (ULW_scratch_fptr)
                         tay
-                        jsr ulmem_access
+                        XCALL ulmem_access, UNILIB_BANK_A
                         lda BANKSEL::RAM
                         rts
 .endproc
@@ -153,7 +154,7 @@ ULW_putpair:            sta (ULW_scratch_fptr),y
                         sta UL_temp_l
                         ldx ULW_winlist
                         ldy ULW_winlist+1
-                        jsr ulmem_access
+                        XCALL ulmem_access, UNILIB_BANK_A
                         txa
                         clc
                         adc UL_temp_l
@@ -245,28 +246,28 @@ ULW_intersectwindow:    lda #<ULW_WINDOW_COPY::scol
                         lda (gREG::r11),y
                         tax
                         pla
-                        jsr ulmath_scmp8_8
+                        XCALL ulmath_scmp8_8, UNILIB_BANK_A
                         bcs :+
                         sta (gREG::r11),y
 :                       dey
                         lda (gREG::r11),y
                         tax
                         lda (gREG::r12),y
-                        jsr ulmath_scmp8_8
+                        XCALL ulmath_scmp8_8, UNILIB_BANK_A
                         bcs :+
                         sta (gREG::r11),y
 :                       dey
                         lda (gREG::r11),y
                         tax
                         lda (gREG::r12),y
-                        jsr ulmath_scmp8_8
+                        XCALL ulmath_scmp8_8, UNILIB_BANK_A
                         bcc :+
                         sta (gREG::r11),y
 :                       dey
                         lda (gREG::r11),y
                         tax
                         lda (gREG::r12),y
-                        jsr ulmath_scmp8_8
+                        XCALL ulmath_scmp8_8, UNILIB_BANK_A
                         bcc :+
                         sta (gREG::r11),y
 
@@ -314,7 +315,7 @@ ULW_intersectwindow:    lda #<ULW_WINDOW_COPY::scol
                         bit ULW_carryflag
                         bmi :+
                         lda #3
-                        jsr ulmath_umul8_8 ; The most this can be is 240, so we can ignore the high byte
+                        XCALL ulmath_umul8_8, UNILIB_BANK_A ; The most this can be is 240, so we can ignore the high byte
 :                       stx ULW_linelen
                         stx ULW_linestride
 
@@ -340,7 +341,7 @@ ULW_intersectwindow:    lda #<ULW_WINDOW_COPY::scol
 :                       ldx ULW_WINDOW_COPY::charbuf,y
                         lda ULW_WINDOW_COPY::charbuf+1,y
                         tay
-                        jsr ulmem_access
+                        XCALL ulmem_access, UNILIB_BANK_A
                         stx ULW_scratch_bufptr
                         sty ULW_scratch_bufptr+1
 
@@ -356,7 +357,7 @@ ULW_intersectwindow:    lda #<ULW_WINDOW_COPY::scol
 :                       phx
                         tya
                         ldx ULW_linestride
-                        jsr ulmath_umul8_8
+                        XCALL ulmath_umul8_8, UNILIB_BANK_A
                         txa
                         clc
                         adc ULW_scratch_bufptr
@@ -370,7 +371,7 @@ ULW_intersectwindow:    lda #<ULW_WINDOW_COPY::scol
                         bit ULW_carryflag
                         bmi :+
                         ldx #3
-                        jsr ulmath_umul8_8
+                        XCALL ulmath_umul8_8, UNILIB_BANK_A
                         txa
 :                       clc
                         adc ULW_scratch_bufptr
@@ -454,7 +455,7 @@ a_handy_rts:            rts
                         sta ULWR_destsize
                         ldx ULW_WINDOW_COPY::title
                         ldy ULW_WINDOW_COPY::title+1
-                        jsr ULS_access
+                        XCALL ULS_access, UNILIB_BANK_A
                         jsr ULW_drawstring
                         clc
                         adc ULWR_dest
@@ -585,7 +586,7 @@ ULW_fillrect_charorcolor:
                         bit ULW_carryflag
                         bmi :+
                         lda #3
-                        jsr ulmath_umul8_8
+                        XCALL ulmath_umul8_8, UNILIB_BANK_A
 :                       stx ULWFR_limit
 
                         ; Write our character/color pattern to the line
@@ -710,7 +711,7 @@ ULW_fillrect_charorcolor:
                         ; Loop over lines; copy the character data
 @line_loop:             lda ULWR_destsize
                         ldx #3
-                        jsr ulmath_umul8_8
+                        XCALL ulmath_umul8_8, UNILIB_BANK_A
                         txa
                         clc
                         ror ULW_carryflag
@@ -843,7 +844,7 @@ ULW_fillrect_charorcolor:
                         rts
 .endproc
 
-.bss
+UL_BSS
 
 ULW_linecount:          .res    1
 ULW_linelen:            .res    1

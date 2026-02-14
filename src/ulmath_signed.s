@@ -2,7 +2,7 @@
 
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulmath_scmp8_8 - Compare 8-bit to 8-bit (signed)
 ;   In: A               ; First value to compare

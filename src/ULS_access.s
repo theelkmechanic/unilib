@@ -1,11 +1,11 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ULS_access - Access the data in a string (MSGBLOCK pool index)
 ;   In: YX              - String handle (MSGBLOCK pool index)
-;  Out: YX/ULS_scratch_fptr - Address of NUL-terminated UTF-8 string data at $400
-;       Data is always copied to $400 scratch buffer with NUL terminator appended
+;  Out: YX/ULS_scratch_fptr - Address of NUL-terminated UTF-8 string data
+;       Data is always copied to UL_SCRATCH_BASE buffer with NUL terminator appended
 .proc ULS_access
                         ; Save caller's bank
                         lda BANKSEL::RAM
@@ -55,7 +55,7 @@
                         stx ULS_scratch_fptr
                         sty ULS_scratch_fptr+1
 
-                        ; Copy bytelen bytes from base+start to $400
+                        ; Copy bytelen bytes from base+start to scratch
                         ; Add start offset to base
                         lda ULS_scratch_fptr
                         clc
@@ -65,38 +65,38 @@
                         adc ULSA_mb_start+1
                         sta ULS_scratch_fptr+1
 
-                        ; Copy bytelen bytes to $400
+                        ; Copy bytelen bytes to scratch buffer
                         lda ULSA_bytelen
                         beq @nul_terminate
                         tay
 :                       dey
                         lda (ULS_scratch_fptr),y
-                        sta $400,y
+                        sta UL_SCRATCH_BASE,y
                         cpy #0
                         bne :-
 
-                        ; NUL-terminate at $400 + bytelen
+                        ; NUL-terminate at scratch + bytelen
 @nul_terminate:         ldy ULSA_bytelen
                         lda #0
-                        sta $400,y
+                        sta UL_SCRATCH_BASE,y
 
                         ; Restore caller's bank
                         pla
                         sta BANKSEL::RAM
                         sta ULS_scratch_fptr+2
 
-                        ; Set ULS_scratch_fptr and YX to $400
-                        lda #$00
+                        ; Set ULS_scratch_fptr and YX to scratch base
+                        lda #<UL_SCRATCH_BASE
                         sta ULS_scratch_fptr
-                        lda #$04
+                        lda #>UL_SCRATCH_BASE
                         sta ULS_scratch_fptr+1
-                        ldx #$00
-                        ldy #$04
+                        ldx #<UL_SCRATCH_BASE
+                        ldy #>UL_SCRATCH_BASE
                         rts
 
 .endproc
 
-.bss
+UL_BSS
 
 ULSA_mb_start:          .res 2
 ULSA_mb_end:            .res 2

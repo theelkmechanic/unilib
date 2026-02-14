@@ -1,7 +1,7 @@
 .include "unilib_impl.inc"
 
 ULFT_CACHE_SIZE = 256
-ULFT_fontcache = $A940
+ULFT_fontcache = $A800              ; Hardcoded address on RAM bank 1
 
 ULFT_fontcache_hi       = ULFT_fontcache + (ULFT_CACHE_SIZE * 0)
 ULFT_fontcache_plane    = ULFT_fontcache + (ULFT_CACHE_SIZE * 1)
@@ -9,16 +9,11 @@ ULFT_fontcache_base     = ULFT_fontcache + (ULFT_CACHE_SIZE * 2)
 ULFT_fontcache_overlay  = ULFT_fontcache + (ULFT_CACHE_SIZE * 3)
 ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 4)
 
-.code
+UL_CODE
 
 .proc ULFT_initfontcache
-                        ; Allocate 5 pages for cache (256 entries) and clear
-                        ldx #<(ULFT_CACHE_SIZE * 5)
-                        ldy #>(ULFT_CACHE_SIZE * 5)
-                        sec
-                        jsr ulmem_alloc
-
-                        ; Clear the flags page with #$10 to indicate empty cache slots
+                        ; Cache lives at hardcoded address on bank 1 (already zeroed by ul_init)
+                        ; Just mark all cache slots as empty ($10 flag = empty)
                         lda #$10
                         ldx #0
 :                       sta ULFT_fontcache_flags,x
@@ -138,7 +133,7 @@ ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 4)
                         phy
                         lda ULFT_maplen
                         ldx #3
-                        jsr ulmath_umul8_8
+                        XCALL ulmath_umul8_8, UNILIB_BANK_A
                         stx ULFT_mapstart
                         sty ULFT_mapstart+1
                         ply
@@ -180,7 +175,7 @@ ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 4)
                         sec
                         sbc ULFT_mapstart
                         ldx #3
-                        jsr ulmath_umul8_8
+                        XCALL ulmath_umul8_8, UNILIB_BANK_A
                         stx ULFT_mapstart
                         sty ULFT_mapstart+1
                         ply
@@ -217,7 +212,7 @@ ULFT_fontcache_flags    = ULFT_fontcache + (ULFT_CACHE_SIZE * 4)
                         jmp @restoreandexit
 .endproc
 
-.bss
+UL_BSS
 
 ULFT_scanchar:          .res    3
 ULFT_mapstart:          .res    3

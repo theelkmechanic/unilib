@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ULS_nextchar - Get UTF-8 character at current scratch pointer and step to next character
 ;   In: ULS_scratch_fptr - Pointer to NUL-terminated UTF-8 character sequence
@@ -104,9 +104,9 @@
 ;       ULS_charlen     - Valid UTF-8 length (in characters)
 ;       ULS_printlen    - Valid UTF-8 length (in printable characters)
 .proc ULS_length
-                        ; Save the start pointer
-                        stx @restore_ptrlo+1
-                        sty @restore_ptrhi+1
+                        ; Save the start pointer (BSS, not SMC — works in ROM)
+                        stx ULSL_save_ptrlo
+                        sty ULSL_save_ptrhi
                         stx ULS_scratch_fptr
                         sty ULS_scratch_fptr+1
 
@@ -117,7 +117,7 @@
 
                         ; Scan characters until we get to the end of parseable UTF-8
 :                       lda ULS_scratch_fptr
-                        sta @prevptrsub+1
+                        sta ULSL_prevptr
                         jsr ULS_nextchar
                         pha
                         bcs @eos
@@ -125,7 +125,7 @@
                         ; Count bytes
                         lda ULS_scratch_fptr
                         sec
-@prevptrsub:            sbc #$00
+                        sbc ULSL_prevptr
                         clc
                         adc ULS_bytelen
                         cmp #253
@@ -137,15 +137,15 @@
                         inc ULS_charlen
 
                         ; Count printable characters
-                        jsr ul_isprint
+                        XCALL ul_isprint, UNILIB_BANK_A
                         bcc :-
                         inc ULS_printlen
                         bra :-
 
                         ; Restore YX and return
 @eos:                   pla
-@restore_ptrlo:         ldx #$00
-@restore_ptrhi:         ldy #$00
+                        ldx ULSL_save_ptrlo
+                        ldy ULSL_save_ptrhi
                         rts
 .endproc
 
@@ -175,8 +175,11 @@
                         rts
 .endproc
 
-.bss
+UL_BSS
 
 ULS_bytelen:            .res    1
 ULS_charlen:            .res    1
 ULS_printlen:           .res    1
+ULSL_save_ptrlo:        .res    1
+ULSL_save_ptrhi:        .res    1
+ULSL_prevptr:           .res    1

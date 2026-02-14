@@ -57,11 +57,13 @@ def list_test_labels(sym_path):
 class TestbenchSession:
     """Manages a testbench session with the emulator."""
 
-    def __init__(self, emu_path, prg_path=None, cwd=None, verbose=False):
+    def __init__(self, emu_path, prg_path=None, rom_path=None, cwd=None, verbose=False):
         self.verbose = verbose
         cmd = [emu_path, "-testbench"]
         if prg_path:
             cmd.extend(["-prg", prg_path])
+        if rom_path:
+            cmd.extend(["-rom", rom_path])
         self.proc = subprocess.Popen(
             cmd,
             stdin=subprocess.PIPE,
@@ -200,29 +202,35 @@ class TestbenchSession:
             pass
 
 
-def run_tests(emu, verbose=False, verify_load=False, timeout=TIMEOUT_SECONDS):
+def run_tests(emu, verbose=False, verify_load=False, timeout=TIMEOUT_SECONDS,
+              prg_file=None, sym_file=None, rom_path=None):
     """Run the full test suite. Returns exit code."""
+    prg = os.path.abspath(prg_file) if prg_file else PRG_FILE
+    sym = os.path.abspath(sym_file) if sym_file else SYM_FILE
+    if rom_path:
+        rom_path = os.path.abspath(rom_path)
+
     if not os.path.isfile(emu):
         print(f"ERROR: emulator not found: {emu}", file=sys.stderr)
         return 2
 
-    if not os.path.isfile(PRG_FILE):
-        print(f"ERROR: test binary not found: {PRG_FILE}", file=sys.stderr)
+    if not os.path.isfile(prg):
+        print(f"ERROR: test binary not found: {prg}", file=sys.stderr)
         return 2
 
-    start_addr = find_sym_address(SYM_FILE, ".start")
+    start_addr = find_sym_address(sym, ".start")
     if start_addr is None:
-        print(f"ERROR: .start label not found in {SYM_FILE}", file=sys.stderr)
+        print(f"ERROR: .start label not found in {sym}", file=sys.stderr)
         return 2
 
     if verbose:
         print(f"Emulator: {emu}", file=sys.stderr)
-        print(f"PRG: {PRG_FILE}", file=sys.stderr)
+        print(f"PRG: {prg}", file=sys.stderr)
         print(f"Start address: ${start_addr:04X}", file=sys.stderr)
         print(file=sys.stderr)
 
     try:
-        session = TestbenchSession(emu, PRG_FILE, cwd=RUN_DIR, verbose=verbose)
+        session = TestbenchSession(emu, prg, rom_path=rom_path, cwd=RUN_DIR, verbose=verbose)
     except RuntimeError as e:
         print(f"ERROR: Failed to start testbench: {e}", file=sys.stderr)
         return 2
@@ -231,7 +239,7 @@ def run_tests(emu, verbose=False, verify_load=False, timeout=TIMEOUT_SECONDS):
         # Optional: verify PRG loaded correctly by checking a few bytes
         if verify_load:
             # Read PRG file header (2-byte load address)
-            with open(PRG_FILE, "rb") as f:
+            with open(prg, "rb") as f:
                 load_lo = f.read(1)[0]
                 load_hi = f.read(1)[0]
                 load_addr = load_lo | (load_hi << 8)
@@ -325,13 +333,29 @@ def main():
         default=TIMEOUT_SECONDS,
         help=f"Timeout in seconds (default: {TIMEOUT_SECONDS})"
     )
+    parser.add_argument(
+        "--prg",
+        default=None,
+        help="Path to test PRG file (default: run/ULTEST.PRG)"
+    )
+    parser.add_argument(
+        "--sym",
+        default=None,
+        help="Path to symbol file (default: ultest.sym)"
+    )
+    parser.add_argument(
+        "--rom",
+        default=None,
+        help="Path to custom ROM image (passed as -rom to emulator)"
+    )
 
     args = parser.parse_args()
 
     timeout = args.timeout
     emu = args.emu or os.environ.get("X16EMU", DEFAULT_EMU)
     sys.exit(run_tests(emu, verbose=args.verbose, verify_load=args.verify_load,
-                       timeout=timeout))
+                       timeout=timeout, prg_file=args.prg, sym_file=args.sym,
+                       rom_path=args.rom))
 
 
 if __name__ == "__main__":

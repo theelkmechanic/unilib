@@ -10,7 +10,7 @@ ULPD_FREE_HEAD      = 4    ; 2 bytes
 ULPD_FREE_COUNT     = 6    ; 2 bytes
 ULPD_SIZE           = 8
 
-.code
+UL_CODE
 
 ; =============================================================================
 ; ulpool_access - Convert pool handle to banked RAM address
@@ -666,7 +666,7 @@ ULPD_SIZE           = 8
 ; BSS
 ; =============================================================================
 
-.bss
+UL_BSS
 
 ; Pool descriptors: 3 pools x 8 bytes = 24 bytes
 ULPOOL_descs:           .res 3 * ULPD_SIZE

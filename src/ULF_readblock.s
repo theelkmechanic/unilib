@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ULF_readblock - read up to 1KB from the currently open file into buffer at $400
 ;  Out: YX          - length of data read (0 = EOF/error)

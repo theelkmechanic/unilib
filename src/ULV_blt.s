@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ULV_blt - Copy a block of data from one point in VRAM to another
 ; In:   ULV_bltsrc      - Source VRAM address (including autoincrement/decrement)
@@ -51,7 +51,7 @@
                         rts
 .endproc
 
-.bss
+UL_BSS
 
 ULV_bltsrc:             .res    3
 ULV_bltdst:             .res    3

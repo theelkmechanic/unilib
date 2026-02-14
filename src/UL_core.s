@@ -13,7 +13,7 @@ ULW_scratch_fptr:       .res    3   ; scratch pointer for window operations
 ULS_scratch_char:       .res    3   ; scratch Unicode character for string operations
 ULS_scratch_fptr:       .res    3   ; scratch pointer for string operations
 
-.code
+UL_CODE
 
 ; UL_getrng - Check 16-bit address high byte range to see what kind of memory it's in
 ;   In: Y               - Address high byte
@@ -148,6 +148,6 @@ UL_terminate:
                         clc
                         jmp ENTER_BASIC
 
-.bss
+UL_BSS
 
 UL_lasterr:             .res    1

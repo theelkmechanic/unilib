@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulstr_addref - Increment reference count on a string
 ;   In: YX = string handle (MSGBLOCK pool index)
@@ -91,6 +91,6 @@
                         rts
 .endproc
 
-.bss
+UL_BSS
 
 ULS_str_scratch:        .res 4          ; temp storage for string operations

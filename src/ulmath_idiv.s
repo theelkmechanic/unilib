@@ -2,7 +2,7 @@
 
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulmath_udiv8_8 - Divide 8-bit by 8-bit (unsigned)
 ;   In: X               ; Dividend
@@ -43,6 +43,6 @@
                         rts
 .endproc
 
-.bss
+UL_BSS
 
 UL_temp_div:           .res    1

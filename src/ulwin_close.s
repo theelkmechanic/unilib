@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulwin_close - Close a window
 ;   In: A               - Window handle
@@ -58,7 +58,7 @@
                         ply
                         phy
                         phx
-                        jsr ulmem_access
+                        XCALL ulmem_access, UNILIB_BANK_A
                         stx ULW_scratch_fptr
                         sty ULW_scratch_fptr+1
 
@@ -71,7 +71,7 @@
                         ; And free the window structure
                         plx
                         ply
-                        jsr ulmem_free
+                        XCALL ulmem_free, UNILIB_BANK_A
 
                         ; Our next goes in the previous window's next (there will always be a previous window
                         ; because you can't close or select the screen, so it's always at the bottom)

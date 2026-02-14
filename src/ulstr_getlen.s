@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulstr_getrawlen - Get the raw byte length of a string
 ;   In: YX              - String handle (MSGBLOCK pool index)
@@ -45,12 +45,12 @@
                         phx
                         phy
 
-                        ; Access string data via ULS_access (copies to $400 with NUL)
+                        ; Access string data via ULS_access (copies to scratch with NUL)
                         jsr ULS_access
 
                         ; Scan characters using ULS_nextchar
                         stz ULSG_count
-@loop:                  jsr ULS_nextchar
+@loop:                  XCALL ULS_nextchar, UNILIB_BANK_B
                         bcs @done               ; hit end
                         inc ULSG_count
                         bra @loop
@@ -74,12 +74,12 @@
                         phx
                         phy
 
-                        ; Access string data via ULS_access (copies to $400 with NUL)
+                        ; Access string data via ULS_access (copies to scratch with NUL)
                         jsr ULS_access
 
                         ; Scan characters, count printable ones
                         stz ULSG_count
-@loop:                  jsr ULS_nextchar
+@loop:                  XCALL ULS_nextchar, UNILIB_BANK_B
                         bcs @done               ; hit end
                         jsr ul_isprint
                         bcc @loop               ; not printable
@@ -95,7 +95,7 @@
                         rts
 .endproc
 
-.bss
+UL_BSS
 
 ULSG_result:            .res 1
 ULSG_count:             .res 1

@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulwin_putcolor - Set window foreground/background colors
 ;   In: A               - Window handle
@@ -9,8 +9,11 @@
 ;       carry           - If set, entire window will be recolored; if clear, will only affect new output
 .proc ulwin_putcolor
                         ; Treat 0 as black (1), clip fg to $f
-                        ror @recolor_check+1
-                        sta @get_handle+1
+                        ; Save carry flag (recolor) and handle to BSS
+                        stz ULWPCLR_recolor
+                        bcc :+
+                        dec ULWPCLR_recolor     ; $FF if carry set (recolor)
+:                       sta ULWPCLR_handle
                         lda BANKSEL::RAM
                         pha
                         txa
@@ -24,7 +27,7 @@
 :                       pha
 
                         ; Access the window structure
-@get_handle:            lda #$00
+                        lda ULWPCLR_handle
                         jsr ULW_getwinptr
                         stx ULW_scratch_fptr
                         sty ULW_scratch_fptr+1
@@ -35,7 +38,7 @@
                         jsr ULW_putcolor
 
                         ; Do we need to recolor the window?
-@recolor_check:         lda #$00
+                        bit ULWPCLR_recolor
                         bpl @exit
 
                         ; Get easy access to window structure
@@ -59,7 +62,7 @@
                         ; Exit
 @exit:                  pla
                         sta BANKSEL::RAM
-                        lda @get_handle+1
+                        lda ULWPCLR_handle
                         rts
 .endproc
 
@@ -90,3 +93,8 @@
                         sta (ULW_scratch_fptr),y
                         rts
 .endproc
+
+UL_BSS
+
+ULWPCLR_handle:         .res    1
+ULWPCLR_recolor:        .res    1

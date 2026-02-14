@@ -2,7 +2,7 @@
 
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulwin_error - Display a popup window with an error message
 ;   In: r0              - error message string BRP
@@ -19,11 +19,11 @@
                         rts
 .endproc
 
-.data
+UL_DATA
 
 ULW_errorfg:    .byte   ULCOLOR::WHITE      ; error window foreground color
 ULW_errorbg:    .byte   ULCOLOR::RED        ; error window background color
 
-.bss
+UL_BSS
 
 ULW_inerror:    .res    1                   ; in error display flag

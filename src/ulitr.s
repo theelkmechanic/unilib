@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulitr_create - Create a new iterator
 ;   In: A               - type | format (e.g., ULITYP::BRP | ULIFMT::BYTE)
@@ -34,6 +34,9 @@
                         cmp #ULITYP::LIST
                         bne :+
                         jmp ULI_list_create
+:                       cmp #ULITYP::STRING
+                        bne :+
+                        jmp ULI_string_create
 :                       cmp #ULITYP::VRAM
                         beq @create_vram
 
@@ -133,17 +136,62 @@
 
                         ; --- Check REVERSE flag and swap start/end if set ---
 @check_reverse:         lda ULI_scratch
-                        bpl @allocate_state     ; bit 7 clear = not reverse
+                        bmi :+
+                        jmp @allocate_state     ; bit 7 clear = not reverse
+:
 
-                        ; REVERSE + UTF8 not supported
+                        ; Check if UTF8 format - needs special reverse init
                         and #$70
                         cmp #ULIFMT::UTF8
-                        bne :+
-                        pla
-                        sta BANKSEL::RAM
+                        bne @reverse_fixed
+
+                        ; --- REVERSE + UTF8: scan backward to find last char ---
+                        lda ULI_scratch+6       ; old end_lo
+                        sta ULI_cur
+                        lda ULI_scratch+7       ; old end_hi
+                        sta ULI_cur+1
+                        lda ULI_scratch+2       ; old end_bank
+                        sta ULI_cur_bank
+                        lda ULI_scratch
+                        sta ULI_type_format     ; set REVERSE for step function
+
+                        jsr ULI_utf8_step_forward ; REVERSE → phys_backward → finds last char
+
+                        ; new_start = ULI_cur (last char), new_end = old_start - 1
+                        lda ULI_scratch+3       ; old start_lo → save for new end
+                        pha
+                        lda ULI_scratch+4       ; old start_hi
+                        pha
+                        lda ULI_scratch+5       ; old start_bank
+                        pha
+
+                        lda ULI_cur             ; last char position → new start
+                        sta ULI_scratch+3
+                        lda ULI_cur+1
+                        sta ULI_scratch+4
+                        lda ULI_cur_bank
+                        sta ULI_scratch+5
+
+                        pla                     ; old start_bank → new end_bank
+                        sta ULI_scratch+2
+                        pla                     ; old start_hi → new end_hi
+                        sta ULI_scratch+7
+                        pla                     ; old start_lo → new end_lo
                         sec
-                        rts
+                        sbc #1                  ; end = old_start - 1 (sentinel)
+                        sta ULI_scratch+6
+                        bcs :+
+                        dec ULI_scratch+7
+                        lda ULI_scratch+7
+                        cmp #$FF
+                        bne :+
+                        dec ULI_scratch+2
 :
+
+                        bra @allocate_state
+
+                        ; --- Fixed-step REVERSE swap ---
+@reverse_fixed:
                         ; Get step size
                         lda ULI_scratch
                         jsr ULI_get_step

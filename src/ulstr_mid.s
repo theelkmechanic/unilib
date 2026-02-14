@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulstr_mid - Extract substring (zero-copy via new MB sharing data block)
 ;   In: r0 = string handle (MSGBLOCK pool index), r1 = start index (char), r2 = length (chars)
@@ -61,7 +61,7 @@
                         lda gREG::r1L
                         beq @record_start
                         sta ULSM_skip_count
-@skip_loop:             jsr ULS_nextchar
+@skip_loop:             XCALL ULS_nextchar, UNILIB_BANK_B
                         bcc :+
                         jmp @error              ; hit end while skipping
 :
@@ -80,7 +80,7 @@
                         lda gREG::r2L
                         beq @calc_end
                         sta ULSM_scan_count
-@scan_loop:             jsr ULS_nextchar
+@scan_loop:             XCALL ULS_nextchar, UNILIB_BANK_B
                         bcs @calc_end           ; hit end early
                         dec ULSM_scan_count
                         bne @scan_loop
@@ -176,7 +176,7 @@
 
 .endproc
 
-.bss
+UL_BSS
 
 ULSM_db_handle:         .res 2
 ULSM_src_start:         .res 1

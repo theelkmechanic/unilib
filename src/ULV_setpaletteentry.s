@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ULV_setpaletteentry - Set palette entry
 ;   In: A               - Palette entry (0-15, 0 should be left black though)

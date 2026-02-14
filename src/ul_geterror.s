@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ul_geterror - Return the last UniLib error code
 ;  Out: A               - Last UniLib error code

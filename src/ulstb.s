@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulstb_create - Create a new stringtable
 ;   In: A               - Number of string slots (1-255)
@@ -493,7 +493,7 @@
                         rts
 .endproc
 
-.bss
+UL_BSS
 
 ULSTB_tbl:              .res    2       ; table BRP (used by delete/build)
 ULSTB_count:            .res    1       ; slot count (used by delete/build)

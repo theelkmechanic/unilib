@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulwin_putchar - Write a character to a window at the current cursor
 ;   In: A               - Window handle
@@ -8,7 +8,7 @@
 ;  Out: carry           - Set if character was printed
 .proc ulwin_putchar
                         ; Save A/X/Y/RAM bank
-                        sta @get_handle+1
+                        sta ULWPC_handle
                         lda BANKSEL::RAM
                         pha
                         phx
@@ -18,14 +18,14 @@
                         ldx gREG::r0L
                         ldy gREG::r0H
                         lda gREG::r1L
-                        jsr ul_isprint
+                        XCALL ul_isprint, UNILIB_BANK_A
                         bcc @exit
                         stx ULWR_char
                         sty ULWR_char+1
                         sta ULWR_char+2
 
                         ; Access the window structure
-@get_handle:            lda #$00
+                        lda ULWPC_handle
                         jsr ULW_getwinstruct
 
                         ; If we're at the very end of the window, eventually we want to do scrolling;
@@ -57,7 +57,7 @@
                         ldx #0
 
                         ; Store the new cursor position
-:                       lda @get_handle+1
+:                       lda ULWPC_handle
                         jsr ulwin_putcursor
                         sec
 
@@ -66,6 +66,10 @@
                         plx
                         pla
                         sta BANKSEL::RAM
-                        lda @get_handle+1
+                        lda ULWPC_handle
                         rts
 .endproc
+
+UL_BSS
+
+ULWPC_handle:           .res    1

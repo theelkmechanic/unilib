@@ -95,6 +95,11 @@
                             ;   - atstart is true when at the beginning of the first data block in the list
                             ;   - atend is true when one step past the last entry in the last data block in the list
                             ;     (fetch/store will fail when at end)
+    STRING          = $05   ; String iterator (UTF-8 only)
+                            ;   - Call ulitr_create with the string handle in YX
+                            ;   - Format must be UTF8; other formats rejected
+                            ;   - Automatically pages in correct data bank
+                            ;   - Future: will follow cont() chains across fragments
 
     REVERSE         = $80   ; Reverse flag; if set, iterator is reversed (initialized to end of BRP instead of
                             ; start, inc/dec/adv/rew go in opposite directions, atstart/atend are at opposites)

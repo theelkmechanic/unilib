@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulstr_rfind - Find last occurrence of a codepoint in a string (searching backward from start index)
 ;   In: r0 = string BRP, r1 = start index (search up to this char), AYX = codepoint to find
@@ -46,7 +46,7 @@
                         cmp ULSRF_limit+1
                         beq @done
 
-@do_scan:               jsr ULS_nextchar
+@do_scan:               XCALL ULS_nextchar, UNILIB_BANK_B
                         bcs @done
 
                         ; Compare AYX with target
@@ -76,7 +76,7 @@
 
 .endproc
 
-.bss
+UL_BSS
 
 ULSRF_target:           .res 3
 ULSRF_char_idx:         .res 2

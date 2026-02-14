@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulwin_putstr - Output a string at the current cursor location in a window
 ;   In: A               - Window handle
@@ -49,14 +49,14 @@
                         ; Get printlen first (before ULS_access clobbers things)
                         ldx gREG::r0L
                         ldy gREG::r0H
-                        jsr ulstr_getprintlen   ; A = printlen
+                        XCALL ulstr_getprintlen, UNILIB_BANK_A   ; A = printlen
                         beq @exit
                         sta ULWPL_saved_printlen
 
                         ; Access the string data
                         ldx gREG::r0L
                         ldy gREG::r0H
-                        jsr ULS_access
+                        XCALL ULS_access, UNILIB_BANK_A
 
                         ; Load printlen for first @printstr iteration
                         lda ULWPL_saved_printlen
@@ -111,7 +111,7 @@
 
 .endproc
 
-.bss
+UL_BSS
 
 ULWPL_saved_printlen:   .res 1
 ULWPL_wrapflag:         .res 1

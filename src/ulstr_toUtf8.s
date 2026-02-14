@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ulstr_toUtf8 - Copy UTF-8 bytes of a string into a byte iterator
 ;   In: r0 = string handle (MSGBLOCK pool index), YX = byte iterator handle
@@ -14,7 +14,7 @@
                         lda BANKSEL::RAM
                         pha
 
-                        ; Access string → copies data to $400
+                        ; Access string → copies data to UL_SCRATCH_BASE
                         ldx gREG::r0L
                         ldy gREG::r0H
                         jsr ULS_access
@@ -31,9 +31,9 @@
                         sta ULST_count
                         stz ULST_src_idx
 
-@loop:                  ; Load byte from $400 + src_idx
+@loop:                  ; Load byte from scratch + src_idx
                         ldy ULST_src_idx
-                        lda $400,y
+                        lda UL_SCRATCH_BASE,y
 
                         ; Store via ulitr_store (A = byte value, YX = iterator)
                         ldx ULST_iter
@@ -62,7 +62,7 @@
 
 .endproc
 
-.bss
+UL_BSS
 
 ULST_iter:              .res 2
 ULST_rawlen:            .res 1

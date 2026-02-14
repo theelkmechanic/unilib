@@ -1,6 +1,6 @@
 .include "unilib_impl.inc"
 
-.code
+UL_CODE
 
 ; ul_isprint - Check if Unicode character is printable (i.e., ulwin_putchar will advance cursor)
 ;   In: AYX             - Unicode character
