@@ -1,9 +1,7 @@
-; w_getstr
+; ulwin_getstr - Get remainder of line at current cursor position as string
+; This is implemented in ulwin_getloc.s (getstr falls through to getloc_common)
+; This file is kept for compatibility but the implementation is in ulwin_getloc.s
 
 .include "unilib_impl.inc"
 
-UL_CODE
-
-.proc ulwin_getstr
-    rts
-.endproc
+; ulwin_getstr is defined in ulwin_getloc.s

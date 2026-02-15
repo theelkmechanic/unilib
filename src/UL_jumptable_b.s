@@ -50,12 +50,12 @@ jmp ulwin_puttitle       ; $C063
 jmp ulwin_refresh        ; $C066
 jmp ulwin_scroll         ; $C069
 jmp ulwin_select         ; $C06C
-; Future (add at end when implemented):
-; jmp ulwin_getloc       ; ulwin_getloc
-; jmp ulwin_joinlines    ; ulwin_joinlines
-; jmp ulwin_joincolumns  ; ulwin_joincolumns
-; jmp ulwin_resize       ; ulwin_resize
-; jmp ulwin_splitline    ; ulwin_splitline
-; jmp ulwin_splitcolumn  ; ulwin_splitcolumn
+jmp ulwin_getloc         ; $C06F
+jmp ulwin_resize         ; $C072
+jmp ulwin_splitline      ; $C075
+jmp ulwin_splitcolumn    ; $C078
+jmp ulwin_joinlines      ; $C07B
+jmp ulwin_joincolumns    ; $C07E
+jmp ulwin_picklist       ; $C081
 
 .endif ; ROM_BUILD

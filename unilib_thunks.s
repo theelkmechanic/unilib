@@ -165,3 +165,10 @@ THUNK_B ulwin_puttitle,       UL_JT_WIN_PUTTITLE
 THUNK_B ulwin_refresh,        UL_JT_WIN_REFRESH
 THUNK_B ulwin_scroll,         UL_JT_WIN_SCROLL
 THUNK_B ulwin_select,         UL_JT_WIN_SELECT
+THUNK_B ulwin_getloc,         UL_JT_WIN_GETLOC
+THUNK_B ulwin_resize,         UL_JT_WIN_RESIZE
+THUNK_B ulwin_splitline,      UL_JT_WIN_SPLITLINE
+THUNK_B ulwin_splitcolumn,    UL_JT_WIN_SPLITCOLUMN
+THUNK_B ulwin_joinlines,      UL_JT_WIN_JOINLINES
+THUNK_B ulwin_joincolumns,    UL_JT_WIN_JOINCOLUMNS
+THUNK_B ulwin_picklist,       UL_JT_WIN_PICKLIST

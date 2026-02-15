@@ -43,6 +43,7 @@ MEM_OBJS = \
 	$(OBJDIR)/ullist.o
 
 STR_OBJS = \
+	$(OBJDIR)/UL_petscii.o \
 	$(OBJDIR)/ULS_access.o \
 	$(OBJDIR)/ULS_utils.o \
 	$(OBJDIR)/ulstr_fromUtf8.o \
@@ -85,6 +86,7 @@ WIN_OBJS = \
 	$(OBJDIR)/ulwin_getcolor.o \
 	$(OBJDIR)/ulwin_gethit.o \
 	$(OBJDIR)/ulwin_getkey.o \
+	$(OBJDIR)/ulwin_getloc.o \
 	$(OBJDIR)/ulwin_getstr.o \
 	$(OBJDIR)/ulwin_getwin.o \
 	$(OBJDIR)/ulwin_getwinfields.o \
@@ -97,8 +99,14 @@ WIN_OBJS = \
 	$(OBJDIR)/ulwin_putloc.o \
 	$(OBJDIR)/ulwin_puttitle.o \
 	$(OBJDIR)/ulwin_refresh.o \
+	$(OBJDIR)/ulwin_resize.o \
 	$(OBJDIR)/ulwin_scroll.o \
-	$(OBJDIR)/ulwin_select.o
+	$(OBJDIR)/ulwin_select.o \
+	$(OBJDIR)/ulwin_splitline.o \
+	$(OBJDIR)/ulwin_splitcolumn.o \
+	$(OBJDIR)/ulwin_joinlines.o \
+	$(OBJDIR)/ulwin_joincolumns.o \
+	$(OBJDIR)/ulwin_picklist.o
 
 OBJECTS = $(CORE_OBJS) $(FILE_OBJS) $(FONT_OBJS) $(ITER_OBJS) $(MATH_OBJS) $(MEM_OBJS) $(STR_OBJS) $(STBL_OBJS) $(VERA_OBJS) $(WIN_OBJS)
 
@@ -171,6 +179,7 @@ ROM_A_OBJS = \
 	$(ROM_OBJDIR)/a/ulpool.o \
 	$(ROM_OBJDIR)/a/uldb.o \
 	$(ROM_OBJDIR)/a/ullist.o \
+	$(ROM_OBJDIR)/a/UL_petscii.o \
 	$(ROM_OBJDIR)/a/ULS_access.o \
 	$(ROM_OBJDIR)/a/ulstr_fromUtf8.o \
 	$(ROM_OBJDIR)/a/ulstr_getlen.o \
@@ -214,6 +223,7 @@ ROM_B_OBJS = \
 	$(ROM_OBJDIR)/b/ulwin_getcolor.o \
 	$(ROM_OBJDIR)/b/ulwin_gethit.o \
 	$(ROM_OBJDIR)/b/ulwin_getkey.o \
+	$(ROM_OBJDIR)/b/ulwin_getloc.o \
 	$(ROM_OBJDIR)/b/ulwin_getstr.o \
 	$(ROM_OBJDIR)/b/ulwin_getwin.o \
 	$(ROM_OBJDIR)/b/ulwin_getwinfields.o \
@@ -226,8 +236,14 @@ ROM_B_OBJS = \
 	$(ROM_OBJDIR)/b/ulwin_putloc.o \
 	$(ROM_OBJDIR)/b/ulwin_puttitle.o \
 	$(ROM_OBJDIR)/b/ulwin_refresh.o \
+	$(ROM_OBJDIR)/b/ulwin_resize.o \
 	$(ROM_OBJDIR)/b/ulwin_scroll.o \
-	$(ROM_OBJDIR)/b/ulwin_select.o
+	$(ROM_OBJDIR)/b/ulwin_select.o \
+	$(ROM_OBJDIR)/b/ulwin_splitline.o \
+	$(ROM_OBJDIR)/b/ulwin_splitcolumn.o \
+	$(ROM_OBJDIR)/b/ulwin_joinlines.o \
+	$(ROM_OBJDIR)/b/ulwin_joincolumns.o \
+	$(ROM_OBJDIR)/b/ulwin_picklist.o
 
 # --- Bank C: Font data (LZSA2 compressed) ---
 ROM_C_OBJS = \

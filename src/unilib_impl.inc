@@ -216,6 +216,9 @@ ULI_LIST_STATE_SIZE   = 20
 .global ULM_init
 .global ULM_slot2addr
 
+; PETSCII conversion helper
+.global UL_petscii_to_codepoint
+
 ; String utilities
 .global ulstr_addref
 .global ULS_access
