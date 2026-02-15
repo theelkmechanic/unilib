@@ -12,6 +12,12 @@ UL_CODE
 ;   {} = replaced with successive stringtable entries (1-based, starting at 1)
 ;   {N} = replaced with stringtable entry N (1-based decimal number)
 .proc ulstr_format
+                        ; Save caller's r0 (KERNAL convention)
+                        lda gREG::r0L
+                        pha
+                        lda gREG::r0H
+                        pha
+
                         ; Save caller's bank
                         lda BANKSEL::RAM
                         pha
@@ -457,12 +463,22 @@ UL_CODE
                         ldy ULSFM_mb+1
                         pla
                         sta BANKSEL::RAM
+                        ; Restore caller's r0 (carry/YX preserved)
+                        pla
+                        sta gREG::r0H
+                        pla
+                        sta gREG::r0L
                         clc
                         rts
 
 @empty_format:          ; Empty format string → create empty string
                         pla
                         sta BANKSEL::RAM
+                        ; Restore caller's r0 (ulstr_fromUtf8 doesn't clobber r0)
+                        pla
+                        sta gREG::r0H
+                        pla
+                        sta gREG::r0L
                         ldx #<@empty_str
                         ldy #>@empty_str
                         jmp ulstr_fromUtf8
@@ -475,6 +491,11 @@ UL_CODE
 @fail_p1:
 @fail:                  pla
                         sta BANKSEL::RAM
+                        ; Restore caller's r0
+                        pla
+                        sta gREG::r0H
+                        pla
+                        sta gREG::r0L
                         sec
                         rts
 

@@ -6,8 +6,33 @@ UL_CODE
 ;   In: carry           - Use custom message in YX
 ;       YX (optional)   - If carry set, string BRP for custom message
 .proc ulwin_busy
-                        ; Save A/X/Y/RAM bank
+                        ; Save A before register saves clobber it
                         pha
+
+                        ; Save caller's r0-r4 (KERNAL convention)
+                        ; Note: lda/pha do not affect carry, so carry input is preserved
+                        lda gREG::r0L
+                        pha
+                        lda gREG::r0H
+                        pha
+                        lda gREG::r1L
+                        pha
+                        lda gREG::r1H
+                        pha
+                        lda gREG::r2L
+                        pha
+                        lda gREG::r2H
+                        pha
+                        lda gREG::r3L
+                        pha
+                        lda gREG::r3H
+                        pha
+                        lda gREG::r4L
+                        pha
+                        lda gREG::r4H
+                        pha
+
+                        ; Save X/Y/RAM bank
                         phx
                         phy
                         lda BANKSEL::RAM
@@ -84,11 +109,32 @@ UL_CODE
                         ; And close the window
                         jsr ulwin_close
 
-                        ; Restore A/X/Y/RAM bank
 @exit:                  pla
                         sta BANKSEL::RAM
                         ply
                         plx
+                        ; Restore caller's r0-r4
+                        pla
+                        sta gREG::r4H
+                        pla
+                        sta gREG::r4L
+                        pla
+                        sta gREG::r3H
+                        pla
+                        sta gREG::r3L
+                        pla
+                        sta gREG::r2H
+                        pla
+                        sta gREG::r2L
+                        pla
+                        sta gREG::r1H
+                        pla
+                        sta gREG::r1L
+                        pla
+                        sta gREG::r0H
+                        pla
+                        sta gREG::r0L
+                        ; Restore A
                         pla
                         rts
 .endproc

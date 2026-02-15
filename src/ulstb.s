@@ -7,7 +7,17 @@ UL_CODE
 ;  Out: YX              - Stringtable BRP
 ;       carry           - Set on error
 .proc ulstb_create
-                        ; Save slot count
+                        ; Save A (slot count) before register saves clobber it
+                        sta ULSTB_saved_a
+
+                        ; Save caller's r0 (KERNAL convention)
+                        lda gREG::r0L
+                        pha
+                        lda gREG::r0H
+                        pha
+
+                        ; Restore A and save slot count
+                        lda ULSTB_saved_a
                         pha
 
                         ; Compute allocation size: A*2 + 1 (max 511)
@@ -41,10 +51,20 @@ UL_CODE
                         ; Return BRP in YX
                         ldx gREG::r0L
                         ldy gREG::r0H
+                        ; Restore caller's r0 (carry/YX preserved)
+                        pla
+                        sta gREG::r0H
+                        pla
+                        sta gREG::r0L
                         clc
                         rts
 
-@fail:                  pla
+@fail:                  pla                     ; discard saved slot count
+                        ; Restore caller's r0
+                        pla
+                        sta gREG::r0H
+                        pla
+                        sta gREG::r0L
                         sec
                         rts
 .endproc
@@ -292,6 +312,12 @@ UL_CODE
 ;  Out: YX              - Stringtable BRP
 ;       carry           - Set on error
 .proc ulstb_build
+                        ; Save caller's r0 (KERNAL convention)
+                        lda gREG::r0L
+                        pha
+                        lda gREG::r0H
+                        pha
+
                         ; Save source address
                         stx ULSTB_src
                         sty ULSTB_src+1
@@ -396,13 +422,23 @@ UL_CODE
                         ; Success
                         ldx ULSTB_tbl
                         ldy ULSTB_tbl+1
+                        ; Restore caller's r0
+                        pla
+                        sta gREG::r0H
+                        pla
+                        sta gREG::r0L
                         clc
                         rts
 
 @build_fail:            ldx ULSTB_tbl
                         ldy ULSTB_tbl+1
                         jsr ulstb_delete
-@error:                 sec
+@error:                 ; Restore caller's r0
+                        pla
+                        sta gREG::r0H
+                        pla
+                        sta gREG::r0L
+                        sec
                         rts
 .endproc
 
@@ -503,3 +539,4 @@ ULSTB_old:              .res    2       ; old string handle (used by put)
 ULSTB_slot:             .res    2       ; slot pointer (used by put)
 ULSTB_src:              .res    2       ; source address (used by build)
 ULSTB_cur:              .res    2       ; current position (used by build)
+ULSTB_saved_a:          .res    1       ; temp for preserving A across register saves (used by create)

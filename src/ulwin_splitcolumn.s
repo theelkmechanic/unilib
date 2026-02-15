@@ -20,6 +20,29 @@ UL_CODE
                         ; Save params
                         sta ULWSC_handle
                         stx ULWSC_splitcol
+
+                        ; Save caller's r0-r4 (KERNAL convention)
+                        lda gREG::r0L
+                        pha
+                        lda gREG::r0H
+                        pha
+                        lda gREG::r1L
+                        pha
+                        lda gREG::r1H
+                        pha
+                        lda gREG::r2L
+                        pha
+                        lda gREG::r2H
+                        pha
+                        lda gREG::r3L
+                        pha
+                        lda gREG::r3H
+                        pha
+                        lda gREG::r4L
+                        pha
+                        lda gREG::r4H
+                        pha
+
                         lda BANKSEL::RAM
                         pha
                         phx
@@ -37,10 +60,10 @@ UL_CODE
 
 @bad_params:            lda #ULERR::INVALID_PARAMS
                         sta UL_lasterr
-                        ply
-                        plx
-                        pla
-                        sta BANKSEL::RAM
+                        lda #$FF
+                        sta ULWSC_new_handle
+                        jmp @exit_common
+
 @error_ret:             lda #$FF
                         sec
                         rts
@@ -113,24 +136,45 @@ UL_CODE
                         jmp @alloc_fail
 
 @open_ok:               sta ULWSC_new_handle
-
-                        ; Restore and return new window handle
-                        ply
-                        plx
-                        pla
-                        sta BANKSEL::RAM
-                        lda ULWSC_new_handle
-                        clc
-                        rts
+                        bra @exit_common
 
 @alloc_fail:            lda #ULERR::OUT_OF_MEMORY
                         sta UL_lasterr
-                        ply
+                        lda #$FF
+                        sta ULWSC_new_handle
+
+@exit_common:           ply
                         plx
                         pla
                         sta BANKSEL::RAM
-                        lda #$FF
+                        ; Restore caller's r0-r4
+                        pla
+                        sta gREG::r4H
+                        pla
+                        sta gREG::r4L
+                        pla
+                        sta gREG::r3H
+                        pla
+                        sta gREG::r3L
+                        pla
+                        sta gREG::r2H
+                        pla
+                        sta gREG::r2L
+                        pla
+                        sta gREG::r1H
+                        pla
+                        sta gREG::r1L
+                        pla
+                        sta gREG::r0H
+                        pla
+                        sta gREG::r0L
+                        ; Return: A = handle, carry = error if $FF
+                        lda ULWSC_new_handle
+                        cmp #$FF
+                        bne @ret_ok
                         sec
+                        rts
+@ret_ok:                clc
                         rts
 .endproc
 

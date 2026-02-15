@@ -27,6 +27,16 @@ UL_CODE
 ;  Out: YX              - data block handle (pool index)
 ;       carry           - set on error
 .proc uldb_create
+                        ; Save caller's r0-r1 (KERNAL convention)
+                        lda gREG::r0L
+                        pha
+                        lda gREG::r0H
+                        pha
+                        lda gREG::r1L
+                        pha
+                        lda gREG::r1H
+                        pha
+
                         ; Save caller's bank
                         lda BANKSEL::RAM
                         pha
@@ -44,13 +54,32 @@ UL_CODE
                         stx gREG::r0L
                         sty gREG::r0H
 
-                        ; Restore caller's bank and tail-call uldb_fromBRP
+                        ; Restore caller's bank and call uldb_fromBRP
                         pla
                         sta BANKSEL::RAM
-                        jmp uldb_fromBRP
+                        jsr uldb_fromBRP
+                        ; Restore caller's r0-r1 (carry/YX preserved)
+                        pla
+                        sta gREG::r1H
+                        pla
+                        sta gREG::r1L
+                        pla
+                        sta gREG::r0H
+                        pla
+                        sta gREG::r0L
+                        rts
 
 @fail:                  pla
                         sta BANKSEL::RAM
+                        ; Restore caller's r0-r1
+                        pla
+                        sta gREG::r1H
+                        pla
+                        sta gREG::r1L
+                        pla
+                        sta gREG::r0H
+                        pla
+                        sta gREG::r0L
                         sec
                         rts
 .endproc
@@ -151,6 +180,20 @@ UL_CODE
 ;  Out: YX              - data block handle BRP
 ;       carry           - set on error
 .proc uldb_fromBuffer
+                        ; Save caller's r0-r2 (KERNAL convention)
+                        lda gREG::r0L
+                        pha
+                        lda gREG::r0H
+                        pha
+                        lda gREG::r1L
+                        pha
+                        lda gREG::r1H
+                        pha
+                        lda gREG::r2L
+                        pha
+                        lda gREG::r2H
+                        pha
+
                         ; Save caller's bank
                         lda BANKSEL::RAM
                         pha
@@ -203,13 +246,40 @@ UL_CODE
                         lda ULDB_scratch+3
                         sta gREG::r1H
 
-                        ; Restore caller's bank and tail-call uldb_fromBRP
+                        ; Restore caller's bank and call uldb_fromBRP
                         pla
                         sta BANKSEL::RAM
-                        jmp uldb_fromBRP
+                        jsr uldb_fromBRP
+                        ; Restore caller's r0-r2 (carry/YX preserved)
+                        pla
+                        sta gREG::r2H
+                        pla
+                        sta gREG::r2L
+                        pla
+                        sta gREG::r1H
+                        pla
+                        sta gREG::r1L
+                        pla
+                        sta gREG::r0H
+                        pla
+                        sta gREG::r0L
+                        rts
 
 @fail:                  pla
                         sta BANKSEL::RAM
+                        ; Restore caller's r0-r2
+                        pla
+                        sta gREG::r2H
+                        pla
+                        sta gREG::r2L
+                        pla
+                        sta gREG::r1H
+                        pla
+                        sta gREG::r1L
+                        pla
+                        sta gREG::r0H
+                        pla
+                        sta gREG::r0L
                         sec
                         rts
 .endproc
@@ -220,6 +290,16 @@ UL_CODE
 ;  Out: YX              - data block handle BRP
 ;       carry           - set on error
 .proc uldb_fromIter
+                        ; Save caller's r0-r1 (KERNAL convention)
+                        lda gREG::r0L
+                        pha
+                        lda gREG::r0H
+                        pha
+                        lda gREG::r1L
+                        pha
+                        lda gREG::r1H
+                        pha
+
                         ; Save caller's bank
                         lda BANKSEL::RAM
                         pha
@@ -301,10 +381,20 @@ UL_CODE
                         lda ULDB_scratch+5
                         sta gREG::r0H
 
-                        ; Restore caller's bank and tail-call uldb_fromBRP
+                        ; Restore caller's bank and call uldb_fromBRP
                         pla
                         sta BANKSEL::RAM
-                        jmp uldb_fromBRP
+                        jsr uldb_fromBRP
+                        ; Restore caller's r0-r1 (carry/YX preserved)
+                        pla
+                        sta gREG::r1H
+                        pla
+                        sta gREG::r1L
+                        pla
+                        sta gREG::r0H
+                        pla
+                        sta gREG::r0L
+                        rts
 
 @fail:                  ; Pop original size (discard)
                         pla
@@ -312,6 +402,15 @@ UL_CODE
 
                         pla
                         sta BANKSEL::RAM
+                        ; Restore caller's r0-r1
+                        pla
+                        sta gREG::r1H
+                        pla
+                        sta gREG::r1L
+                        pla
+                        sta gREG::r0H
+                        pla
+                        sta gREG::r0L
                         sec
                         rts
 .endproc

@@ -13,6 +13,13 @@ UL_CODE
                         sta ULWPK_handle
                         stx ULWPK_strtbl
                         sty ULWPK_strtbl+1
+
+                        ; Save caller's r0 (KERNAL convention)
+                        lda gREG::r0L
+                        pha
+                        lda gREG::r0H
+                        pha
+
                         lda BANKSEL::RAM
                         pha
                         phx
@@ -219,6 +226,11 @@ UL_CODE
                         plx
                         pla
                         sta BANKSEL::RAM
+                        ; Restore caller's r0
+                        pla
+                        sta gREG::r0H
+                        pla
+                        sta gREG::r0L
                         lda ULWPK_selection
                         rts
 
@@ -226,6 +238,11 @@ UL_CODE
                         plx
                         pla
                         sta BANKSEL::RAM
+                        ; Restore caller's r0
+                        pla
+                        sta gREG::r0H
+                        pla
+                        sta gREG::r0L
                         lda #0
                         rts
 .endproc

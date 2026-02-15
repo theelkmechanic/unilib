@@ -9,9 +9,32 @@ UL_CODE
 .proc ulwin_error
                         ; Prevent recursion
                         lda ULW_inerror
-                        bne @skip
-                        lda #1
+                        beq :+
+                        jmp @skip
+:                       lda #1
                         sta ULW_inerror
+
+                        ; Save caller's r0-r4 (KERNAL convention)
+                        lda gREG::r0L
+                        pha
+                        lda gREG::r0H
+                        pha
+                        lda gREG::r1L
+                        pha
+                        lda gREG::r1H
+                        pha
+                        lda gREG::r2L
+                        pha
+                        lda gREG::r2H
+                        pha
+                        lda gREG::r3L
+                        pha
+                        lda gREG::r3H
+                        pha
+                        lda gREG::r4L
+                        pha
+                        lda gREG::r4H
+                        pha
 
                         ; Save registers/bank
                         phx
@@ -91,6 +114,27 @@ UL_CODE
                         sta BANKSEL::RAM
                         ply
                         plx
+                        ; Restore caller's r0-r4
+                        pla
+                        sta gREG::r4H
+                        pla
+                        sta gREG::r4L
+                        pla
+                        sta gREG::r3H
+                        pla
+                        sta gREG::r3L
+                        pla
+                        sta gREG::r2H
+                        pla
+                        sta gREG::r2L
+                        pla
+                        sta gREG::r1H
+                        pla
+                        sta gREG::r1L
+                        pla
+                        sta gREG::r0H
+                        pla
+                        sta gREG::r0L
                         stz ULW_inerror
 @skip:                  rts
 .endproc
