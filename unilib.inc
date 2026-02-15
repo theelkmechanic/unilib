@@ -142,8 +142,8 @@
 
 ; Unicode string functions - Work on UTF-8 BRP immutable, reference-counted string objects
 .global ulstr_fromUtf8      ; YX = address of NUL-terminated UTF-8 character data; creates new string object and returns in YX, carry set on error
-.global ulstr_fromPETSCII   ; YX = address of NUL-terminated PETSCII character data; creates new string object and returns in YX
-.global ulstr_fromISO8859   ; YX = address of NUL-terminated ISO-8859-15 character data; creates new string object and returns in YX
+.global ulstr_fromPETSCII   ; A = flags (0=shifted, 1=unshifted), YX = address of NUL-terminated PETSCII character data; creates new string object and returns in YX, carry set on error
+.global ulstr_fromISO8859   ; YX = address of NUL-terminated ISO-8859-15 character data; creates new string object and returns in YX, carry set on error
 
 .global ulstr_getlen        ; YX = string; returns length in characters in YX
 .global ulstr_getprintlen   ; YX = string; returns length in printable characters in YX
@@ -158,7 +158,7 @@
                             ;   - {} will be replaced with successive entries in the stringtable
                             ;   - {#} will be replaced with that indexed entry in the stringtable
 .global ulstr_toUtf8        ; r0 = string, YX = byte iterator to copy UTF-8 string into (must have enough storage to hold ulstr_getrawlen bytes); carry set on error
-.global ulstr_toPETSCII     ; r0 = string, YX = byte iterator to copy string as PETSCII into (must have enough storage to hold ulstr_getlen bytes); carry set on error
+.global ulstr_toPETSCII     ; r0 = string, YX = byte iterator, A = flags (0=shifted, 1=unshifted); copy string as PETSCII into iterator, carry set on error
 .global ulstr_toISO8859     ; r0 = string, YX = byte iterator to copy string as ISO-8859-15 into (must have enough storage to hold ulstr_getlen bytes); carry set on error
 
 .global ulstr_addref        ; YX = string; increments reference count

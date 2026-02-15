@@ -53,7 +53,12 @@ STR_OBJS = \
 	$(OBJDIR)/ulstr_rfind.o \
 	$(OBJDIR)/ulstr_append.o \
 	$(OBJDIR)/ulstr_mid.o \
-	$(OBJDIR)/ulstr_toUtf8.o
+	$(OBJDIR)/ulstr_toUtf8.o \
+	$(OBJDIR)/ulstr_fromPETSCII.o \
+	$(OBJDIR)/ulstr_fromISO8859.o \
+	$(OBJDIR)/ulstr_toPETSCII.o \
+	$(OBJDIR)/ulstr_toISO8859.o \
+	$(OBJDIR)/ulstr_format.o
 
 STBL_OBJS = \
 	$(OBJDIR)/ulstb.o
@@ -176,6 +181,11 @@ ROM_A_OBJS = \
 	$(ROM_OBJDIR)/a/ulstr_append.o \
 	$(ROM_OBJDIR)/a/ulstr_mid.o \
 	$(ROM_OBJDIR)/a/ulstr_toUtf8.o \
+	$(ROM_OBJDIR)/a/ulstr_fromPETSCII.o \
+	$(ROM_OBJDIR)/a/ulstr_fromISO8859.o \
+	$(ROM_OBJDIR)/a/ulstr_toPETSCII.o \
+	$(ROM_OBJDIR)/a/ulstr_toISO8859.o \
+	$(ROM_OBJDIR)/a/ulstr_format.o \
 	$(ROM_OBJDIR)/a/ulstb.o
 
 # --- Bank B: Display ---
