@@ -12,7 +12,6 @@ UL_CODE
 ;       r2H             Initial screen background color
 ;  Out: A               Error code (0 = OK)
 .proc ul_init
-.ifdef ROM_BUILD
                         ; Zero BSS in non-banked low RAM ($0400-$05FF) FIRST,
                         ; before any code writes to BSS variables
                         lda #0
@@ -21,7 +20,6 @@ UL_CODE
                         sta $0500,y
                         iny
                         bne :-
-.endif
                         ; Initialize our zeropage
                         ldx #<(__EXTZP_SIZE__-1)
 :                       stz __EXTZP_RUN__,x

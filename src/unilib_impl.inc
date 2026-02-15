@@ -7,16 +7,12 @@ UNILIB_BANK_A = $10     ; Foundation + Data
 UNILIB_BANK_B = $11     ; Display
 UNILIB_BANK_C = $12     ; Font data (compressed)
 
-; --- Scratch buffer locations in non-banked low RAM ---
-; In ROM builds, BSS occupies $0400-$05FF, so scratch moves to $0600/$0700.
-; In RAM builds, BSS is in the program data area, so $0400/$0500 are free.
-.ifdef ROM_BUILD
-    UL_SCRATCH_BASE  = $0600    ; Primary scratch (ULS_access output, ulmem copy cache)
-    UL_SCRATCH2_BASE = $0700    ; Secondary scratch (string compare/append workspace)
-.else
-    UL_SCRATCH_BASE  = $0400
-    UL_SCRATCH2_BASE = $0500
-.endif
+; --- Non-banked low RAM layout ---
+; BSS:      $0400-$05FF (512 bytes, linker-assigned)
+; Scratch1: $0600-$06FF (ULS_access output, ulmem copy cache)
+; Scratch2: $0700-$07FF (string compare/append workspace)
+UL_SCRATCH_BASE  = $0600
+UL_SCRATCH2_BASE = $0700
 
 ; --- Segment macros ---
 ; In RAM builds: UL_CODE → .code, UL_BSS → .bss, etc.
@@ -34,11 +30,7 @@ UNILIB_BANK_C = $12     ; Font data (compressed)
 .endmacro
 
 .macro UL_BSS
-    .ifdef ROM_BUILD
-        .segment "BSS"
-    .else
-        .bss
-    .endif
+    .bss
 .endmacro
 
 .macro UL_RODATA

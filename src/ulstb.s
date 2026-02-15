@@ -444,10 +444,10 @@ UL_CODE
                         jsr CHKIN
                         bcs @close_error
 
-                        ; Read bytes into $0500 buffer
-                        lda #$00
+                        ; Read bytes into scratch buffer at UL_SCRATCH_BASE ($0600)
+                        lda #<UL_SCRATCH_BASE
                         sta UL_varptr
-                        lda #$05
+                        lda #>UL_SCRATCH_BASE
                         sta UL_varptr+1
                         ldy #0
 
@@ -457,7 +457,7 @@ UL_CODE
                         bne :+
                         inc UL_varptr+1
 
-                        ; Stop if we've reached $0800 (768 bytes max)
+                        ; Stop if we've reached $0800 (512 bytes max)
 :                       lda UL_varptr+1
                         cmp #$08
                         bcs @read_done
@@ -479,9 +479,9 @@ UL_CODE
                         lda #1
                         jsr CLOSE
 
-                        ; Build stringtable from buffer at $0500
-                        ldx #$00
-                        ldy #$05
+                        ; Build stringtable from scratch buffer
+                        ldx #<UL_SCRATCH_BASE
+                        ldy #>UL_SCRATCH_BASE
                         jmp ulstb_build
 
 @close_error:           jsr CLRCHN
