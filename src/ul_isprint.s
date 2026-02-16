@@ -6,9 +6,9 @@ UL_CODE
 ;   In: AYX             - Unicode character
 ;  Out: carry           - set if printable
 .proc ul_isprint
-                        ; ULFT_findcharinfo does this for us
+                        ; ULFT_findcharinfo is in Bank B; must use XCALL from Bank A
                         pha
-                        jsr ULFT_findcharinfo
+                        XCALL ULFT_findcharinfo, UNILIB_BANK_B
                         pla
                         rts
 .endproc
