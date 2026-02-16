@@ -89,6 +89,7 @@ THUNK_A ulitr_atend,          UL_JT_ITR_ATEND
 
 ; Strings
 THUNK_A ulstr_fromUtf8,       UL_JT_STR_FROMUTF8
+THUNK_A ulstr_fromPETSCII,   UL_JT_STR_FROMPETSCII
 THUNK_A ulstr_getlen,         UL_JT_STR_GETLEN
 THUNK_A ulstr_getprintlen,    UL_JT_STR_GETPRINTLEN
 THUNK_A ulstr_getrawlen,      UL_JT_STR_GETRAWLEN

@@ -104,7 +104,7 @@ UL_CODE
 @use_normal:            lda ULWPK_normal_color
 @do_color:              sta ULWR_color
 
-                        ; Fill this line with the color (color only, chars already spaces)
+                        ; Fill this line with spaces and per-line color
                         stz ULWR_dest
                         lda ULWPK_cur_line
                         sta ULWR_dest+1
@@ -112,8 +112,7 @@ UL_CODE
                         sta ULWR_destsize
                         lda #1
                         sta ULWR_destsize+1
-                        sec                     ; color only
-                        jsr ULW_fillrect
+                        jsr ULW_clearrect
 
                         ; Get string from table
                         lda ULWPK_cur_idx
@@ -165,7 +164,8 @@ UL_CODE
 @next_line:             inc ULWPK_cur_line
                         jmp @draw_loop
 
-@draw_done:             ; Refresh the display
+@draw_done:
+                        ; Refresh to display changes
                         jsr ulwin_refresh
 
                         ; ======= KEY LOOP =======

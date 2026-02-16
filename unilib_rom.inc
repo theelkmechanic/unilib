@@ -91,6 +91,7 @@ UL_JT_MATH_UMUL8        = $C0B4  ; ulmath_umul8_8
 UL_JT_MATH_UMUL16       = $C0B7  ; ulmath_umul16_8
 UL_JT_ISPRINT           = $C0BA  ; ul_isprint
 UL_JT_ULS_ACCESS        = $C0BD  ; ULS_access (internal, exposed for test)
+UL_JT_STR_FROMPETSCII   = $C0C0  ; ulstr_fromPETSCII
 
 ; =============================================================================
 ; Jump table addresses (Bank B - Display)

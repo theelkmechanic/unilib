@@ -1,4 +1,4 @@
-; ulwin_resize - Resize a window
+; ulwin_resize - Resize a window (content-preserving)
 
 .include "unilib_impl.inc"
 
@@ -9,6 +9,10 @@ UL_CODE
 ;       X               - New content area width (columns)
 ;       Y               - New content area height (lines)
 ;  Out: carry           - Set on error
+;
+; Preserves existing window content in the intersection of old and new sizes.
+; New rows/columns are cleared; border is redrawn for new dimensions.
+; Content is relayed through UL_SCRATCH_BASE ($0600) one row at a time.
 .proc ulwin_resize
                         ; Don't resize the screen window
                         cmp #0
@@ -27,6 +31,22 @@ UL_CODE
                         lda ULWRZ_handle
                         jsr ULW_getwinstruct
 
+                        ; Save old dimensions and buffer BRPs for content copy
+                        lda ULW_WINDOW_COPY::ncol
+                        sta ULWRZ_old_ncol
+                        lda ULW_WINDOW_COPY::nlin
+                        sta ULWRZ_old_nlin
+                        lda ULW_WINDOW_COPY::charbuf
+                        sta ULWRZ_old_charbuf
+                        lda ULW_WINDOW_COPY::charbuf+1
+                        sta ULWRZ_old_charbuf+1
+                        lda ULW_WINDOW_COPY::colorbuf
+                        sta ULWRZ_old_colorbuf
+                        lda ULW_WINDOW_COPY::colorbuf+1
+                        sta ULWRZ_old_colorbuf+1
+                        lda ULW_WINDOW_COPY::flags
+                        sta ULWRZ_flags
+
                         ; Calculate new end column/line
                         lda ULW_WINDOW_COPY::scol
                         clc
@@ -40,7 +60,7 @@ UL_CODE
                         ; Validate new size fits on screen (including border)
                         lda ULWRZ_new_ecol
                         ldy ULWRZ_new_elin
-                        bit ULW_WINDOW_COPY::flags
+                        bit ULWRZ_flags
                         bpl :+
                         inc
                         iny
@@ -80,7 +100,7 @@ UL_CODE
                         ; (including border if present)
                         ldx ULWRZ_new_nlin
                         lda ULWRZ_new_ncol
-                        bit ULW_WINDOW_COPY::flags
+                        bit ULWRZ_flags
                         bpl :+
                         inx
                         inx
@@ -89,7 +109,7 @@ UL_CODE
 :                       XCALL ulmath_umul8_8, UNILIB_BANK_A
 
                         ; Allocate new color buffer
-                        clc                     ; don't clear (we'll copy/fill)
+                        clc
                         XCALL ulmem_alloc, UNILIB_BANK_A
                         bcc :+
                         jmp @alloc_fail
@@ -99,7 +119,7 @@ UL_CODE
                         ; Calculate new char buffer size: color_size * 3
                         ldx ULWRZ_new_nlin
                         lda ULWRZ_new_ncol
-                        bit ULW_WINDOW_COPY::flags
+                        bit ULWRZ_flags
                         bpl :+
                         inx
                         inx
@@ -115,28 +135,7 @@ UL_CODE
 :                       stx ULWRZ_new_charbuf
                         sty ULWRZ_new_charbuf+1
 
-                        ; Clear new buffers (fill with spaces/default color)
-                        ; We don't copy old content for simplicity - just clear and redraw border
-                        ; (Content copying across different widths is very complex)
-
-                        ; Update window struct: free old buffers, install new ones
-                        lda ULWRZ_handle
-                        jsr ULW_getwinptr
-                        stx ULW_scratch_fptr
-                        sty ULW_scratch_fptr+1
-
-                        ; Free old char buffer
-                        ldy #ULW_WINDOW::charbuf
-                        jsr ULW_freebuf
-                        ; Free old color buffer
-                        lda ULWRZ_handle
-                        jsr ULW_getwinptr
-                        stx ULW_scratch_fptr
-                        sty ULW_scratch_fptr+1
-                        ldy #ULW_WINDOW::colorbuf
-                        jsr ULW_freebuf
-
-                        ; Install new buffers
+                        ; Install new buffers in window struct (don't free old yet)
                         lda ULWRZ_handle
                         jsr ULW_getwinptr
                         stx ULW_scratch_fptr
@@ -186,11 +185,195 @@ UL_CODE
                         dec
                         sta (ULW_scratch_fptr),y
 :
-                        ; Get fresh window copy and clear/redraw
+                        ; Clear new buffers and draw border on new dimensions
                         lda ULWRZ_handle
                         jsr ULW_getwinstruct
                         jsr ULW_clear
                         jsr ULW_drawborder
+
+                        ; --- Content preservation: copy from old to new buffers ---
+
+                        ; Compute copy dimensions = intersection of old and new
+                        lda ULWRZ_old_ncol
+                        cmp ULWRZ_new_ncol
+                        bcc :+
+                        lda ULWRZ_new_ncol
+:                       sta ULWRZ_copy_cols
+                        lda ULWRZ_old_nlin
+                        cmp ULWRZ_new_nlin
+                        bcc :+
+                        lda ULWRZ_new_nlin
+:                       sta ULWRZ_copy_lines
+
+                        ; Skip copy if nothing to copy
+                        lda ULWRZ_copy_cols
+                        bne :+
+                        jmp @copy_done
+:                       lda ULWRZ_copy_lines
+                        bne :+
+                        jmp @copy_done
+:
+
+                        ; --- Copy color buffer (1 byte per cell) ---
+
+                        ; Access old color buffer base address
+                        ldx ULWRZ_old_colorbuf
+                        ldy ULWRZ_old_colorbuf+1
+                        XCALL ulmem_access, UNILIB_BANK_A
+                        stx ULWRZ_src_ptr
+                        sty ULWRZ_src_ptr+1
+                        lda BANKSEL::RAM
+                        sta ULWRZ_src_bank
+
+                        ; Compute old color stride and content start
+                        lda ULWRZ_old_ncol
+                        bit ULWRZ_flags
+                        bpl @col_old_nb
+                        clc
+                        adc #2                  ; bordered: stride = ncol + 2
+                        sta ULWRZ_old_stride
+                        ; src_ptr += stride + 1 (skip top border row + left border col)
+                        clc
+                        adc ULWRZ_src_ptr
+                        sta ULWRZ_src_ptr
+                        bcc :+
+                        inc ULWRZ_src_ptr+1
+:                       inc ULWRZ_src_ptr
+                        bne :+
+                        inc ULWRZ_src_ptr+1
+:                       bra @col_old_done
+@col_old_nb:            sta ULWRZ_old_stride    ; non-bordered: stride = ncol
+@col_old_done:
+                        ; Access new color buffer base address
+                        ldx ULWRZ_new_colorbuf
+                        ldy ULWRZ_new_colorbuf+1
+                        XCALL ulmem_access, UNILIB_BANK_A
+                        stx ULWRZ_dst_ptr
+                        sty ULWRZ_dst_ptr+1
+                        lda BANKSEL::RAM
+                        sta ULWRZ_dst_bank
+
+                        ; Compute new color stride and content start
+                        lda ULWRZ_new_ncol
+                        bit ULWRZ_flags
+                        bpl @col_new_nb
+                        clc
+                        adc #2
+                        sta ULWRZ_new_stride
+                        clc
+                        adc ULWRZ_dst_ptr
+                        sta ULWRZ_dst_ptr
+                        bcc :+
+                        inc ULWRZ_dst_ptr+1
+:                       inc ULWRZ_dst_ptr
+                        bne :+
+                        inc ULWRZ_dst_ptr+1
+:                       bra @col_new_done
+@col_new_nb:            sta ULWRZ_new_stride
+@col_new_done:
+                        ; Copy bytes per row = copy_cols (bpc=1)
+                        lda ULWRZ_copy_cols
+                        sta ULWRZ_copy_bytes
+                        jsr @copy_buffer
+
+                        ; --- Copy char buffer (3 bytes per cell) ---
+
+                        ; Access old char buffer base address
+                        ldx ULWRZ_old_charbuf
+                        ldy ULWRZ_old_charbuf+1
+                        XCALL ulmem_access, UNILIB_BANK_A
+                        stx ULWRZ_src_ptr
+                        sty ULWRZ_src_ptr+1
+                        lda BANKSEL::RAM
+                        sta ULWRZ_src_bank
+
+                        ; Compute old char stride = total_cols * 3
+                        lda ULWRZ_old_ncol
+                        bit ULWRZ_flags
+                        bpl :+
+                        clc
+                        adc #2
+:                       sta ULWRZ_old_stride    ; temp = total_cols
+                        asl                     ; *2
+                        clc
+                        adc ULWRZ_old_stride    ; *3
+                        sta ULWRZ_old_stride
+
+                        ; Bordered: src_ptr += stride + 3 (skip border row + left border col)
+                        bit ULWRZ_flags
+                        bpl @chr_old_nb
+                        lda ULWRZ_src_ptr
+                        clc
+                        adc ULWRZ_old_stride
+                        sta ULWRZ_src_ptr
+                        bcc :+
+                        inc ULWRZ_src_ptr+1
+:                       lda ULWRZ_src_ptr
+                        clc
+                        adc #3
+                        sta ULWRZ_src_ptr
+                        bcc :+
+                        inc ULWRZ_src_ptr+1
+:
+@chr_old_nb:
+                        ; Access new char buffer base address
+                        ldx ULWRZ_new_charbuf
+                        ldy ULWRZ_new_charbuf+1
+                        XCALL ulmem_access, UNILIB_BANK_A
+                        stx ULWRZ_dst_ptr
+                        sty ULWRZ_dst_ptr+1
+                        lda BANKSEL::RAM
+                        sta ULWRZ_dst_bank
+
+                        ; Compute new char stride = total_cols * 3
+                        lda ULWRZ_new_ncol
+                        bit ULWRZ_flags
+                        bpl :+
+                        clc
+                        adc #2
+:                       sta ULWRZ_new_stride
+                        asl
+                        clc
+                        adc ULWRZ_new_stride
+                        sta ULWRZ_new_stride
+
+                        ; Bordered: dst_ptr += stride + 3
+                        bit ULWRZ_flags
+                        bpl @chr_new_nb
+                        lda ULWRZ_dst_ptr
+                        clc
+                        adc ULWRZ_new_stride
+                        sta ULWRZ_dst_ptr
+                        bcc :+
+                        inc ULWRZ_dst_ptr+1
+:                       lda ULWRZ_dst_ptr
+                        clc
+                        adc #3
+                        sta ULWRZ_dst_ptr
+                        bcc :+
+                        inc ULWRZ_dst_ptr+1
+:
+@chr_new_nb:
+                        ; Copy bytes per row = copy_cols * 3
+                        lda ULWRZ_copy_cols
+                        asl                     ; *2
+                        clc
+                        adc ULWRZ_copy_cols     ; *3
+                        sta ULWRZ_copy_bytes
+                        jsr @copy_buffer
+
+@copy_done:
+                        ; Free old buffers (now safe - content has been copied)
+                        ldx ULWRZ_old_charbuf
+                        ldy ULWRZ_old_charbuf+1
+                        XCALL ulmem_free, UNILIB_BANK_A
+                        ldx ULWRZ_old_colorbuf
+                        ldy ULWRZ_old_colorbuf+1
+                        XCALL ulmem_free, UNILIB_BANK_A
+
+                        ; Refresh window copy (char relay may have trashed ULW_WINDOW_COPY)
+                        lda ULWRZ_handle
+                        jsr ULW_getwinstruct
 
                         ; Update occlusion and mark new region dirty
                         jsr ULW_update_occlusion
@@ -222,6 +405,63 @@ UL_CODE
                         clc
                         rts
 
+; --- Subroutine: copy content rows through $0600 relay buffer ---
+; Copies ULWRZ_copy_lines rows, each ULWRZ_copy_bytes wide, from
+; old buffer (src_ptr/src_bank) to new buffer (dst_ptr/dst_bank).
+; Advances src/dst pointers by old/new stride after each row.
+; Clobbers: A, X, Y, UL_varptr
+@copy_buffer:
+                        lda ULWRZ_copy_lines
+                        sta ULWRZ_cur_row
+
+@cb_row:                ; Copy row from source to $0600 relay
+                        lda ULWRZ_src_bank
+                        sta BANKSEL::RAM
+                        lda ULWRZ_src_ptr
+                        sta UL_varptr
+                        lda ULWRZ_src_ptr+1
+                        sta UL_varptr+1
+                        ldy #0
+@cb_src:                lda (UL_varptr),y
+                        sta UL_SCRATCH_BASE,y
+                        iny
+                        cpy ULWRZ_copy_bytes
+                        bne @cb_src
+
+                        ; Copy from $0600 relay to dest
+                        lda ULWRZ_dst_bank
+                        sta BANKSEL::RAM
+                        lda ULWRZ_dst_ptr
+                        sta UL_varptr
+                        lda ULWRZ_dst_ptr+1
+                        sta UL_varptr+1
+                        ldy #0
+@cb_dst:                lda UL_SCRATCH_BASE,y
+                        sta (UL_varptr),y
+                        iny
+                        cpy ULWRZ_copy_bytes
+                        bne @cb_dst
+
+                        ; Advance source ptr by old stride
+                        lda ULWRZ_src_ptr
+                        clc
+                        adc ULWRZ_old_stride
+                        sta ULWRZ_src_ptr
+                        bcc :+
+                        inc ULWRZ_src_ptr+1
+:
+                        ; Advance dest ptr by new stride
+                        lda ULWRZ_dst_ptr
+                        clc
+                        adc ULWRZ_new_stride
+                        sta ULWRZ_dst_ptr
+                        bcc :+
+                        inc ULWRZ_dst_ptr+1
+:
+                        dec ULWRZ_cur_row
+                        bne @cb_row
+                        rts
+
 @free_color_and_fail:   ldx ULWRZ_new_colorbuf
                         ldy ULWRZ_new_colorbuf+1
                         XCALL ulmem_free, UNILIB_BANK_A
@@ -244,3 +484,18 @@ ULWRZ_new_ecol:         .res 1
 ULWRZ_new_elin:         .res 1
 ULWRZ_new_charbuf:      .res 2
 ULWRZ_new_colorbuf:     .res 2
+ULWRZ_old_ncol:         .res 1
+ULWRZ_old_nlin:         .res 1
+ULWRZ_old_charbuf:      .res 2
+ULWRZ_old_colorbuf:     .res 2
+ULWRZ_flags:            .res 1
+ULWRZ_copy_cols:        .res 1
+ULWRZ_copy_lines:       .res 1
+ULWRZ_copy_bytes:       .res 1
+ULWRZ_old_stride:       .res 1
+ULWRZ_new_stride:       .res 1
+ULWRZ_src_ptr:          .res 2
+ULWRZ_dst_ptr:          .res 2
+ULWRZ_src_bank:         .res 1
+ULWRZ_dst_bank:         .res 1
+ULWRZ_cur_row:          .res 1
