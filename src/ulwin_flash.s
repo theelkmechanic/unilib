@@ -116,6 +116,7 @@ UL_CODE
                         ; Open the window
                         jsr ulwin_open
                         bmi @exit
+                        sta ULWFL_winhandle
 
                         ; Put the message string at (1, 0)
                         lda ULWFL_msgbrp
@@ -124,6 +125,7 @@ UL_CODE
                         sta gREG::r0H
                         ldx #1
                         ldy #0
+                        lda ULWFL_winhandle
                         clc
                         jsr ulwin_putloc
 
@@ -131,6 +133,7 @@ UL_CODE
                         jsr ulwin_refresh
 
                         ; Close the window (message stays until next refresh)
+                        lda ULWFL_winhandle
                         jsr ulwin_close
 
 @exit:                  pla
@@ -169,3 +172,4 @@ ULWFL_msgbrp:           .res 2
 ULWFL_titlebrp:         .res 2
 ULWFL_msglen:           .res 1
 ULWFL_width:            .res 1
+ULWFL_winhandle:        .res 1

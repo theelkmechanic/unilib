@@ -322,6 +322,7 @@ somebodys_rts:          rts
                         lda ULW_temp_tilecount_lo,x
                         cmp ULW_temp_tiletotal_lo,x
                         beq @store_status
+                        bra @occluded
 
                         ; Window is covered, set both bits
 @covered:               lda #ULWS_OCCLUDED | ULWS_COVERED
