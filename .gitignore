@@ -9,6 +9,9 @@ ULTEST.PRG
 *.sh
 *.sym
 obj/
+romobj/
+unilib_b*.bin
+ULTEST_ROM.PRG
 run/
 sto/
 test/*.o
