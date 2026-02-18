@@ -73,6 +73,7 @@ VERA_OBJS = \
 	$(OBJDIR)/ULV_swap.o
 
 WIN_OBJS = \
+	$(OBJDIR)/ULW_cursor.o \
 	$(OBJDIR)/ULW_map.o \
 	$(OBJDIR)/ULW_utils.o \
 	$(OBJDIR)/ulwin_box.o \
@@ -106,6 +107,7 @@ WIN_OBJS = \
 	$(OBJDIR)/ulwin_splitcolumn.o \
 	$(OBJDIR)/ulwin_joinlines.o \
 	$(OBJDIR)/ulwin_joincolumns.o \
+	$(OBJDIR)/ulwin_input.o \
 	$(OBJDIR)/ulwin_picklist.o
 
 OBJECTS = $(CORE_OBJS) $(FILE_OBJS) $(FONT_OBJS) $(ITER_OBJS) $(MATH_OBJS) $(MEM_OBJS) $(STR_OBJS) $(STBL_OBJS) $(VERA_OBJS) $(WIN_OBJS)
@@ -202,6 +204,7 @@ ROM_A_OBJS = \
 ROM_B_OBJS = \
 	$(ROM_OBJDIR)/b/UL_jumptable_b.o \
 	$(ROM_OBJDIR)/b/UL_ksup.o \
+	$(ROM_OBJDIR)/b/ULW_cursor.o \
 	$(ROM_OBJDIR)/b/ULFT_findcharinfo.o \
 	$(ROM_OBJDIR)/b/ULS_utils.o \
 	$(ROM_OBJDIR)/b/ULV_blt.o \
@@ -243,6 +246,7 @@ ROM_B_OBJS = \
 	$(ROM_OBJDIR)/b/ulwin_splitcolumn.o \
 	$(ROM_OBJDIR)/b/ulwin_joinlines.o \
 	$(ROM_OBJDIR)/b/ulwin_joincolumns.o \
+	$(ROM_OBJDIR)/b/ulwin_input.o \
 	$(ROM_OBJDIR)/b/ulwin_picklist.o
 
 # --- Bank C: Font data (LZSA2 compressed) ---
@@ -281,15 +285,24 @@ run/unilib.ulf.lzsa2: run/unilib.ulf
 
 unilib_b0.bin unilib_b1.bin unilib_b2.bin: .rom_stamp
 
-rom: unilib_b0.bin
+# Base ROM image to patch UniLib banks into
+ROM_IMAGE ?= $(dir $(EMU))rom.bin
+CUSTOM_ROM = run/rom_unilib.bin
+
+# Build complete patched ROM image (base ROM + UniLib banks at $10/$11/$12)
+$(CUSTOM_ROM): unilib_b0.bin unilib_b1.bin unilib_b2.bin
+	cp $(ROM_IMAGE) $(CUSTOM_ROM)
+	dd if=unilib_b0.bin of=$(CUSTOM_ROM) bs=16384 seek=16 conv=notrunc 2>/dev/null
+	dd if=unilib_b1.bin of=$(CUSTOM_ROM) bs=16384 seek=17 conv=notrunc 2>/dev/null
+	dd if=unilib_b2.bin of=$(CUSTOM_ROM) bs=16384 seek=18 conv=notrunc 2>/dev/null
+
+rom: $(CUSTOM_ROM)
 
 # =============================================================================
 # ROM test
 # =============================================================================
 
 ROMTESTAPP = ULTEST_ROM.PRG
-ROM_IMAGE ?= $(dir $(EMU))rom.bin
-CUSTOM_ROM = run/rom_unilib.bin
 
 # Compile test with ROM_TEST flag (uses thunks instead of library)
 $(ROM_OBJDIR)/ultest_rom.o: test/ultest.s $(HEADERS) | $(ROM_OBJDIR)/a
@@ -301,13 +314,9 @@ $(ROM_OBJDIR)/unilib_thunks.o: unilib_thunks.s unilib_rom.inc | $(ROM_OBJDIR)/a
 
 # Link ROM test app: test code + thunks + cx16 runtime (no library needed)
 $(ROMTESTAPP): $(ROM_OBJDIR)/ultest_rom.o $(ROM_OBJDIR)/unilib_thunks.o
-	cl65 $(FLAGS) -C $(CONFIGFILE) -m ultest_rom.map -Ln ultest_rom.sym -o $@ $^
+	cl65 $(FLAGS) -C cx16-romtest.cfg -m ultest_rom.map -Ln ultest_rom.sym -o $@ $^
 
-# Build and run ROM tests: patch UniLib banks into ROM image, run test
+# Build and run ROM tests using the patched ROM image
 romtest: rom $(ROMTESTAPP)
 	cp $(ROMTESTAPP) run/
-	cp $(ROM_IMAGE) $(CUSTOM_ROM)
-	dd if=unilib_b0.bin of=$(CUSTOM_ROM) bs=16384 seek=16 conv=notrunc 2>/dev/null
-	dd if=unilib_b1.bin of=$(CUSTOM_ROM) bs=16384 seek=17 conv=notrunc 2>/dev/null
-	dd if=unilib_b2.bin of=$(CUSTOM_ROM) bs=16384 seek=18 conv=notrunc 2>/dev/null
 	X16EMU=$(EMU) python3 test/run_tests.py --prg run/$(ROMTESTAPP) --sym ultest_rom.sym --rom $(CUSTOM_ROM)

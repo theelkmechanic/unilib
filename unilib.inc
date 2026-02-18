@@ -228,6 +228,7 @@
 .global ulwin_scroll        ; A = window, X = number of columns (signed), Y = number of lines (signed); scroll window contents in desired direction
 .global ulwin_select        ; A = window; bring a window to the top
 .global ulwin_splitline     ; A = window, Y = split line; split into two windows at specified line (window passed in A = lines 0 through split-1, new window selected and returned in A = lines split through #lines-1)
+.global ulwin_input         ; A = window, X = max chars (0=remaining), r0L = timeout 1/10s (0=none), r0H = initial text len; returns YX = string handle, A = termkey, carry set = timeout
 .global ulwin_splitcolumn   ; A = window, X = split column; split into two windows at specified column (window passed in A = columns 0 through split-1, new window selected and returned in A = columns split through #lines-1)
 
 .enum ULERR

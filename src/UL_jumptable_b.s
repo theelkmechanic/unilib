@@ -57,5 +57,6 @@ jmp ulwin_splitcolumn    ; $C078
 jmp ulwin_joinlines      ; $C07B
 jmp ulwin_joincolumns    ; $C07E
 jmp ulwin_picklist       ; $C081
+jmp ulwin_input          ; $C084
 
 .endif ; ROM_BUILD

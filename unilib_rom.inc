@@ -92,6 +92,10 @@ UL_JT_MATH_UMUL16       = $C0B7  ; ulmath_umul16_8
 UL_JT_ISPRINT           = $C0BA  ; ul_isprint
 UL_JT_ULS_ACCESS        = $C0BD  ; ULS_access (internal, exposed for test)
 UL_JT_STR_FROMPETSCII   = $C0C0  ; ulstr_fromPETSCII
+UL_JT_STR_TOPETSCII     = $C0C3  ; ulstr_toPETSCII
+UL_JT_STR_FROMISO8859   = $C0C6  ; ulstr_fromISO8859
+UL_JT_STR_TOISO8859     = $C0C9  ; ulstr_toISO8859
+UL_JT_STR_FORMAT        = $C0CC  ; ulstr_format
 
 ; =============================================================================
 ; Jump table addresses (Bank B - Display)
@@ -141,3 +145,4 @@ UL_JT_WIN_SPLITCOLUMN   = $C078  ; ulwin_splitcolumn
 UL_JT_WIN_JOINLINES     = $C07B  ; ulwin_joinlines
 UL_JT_WIN_JOINCOLUMNS   = $C07E  ; ulwin_joincolumns
 UL_JT_WIN_PICKLIST      = $C081  ; ulwin_picklist
+UL_JT_WIN_INPUT         = $C084  ; ulwin_input

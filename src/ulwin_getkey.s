@@ -13,8 +13,19 @@ UL_CODE
                         lda BANKSEL::RAM
                         pha
 
+                        ; Load current window struct for cursor blink
+                        lda ULW_current_handle
+                        jsr ULW_getwinstruct
+
+                        ; Initialize blink state
+                        stz ULW_blink_on
+                        jsr RDTIM
+                        stx ULW_blink_jiffy
+
                         ; Loop until we get a key
-@loop:                  jsr GETIN
+@loop:                  jsr ULW_check_blink
+
+                        jsr GETIN
                         cmp #0
                         bne @got_key
 
@@ -25,9 +36,15 @@ UL_CODE
                         jsr @do_idle
                         bra @loop
 
-                        ; Got a PETSCII key, convert to Unicode codepoint
-@got_key:               tax                     ; X = PETSCII byte
-                        jsr UL_petscii_to_codepoint
+                        ; Got a PETSCII key — hide cursor before processing
+@got_key:               pha
+                        lda ULW_blink_on
+                        beq :+
+                        jsr ULW_hide_cursor
+:                       pla
+
+                        tax                     ; X = PETSCII byte
+                        XCALL UL_petscii_to_codepoint, UNILIB_BANK_A
                         bcs @loop               ; skip chars (control codes) - keep waiting
 
                         ; X = cp_lo, Y = cp_hi; save results

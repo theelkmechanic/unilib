@@ -1,4 +1,4 @@
-; ulwin_getloc/ulwin_getstr - Get window content as string
+; ulwin_getloc/ulwin_getstr/ULW_getloc_n - Get window content as string
 
 .include "unilib_impl.inc"
 
@@ -35,7 +35,7 @@ UL_CODE
 ; FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
 
 .proc ULW_getloc_impl
-                        ; Save A/X/Y/bank
+                        ; Save A/bank, push dummies for stack balance at exit
                         sta ULWGL_handle
                         lda BANKSEL::RAM
                         pha
@@ -58,11 +58,49 @@ UL_CODE
                         lda ULW_WINDOW_COPY::ncol
                         sec
                         sbc ULWGL_col
-                        bcc @empty
-                        beq @empty
+                        bcs :+
+                        jmp ULW_getloc_empty
+:                       beq :+
                         sta ULWGL_count
+                        jmp ULW_getloc_read
+:                       jmp ULW_getloc_empty
+.endproc
 
-                        ; Read each 3-byte character and encode as UTF-8 into SCRATCH2
+; ULW_getloc_n - Get exactly N characters from position as string (internal)
+;   In: A               - Window handle
+;       X               - Column
+;       Y               - Line
+;       r0L             - Character count
+;  Out: YX              - String handle, carry set on error
+.proc ULW_getloc_n
+                        stx ULWGL_col
+                        sty ULWGL_line
+                        sta ULWGL_handle
+                        lda gREG::r0L           ; save count before calls clobber r0
+                        sta ULWGL_count
+                        lda BANKSEL::RAM
+                        pha
+                        phx                     ; dummy for stack balance
+                        phy                     ; dummy for stack balance
+
+                        lda ULWGL_handle
+                        jsr ULW_getwinstruct
+
+                        ldx ULWGL_col
+                        ldy ULWGL_line
+                        clc                     ; character buffer
+                        jsr ULW_getwinbufptr
+                        stx UL_src_fptr
+                        sty UL_src_fptr+1
+
+                        lda ULWGL_count
+                        beq ULW_getloc_empty
+.endproc
+
+; FALL THROUGH INTENTIONAL to ULW_getloc_read
+
+; --- Shared read loop (UL_src_fptr set, ULWGL_count set, 3 values on stack) ---
+ULW_getloc_read:
                         stz ULWGL_outidx
                         ldy #0
 
@@ -87,7 +125,7 @@ UL_CODE
                         ; Check output overflow
                         lda ULWGL_outidx
                         cmp #248
-                        bcs @done
+                        bcs ULW_getloc_done
 
                         ; Encode codepoint as UTF-8 via helper
                         jsr ULW_encode_utf8
@@ -96,25 +134,29 @@ UL_CODE
                         dec ULWGL_count
                         bne @read_loop
 
-@done:                  ; NUL-terminate and create string
+ULW_getloc_done:        ; NUL-terminate and create string
                         ldy ULWGL_outidx
                         lda #0
                         sta UL_SCRATCH2_BASE,y
 
                         ; Restore bank and create string from UTF-8
-                        ply                     ; discard saved Y
-                        plx                     ; discard saved X
+                        ply                     ; discard dummy
+                        plx                     ; discard dummy
                         pla
                         sta BANKSEL::RAM
 
                         ldx #<UL_SCRATCH2_BASE
                         ldy #>UL_SCRATCH2_BASE
+.ifdef ROM_BUILD
+                        XCALL ulstr_fromUtf8, UNILIB_BANK_A
+                        rts
+.else
                         jmp ulstr_fromUtf8
+.endif
 
-@empty:                 ; Return empty string
+ULW_getloc_empty:       ; Return empty string
                         stz ULWGL_outidx
-                        bra @done
-.endproc
+                        bra ULW_getloc_done
 
 ; ULW_encode_utf8 - Encode a codepoint from ULWGL vars as UTF-8 into SCRATCH2
 .proc ULW_encode_utf8

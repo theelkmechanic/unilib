@@ -78,5 +78,9 @@ jmp ulmath_umul16_8      ; $C0B7
 jmp ul_isprint           ; $C0BA
 jmp ULS_access           ; $C0BD (internal, exposed for test)
 jmp ulstr_fromPETSCII    ; $C0C0
+jmp ulstr_toPETSCII      ; $C0C3
+jmp ulstr_fromISO8859    ; $C0C6
+jmp ulstr_toISO8859      ; $C0C9
+jmp ulstr_format         ; $C0CC
 
 .endif ; ROM_BUILD

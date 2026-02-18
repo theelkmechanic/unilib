@@ -238,6 +238,12 @@ fmt_ab_data:    .byte "alpha", 0, "beta", 0, 0
 ; UTF-8 for 中 (U+4E2D) — used for toISO8859 unmappable test
 utf8_zhong:     .byte $E4, $B8, $AD, $00
 
+; inschar/delchar test strings
+str_t_ins:      .byte "inschar shifts buffer ", 0
+str_t_del:      .byte "delchar shifts buffer ", 0
+ins_expect:     .byte "ABXCDE", 0
+del_expect:     .byte "ACDE", 0
+
 str_pass:       .byte " OK", 0
 str_fail:       .byte " FAIL", 0
 str_summary:    .byte "Passed: ", 0
@@ -5296,6 +5302,196 @@ start:
                         jsr ulstr_release
 @fmi_fail:              jsr fail
 
+; ----- inschar test: "ABCDE" → inschar 'X' at col 2 → expect "ABXCDE" -----
+                        ldx #<str_t_ins
+                        ldy #>str_t_ins
+                        jsr putmsg
+
+                        ; Put cursor at col 0, line 27 (use last line for scratch)
+                        ldx #0
+                        ldy #27
+                        lda win
+                        jsr ulwin_putcursor
+
+                        ; Write "ABCDE" via putchar
+                        lda #'A'
+                        sta gREG::r0L
+                        stz gREG::r0H
+                        stz gREG::r1L
+                        lda win
+                        jsr ulwin_putchar
+                        lda #'B'
+                        sta gREG::r0L
+                        lda win
+                        jsr ulwin_putchar
+                        lda #'C'
+                        sta gREG::r0L
+                        lda win
+                        jsr ulwin_putchar
+                        lda #'D'
+                        sta gREG::r0L
+                        lda win
+                        jsr ulwin_putchar
+                        lda #'E'
+                        sta gREG::r0L
+                        lda win
+                        jsr ulwin_putchar
+
+                        ; Put cursor at col 2 (at 'C')
+                        ldx #2
+                        ldy #27
+                        lda win
+                        jsr ulwin_putcursor
+
+                        ; Insert 'X' at col 2
+                        lda #'X'
+                        sta gREG::r0L
+                        stz gREG::r0H
+                        stz gREG::r1L
+                        lda win
+                        jsr ulwin_inschar
+
+                        ; Now read back the line: getloc at col 0, line 27
+                        lda win
+                        ldx #0
+                        ldy #27
+                        jsr ulwin_getloc
+                        stx ins_str
+                        sty ins_str+1
+
+                        ; Access the string
+                        jsr ULS_access
+
+                        ; Check first 6 bytes match "ABXCDE"
+                        ldx #0
+                        ldy #0
+@ins_check:             lda ins_expect,x
+                        beq @ins_ok
+                        cmp $0600,x
+                        bne @ins_fail
+                        inx
+                        bra @ins_check
+
+@ins_ok:                ; Release string and pass
+                        ldx ins_str
+                        ldy ins_str+1
+                        jsr ulstr_release
+                        jsr pass
+                        jmp @test_del
+
+@ins_fail:              ; Debug: dump actual string to stdout
+                        pha
+                        lda #'!'
+                        sta EMU_STDOUT
+                        ldx #0
+@ins_dump:              lda $0600,x
+                        beq @ins_dump_done
+                        sta EMU_STDOUT
+                        inx
+                        cpx #20
+                        bcc @ins_dump
+@ins_dump_done:         lda #$0A
+                        sta EMU_STDOUT
+                        pla
+                        ldx ins_str
+                        ldy ins_str+1
+                        jsr ulstr_release
+                        jsr fail
+
+; ----- delchar test: "ABCDE" → delchar at col 1 → expect "ACDE" -----
+@test_del:              ldx #<str_t_del
+                        ldy #>str_t_del
+                        jsr putmsg
+
+                        ; Clear line 27 first
+                        ldx #0
+                        ldy #27
+                        lda win
+                        jsr ulwin_putcursor
+                        lda win
+                        jsr ulwin_eraseeol
+
+                        ; Write "ABCDE" at col 0, line 27
+                        ldx #0
+                        ldy #27
+                        lda win
+                        jsr ulwin_putcursor
+                        lda #'A'
+                        sta gREG::r0L
+                        stz gREG::r0H
+                        stz gREG::r1L
+                        lda win
+                        jsr ulwin_putchar
+                        lda #'B'
+                        sta gREG::r0L
+                        lda win
+                        jsr ulwin_putchar
+                        lda #'C'
+                        sta gREG::r0L
+                        lda win
+                        jsr ulwin_putchar
+                        lda #'D'
+                        sta gREG::r0L
+                        lda win
+                        jsr ulwin_putchar
+                        lda #'E'
+                        sta gREG::r0L
+                        lda win
+                        jsr ulwin_putchar
+
+                        ; Put cursor at col 1 (at 'B')
+                        ldx #1
+                        ldy #27
+                        lda win
+                        jsr ulwin_putcursor
+
+                        ; Delete char at col 1
+                        lda win
+                        jsr ulwin_delchar
+
+                        ; Read back the line
+                        lda win
+                        ldx #0
+                        ldy #27
+                        jsr ulwin_getloc
+                        stx del_str
+                        sty del_str+1
+
+                        ; Access the string
+                        jsr ULS_access
+
+                        ; Check first 4 bytes match "ACDE"
+                        ldx #0
+@del_check:             lda del_expect,x
+                        beq @del_ok
+                        cmp $0600,x
+                        bne @del_fail
+                        inx
+                        bra @del_check
+
+@del_ok:                ldx del_str
+                        ldy del_str+1
+                        jsr ulstr_release
+                        jsr pass
+                        jmp @summary
+
+@del_fail:              ; Debug: dump actual string to stdout
+                        lda #'!'
+                        sta EMU_STDOUT
+                        ldx #0
+@del_dump:              lda $0600,x
+                        beq @del_dump_done
+                        sta EMU_STDOUT
+                        inx
+                        cpx #20
+                        bcc @del_dump
+@del_dump_done:         lda #$0A
+                        sta EMU_STDOUT
+                        ldx del_str
+                        ldy del_str+1
+                        jsr ulstr_release
+                        jsr fail
+
 ; ----- Summary -----
 
 @summary:               ldx #<str_summary
@@ -5380,3 +5576,5 @@ ti_iter:        .res 2          ; toISO8859 output iterator
 fm_fmtstr:      .res 2          ; format test format string handle
 fm_stb:         .res 2          ; format test stringtable BRP
 fm_result:      .res 2          ; format test result string handle
+ins_str:        .res 2          ; inschar test string handle
+del_str:        .res 2          ; delchar test string handle

@@ -90,6 +90,10 @@ THUNK_A ulitr_atend,          UL_JT_ITR_ATEND
 ; Strings
 THUNK_A ulstr_fromUtf8,       UL_JT_STR_FROMUTF8
 THUNK_A ulstr_fromPETSCII,   UL_JT_STR_FROMPETSCII
+THUNK_A ulstr_toPETSCII,    UL_JT_STR_TOPETSCII
+THUNK_A ulstr_fromISO8859,  UL_JT_STR_FROMISO8859
+THUNK_A ulstr_toISO8859,    UL_JT_STR_TOISO8859
+THUNK_A ulstr_format,       UL_JT_STR_FORMAT
 THUNK_A ulstr_getlen,         UL_JT_STR_GETLEN
 THUNK_A ulstr_getprintlen,    UL_JT_STR_GETPRINTLEN
 THUNK_A ulstr_getrawlen,      UL_JT_STR_GETRAWLEN
@@ -173,3 +177,4 @@ THUNK_B ulwin_splitcolumn,    UL_JT_WIN_SPLITCOLUMN
 THUNK_B ulwin_joinlines,      UL_JT_WIN_JOINLINES
 THUNK_B ulwin_joincolumns,    UL_JT_WIN_JOINCOLUMNS
 THUNK_B ulwin_picklist,       UL_JT_WIN_PICKLIST
+THUNK_B ulwin_input,          UL_JT_WIN_INPUT
