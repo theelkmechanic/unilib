@@ -3,22 +3,22 @@
 UL_CODE
 
 ULW_worker_moverestofline:
-                        stx ULWC_src_adj
-                        sty ULWC_dest_adj
-                        lda ULW_WINDOW_COPY::ccol
+                        stx ULWCE_src_adj
+                        sty ULWCE_dest_adj
+                        lda ULWC_ccol
                         clc
-                        adc ULWC_src_adj
+                        adc ULWCE_src_adj
                         sta ULWR_src
                         clc
-                        adc ULWC_dest_adj
+                        adc ULWCE_dest_adj
                         sta ULWR_dest
 
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         clc
-                        sbc ULW_WINDOW_COPY::ccol
+                        sbc ULWC_ccol
                         sta ULWR_destsize
 
-                        lda ULW_WINDOW_COPY::clin
+                        lda ULWC_clin
                         sta ULWR_src+1
                         sta ULWR_dest+1
                         lda #1
@@ -27,9 +27,9 @@ ULW_worker_moverestofline:
 
 ULW_worker_delchar:
                         ; Make sure we are onscreen
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         dec
-                        cmp ULW_WINDOW_COPY::ccol
+                        cmp ULWC_ccol
                         beq :+
                         bcc exitbounce
 
@@ -39,10 +39,10 @@ ULW_worker_delchar:
                         jsr ULW_worker_moverestofline
 
                         ; And clear last character cell
-:                       lda ULW_WINDOW_COPY::ncol
+:                       lda ULWC_ncol
                         dec
                         sta ULWR_dest
-                        lda ULW_WINDOW_COPY::clin
+                        lda ULWC_clin
                         sta ULWR_dest+1
                         lda #1
                         sta ULWR_destsize
@@ -57,9 +57,9 @@ ULW_worker_inschar:
                         bcc exit
 
                         ; Make sure we are onscreen
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         dec
-                        cmp ULW_WINDOW_COPY::ccol
+                        cmp ULWC_ccol
                         beq :+
                         bcc exit
 
@@ -69,7 +69,7 @@ ULW_worker_inschar:
                         jsr ULW_worker_moverestofline
 
                         ; And put character at cursor
-                        lda ULWC_handle
+                        lda ULWCE_handle
 :                       jsr ulwin_putchar
 exitbounce:             bra exit
 
@@ -110,13 +110,13 @@ exitbounce:             bra exit
 ; ULW_docursorthing helper for cursor-related window functions
 ULW_docursorthing:
                         ; Save X/Y/RAM bank
-                        sta ULWC_handle
+                        sta ULWCE_handle
                         lda BANKSEL::RAM
                         pha
                         phy
 
                         ; Access the window structure
-                        lda ULWC_handle
+                        lda ULWCE_handle
                         phx
                         jsr ULW_getwinstruct
                         plx
@@ -143,22 +143,22 @@ call_worker:            jmp (ULW_workers,x)
 
 ULW_worker_eraseeol:
                         ; See if we have anything to erase
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         sec
-                        sbc ULW_WINDOW_COPY::ccol
+                        sbc ULWC_ccol
                         bcc exit
 
                         ; Setup the rect/color
                         sta ULWR_destsize
-                        lda ULW_WINDOW_COPY::ccol
+                        lda ULWC_ccol
                         sta ULWR_dest
-                        lda ULW_WINDOW_COPY::clin
+                        lda ULWC_clin
                         sta ULWR_dest+1
 
 ULW_worker_cleardestline:
                         lda #1
                         sta ULWR_destsize+1
-                        lda ULW_WINDOW_COPY::color
+                        lda ULWC_color
                         sta ULWR_color
 
                         ; And clear it
@@ -170,7 +170,7 @@ ULW_worker_getchar:
 exit:                   ply
                         pla
                         sta BANKSEL::RAM
-                        lda ULWC_handle
+                        lda ULWCE_handle
                         plx
                         rts
 
@@ -181,7 +181,7 @@ ULW_worker_insline:
                         jsr ULW_worker_scrollbelow
 
                         ; And clear current line
-                        lda ULW_WINDOW_COPY::clin
+                        lda ULWC_clin
                         bra ULW_worker_clearline
 
 ULW_worker_delline:
@@ -191,41 +191,41 @@ ULW_worker_delline:
                         jsr ULW_worker_scrollbelow
 
                         ; And clear last line
-                        lda ULW_WINDOW_COPY::nlin
+                        lda ULWC_nlin
                         dec
 
 ULW_worker_clearline:
                         sta ULWR_dest+1
                         stz ULWR_dest
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         sta ULWR_destsize
                         bra ULW_worker_cleardestline
 
 ULW_worker_scrollbelow:
-                        lda ULW_WINDOW_COPY::nlin
+                        lda ULWC_nlin
                         dec
-                        cmp ULW_WINDOW_COPY::clin
+                        cmp ULWC_clin
                         bne :+
                         rts
 
-:                       stx ULWC_src_adj
-                        sty ULWC_dest_adj
-                        lda ULW_WINDOW_COPY::clin
+:                       stx ULWCE_src_adj
+                        sty ULWCE_dest_adj
+                        lda ULWC_clin
                         clc
-                        adc ULWC_src_adj
+                        adc ULWCE_src_adj
                         sta ULWR_src+1
                         clc
-                        adc ULWC_dest_adj
+                        adc ULWCE_dest_adj
                         sta ULWR_dest+1
 
-                        lda ULW_WINDOW_COPY::nlin
+                        lda ULWC_nlin
                         clc
-                        sbc ULW_WINDOW_COPY::clin
+                        sbc ULWC_clin
                         sta ULWR_destsize+1
 
                         stz ULWR_src
                         stz ULWR_dest
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         sta ULWR_destsize
                         jmp ULW_copyrect
 
@@ -249,6 +249,6 @@ ULW_wrkidx_eraseeol = ULW_wrkent_eraseeol - ULW_workers
 
 UL_BSS
 
-ULWC_handle:            .res    1
-ULWC_src_adj:           .res    1
-ULWC_dest_adj:          .res    1
+ULWCE_handle:            .res    1
+ULWCE_src_adj:           .res    1
+ULWCE_dest_adj:          .res    1

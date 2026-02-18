@@ -115,7 +115,7 @@ ULW_putpair:            sta (ULW_scratch_fptr),y
 .proc ULW_copywinstruct
                         ldy #.sizeof(ULW_WINDOW)-1
 :                       lda (ULW_scratch_fptr),y
-                        sta ULW_WINDOW_COPY::handle,y
+                        sta ULWC_handle,y
                         dey
                         bpl :-
                         rts
@@ -197,9 +197,9 @@ ULW_putpair:            sta (ULW_scratch_fptr),y
 ; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
 
                         ; Store ULW_WINDOW_COPY rect pointer in r12
-ULW_intersectwindow:    lda #<ULW_WINDOW_COPY::scol
+ULW_intersectwindow:    lda #<ULWC_scol
                         sta gREG::r12L
-                        lda #>ULW_WINDOW_COPY::scol
+                        lda #>ULWC_scol
                         sta gREG::r12H
 
 ; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE
@@ -311,7 +311,7 @@ ULW_intersectwindow:    lda #<ULW_WINDOW_COPY::scol
                         ; For a window with no border, line length and stride are both ncol*3 for charbuf and ncol for colorbuf
                         phx
                         phy
-                        ldx ULW_WINDOW_COPY::ncol
+                        ldx ULWC_ncol
                         bit ULW_carryflag
                         bmi :+
                         lda #3
@@ -325,7 +325,7 @@ ULW_intersectwindow:    lda #<ULW_WINDOW_COPY::scol
                         bpl :+
                         iny
                         iny
-:                       lda ULW_WINDOW_COPY::flags
+:                       lda ULWC_flags
                         bpl :++
                         bit ULW_carryflag
                         bmi :+
@@ -338,8 +338,8 @@ ULW_intersectwindow:    lda #<ULW_WINDOW_COPY::scol
                         stx ULW_linestride
 
                         ; Access the correct buffer and save the start address
-:                       ldx ULW_WINDOW_COPY::charbuf,y
-                        lda ULW_WINDOW_COPY::charbuf+1,y
+:                       ldx ULWC_charbuf,y
+                        lda ULWC_charbuf+1,y
                         tay
                         XCALL ulmem_access, UNILIB_BANK_A
                         stx ULW_scratch_bufptr
@@ -348,7 +348,7 @@ ULW_intersectwindow:    lda #<ULW_WINDOW_COPY::scol
                         ; If we have a border, we increment X and Y by 1 to compensate
                         ply
                         plx
-                        bit ULW_WINDOW_COPY::flags
+                        bit ULWC_flags
                         bpl :+
                         inx
                         iny
@@ -407,13 +407,13 @@ a_handy_rts:            rts
 ;   In: ULW_scratch_fptr/BANKSEL::RAM/ULW_WINDOW_COPY - Window structure
 .proc ULW_drawborder
                         ; Does window have a border?
-                        bit ULW_WINDOW_COPY::flags
+                        bit ULWC_flags
                         bpl a_handy_rts
 
                         ; Put a box around it
-                        lda ULW_WINDOW_COPY::nlin
+                        lda ULWC_nlin
                         sta ULW_boxbottom
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         sta ULW_boxright
                         lda #$ff
                         sta ULW_boxtop
@@ -421,14 +421,14 @@ a_handy_rts:            rts
                         jsr ULW_box
 
                         ; Is there a window title?
-                        lda ULW_WINDOW_COPY::title
-                        ora ULW_WINDOW_COPY::title+1
+                        lda ULWC_title
+                        ora ULWC_title+1
                         beq a_handy_rts
 
                         ; Draw the window title into the top line using the emphasis color
 
                         ; First, limit the title length to window width + border - 6 (and make sure at least 1 char can be drawn)
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         sec
                         sbc #7
                         bmi a_handy_rts ; not enough space to draw any of title
@@ -443,7 +443,7 @@ a_handy_rts:            rts
                         sta ULWR_char+2
                         inc
                         sta ULWR_dest
-                        lda ULW_WINDOW_COPY::emcolor
+                        lda ULWC_emcolor
                         sta ULWR_color
                         lda #' '
                         sta ULWR_char
@@ -453,8 +453,8 @@ a_handy_rts:            rts
                         ; Print the title string
                         pla
                         sta ULWR_destsize
-                        ldx ULW_WINDOW_COPY::title
-                        ldy ULW_WINDOW_COPY::title+1
+                        ldx ULWC_title
+                        ldy ULWC_title+1
                         XCALL ULS_access, UNILIB_BANK_A
                         jsr ULW_drawstring
                         clc
@@ -507,7 +507,7 @@ a_handy_rts:            rts
                         ;   - visible, we can fill it in the screen backbuffer immediately
                         ;   - occluded, we mark the visible portions of the rectangle as dirty
                         ;   - covered, we don't need to do anything
-                        bit ULW_WINDOW_COPY::status
+                        bit ULWC_status
                         bmi @done
                         bvs @occluded
 
@@ -518,11 +518,11 @@ a_handy_rts:            rts
                         ; The window is visible, so we can fill the rectangle immediately in the backbuffer
                         lda ULWR_dest
                         clc
-                        adc ULW_WINDOW_COPY::scol
+                        adc ULWC_scol
                         sta ULVR_destpos
                         lda ULWR_dest+1
                         clc
-                        adc ULW_WINDOW_COPY::slin
+                        adc ULWC_slin
                         sta ULVR_destpos+1
                         lda ULWR_destsize
                         sta ULVR_size
@@ -540,12 +540,12 @@ a_handy_rts:            rts
 @occluded:              lda ULWR_dest
                         pha
                         clc
-                        adc ULW_WINDOW_COPY::scol
+                        adc ULWC_scol
                         sta ULWR_dest
                         lda ULWR_dest+1
                         pha
                         clc
-                        adc ULW_WINDOW_COPY::slin
+                        adc ULWC_slin
                         sta ULWR_dest+1
                         jsr ULW_set_dirty_rect
                         pla
@@ -626,7 +626,7 @@ ULW_fillrect_charorcolor:
 ;  Out: A               - Number of characters drawn
 .proc ULW_drawstring
                         ; Get the max length to write (but not more than to the end of our line)
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         sec
                         sbc ULWR_dest
                         cmp ULWR_destsize
@@ -749,29 +749,29 @@ ULW_fillrect_charorcolor:
 @check_occlusion:       lda ULVR_srcpos
                         sta ULWR_src
                         clc
-                        adc ULW_WINDOW_COPY::scol
+                        adc ULWC_scol
                         sta ULVR_srcpos
                         lda ULVR_srcpos+1
                         sta ULWR_src+1
                         clc
-                        adc ULW_WINDOW_COPY::slin
+                        adc ULWC_slin
                         sta ULVR_srcpos+1
                         lda ULVR_destpos
                         sta ULWR_dest
                         clc
-                        adc ULW_WINDOW_COPY::scol
+                        adc ULWC_scol
                         sta ULVR_destpos
                         lda ULVR_destpos+1
                         sta ULWR_dest+1
                         clc
-                        adc ULW_WINDOW_COPY::slin
+                        adc ULWC_slin
                         sta ULVR_destpos+1
                         lda ULVR_size
                         sta ULWR_destsize
                         lda ULVR_size+1
                         sta ULWR_destsize+1
 
-                        bit ULW_WINDOW_COPY::status
+                        bit ULWC_status
                         bmi @done
                         bvs @occluded
 
@@ -805,14 +805,14 @@ ULW_fillrect_charorcolor:
                         sta ULWCL_bytelen
 
                         ; Load source/dest addresses
-                        lda ULW_WINDOW_COPY::handle
+                        lda ULWC_handle
                         ldx ULWR_src
                         ldy ULWR_src+1
                         rol ULW_carryflag
                         jsr ULW_getwinbufptr
                         stx UL_src_fptr
                         sty UL_src_fptr+1
-                        lda ULW_WINDOW_COPY::handle
+                        lda ULWC_handle
                         ldx ULWR_dest
                         ldy ULWR_dest+1
                         rol ULW_carryflag
@@ -868,3 +868,24 @@ ULWFR_limit:            .res    1
 ULWDS_lastcol:          .res    1
 ULWDS_startcol:         .res    1
 ULWCL_bytelen:          .res    1
+
+; Window structure copy — contiguous block for indexed access
+ULWC_handle:            .res 1
+ULWC_flags:             .res 1
+ULWC_scol:              .res 1
+ULWC_slin:              .res 1
+ULWC_ncol:              .res 1
+ULWC_nlin:              .res 1
+ULWC_ecol:              .res 1
+ULWC_elin:              .res 1
+ULWC_ccol:              .res 1
+ULWC_clin:              .res 1
+ULWC_color:             .res 1
+ULWC_emcolor:           .res 1
+ULWC_charbuf:           .res 2
+ULWC_colorbuf:          .res 2
+ULWC_title:             .res 2
+ULWC_next_handle:       .res 1
+ULWC_prev_handle:       .res 1
+ULWC_status:            .res 1
+

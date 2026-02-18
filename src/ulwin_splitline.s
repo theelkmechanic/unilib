@@ -2,6 +2,16 @@
 
 .include "unilib_impl.inc"
 
+.define ULWSL_handle      ULW_sj_scratch+0
+.define ULWSL_splitline   ULW_sj_scratch+1
+.define ULWSL_bot_nlin    ULW_sj_scratch+2
+.define ULWSL_bot_slin    ULW_sj_scratch+3
+.define ULWSL_scol        ULW_sj_scratch+4
+.define ULWSL_ncol        ULW_sj_scratch+5
+.define ULWSL_flags       ULW_sj_scratch+6
+.define ULWSL_color       ULW_sj_scratch+7
+.define ULWSL_new_handle  ULW_sj_scratch+8
+
 UL_CODE
 
 ; ulwin_splitline - Split a window into two at specified line
@@ -55,7 +65,7 @@ UL_CODE
                         ; Validate: split line must be > 0 and < nlin
                         lda ULWSL_splitline
                         beq @bad_params
-                        cmp ULW_WINDOW_COPY::nlin
+                        cmp ULWC_nlin
                         bcc @params_ok
 
 @bad_params:            lda #ULERR::INVALID_PARAMS
@@ -70,29 +80,29 @@ UL_CODE
 
 @params_ok:             ; Calculate new window dimensions
                         ; Bottom window: starts at slin+splitline, height = nlin-splitline
-                        lda ULW_WINDOW_COPY::nlin
+                        lda ULWC_nlin
                         sec
                         sbc ULWSL_splitline
                         sta ULWSL_bot_nlin
 
-                        lda ULW_WINDOW_COPY::slin
+                        lda ULWC_slin
                         clc
                         adc ULWSL_splitline
                         sta ULWSL_bot_slin
 
                         ; Save original window properties for the new window
-                        lda ULW_WINDOW_COPY::scol
+                        lda ULWC_scol
                         sta ULWSL_scol
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         sta ULWSL_ncol
-                        lda ULW_WINDOW_COPY::flags
+                        lda ULWC_flags
                         sta ULWSL_flags
-                        lda ULW_WINDOW_COPY::color
+                        lda ULWC_color
                         sta ULWSL_color
 
                         ; Resize original window to top portion (splitline lines)
                         lda ULWSL_handle
-                        ldx ULW_WINDOW_COPY::ncol
+                        ldx ULWC_ncol
                         ldy ULWSL_splitline
                         jsr ulwin_resize
                         bcc :+
@@ -180,12 +190,7 @@ UL_CODE
 
 UL_BSS
 
-ULWSL_handle:           .res 1
-ULWSL_splitline:        .res 1
-ULWSL_bot_nlin:         .res 1
-ULWSL_bot_slin:         .res 1
-ULWSL_scol:             .res 1
-ULWSL_ncol:             .res 1
-ULWSL_flags:            .res 1
-ULWSL_color:            .res 1
-ULWSL_new_handle:       .res 1
+; Split/Join shared scratch (9 bytes, non-reentrant)
+; Used by: splitline, splitcolumn, joinlines, joincolumns
+ULW_sj_scratch:         .res 9
+

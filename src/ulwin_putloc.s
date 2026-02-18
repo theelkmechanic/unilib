@@ -23,7 +23,7 @@ UL_CODE
 ;       carry           - Set to allow wrap/scroll
 .proc ulwin_putloc
                         ; Save A/X/Y/RAM bank/carry flag
-                        sta ULW_WINDOW_COPY::handle
+                        sta ULWC_handle
                         stx ULWR_dest
                         sty ULWR_dest+1
                         lda BANKSEL::RAM
@@ -33,17 +33,17 @@ UL_CODE
                         ror ULWPL_wrapflag
 
                         ; Get the window structure
-                        lda ULW_WINDOW_COPY::handle
+                        lda ULWC_handle
                         jsr ULW_getwinstruct
 
                         ; Make sure the start position is inside the window contents
                         lda ULWR_dest
                         bmi @exit
-                        cmp ULW_WINDOW_COPY::ncol
+                        cmp ULWC_ncol
                         bcs @exit
                         lda ULWR_dest+1
                         bmi @exit
-                        cmp ULW_WINDOW_COPY::nlin
+                        cmp ULWC_nlin
                         bcs @exit
 
                         ; Get printlen first (before ULS_access clobbers things)
@@ -78,18 +78,18 @@ UL_CODE
                         stz ULWR_dest
                         ldy ULWR_dest+1
                         inc
-                        cpy ULW_WINDOW_COPY::nlin 
+                        cpy ULWC_nlin 
                         bcc @noscroll
 
                         ; At bottom of window, so scroll
                         pha
-                        lda ULW_WINDOW_COPY::handle
+                        lda ULWC_handle
                         ldx #0
                         ldy #$ff
                         jsr ulwin_scroll
                         pla
                         stz ULWR_dest
-                        ldy ULW_WINDOW_COPY::nlin
+                        ldy ULWC_nlin
                         dec
 @noscroll:              sty ULWR_dest+1
                         bra @printstr
@@ -106,7 +106,7 @@ UL_CODE
                         plx
                         pla
                         sta BANKSEL::RAM
-                        lda ULW_WINDOW_COPY::handle
+                        lda ULWC_handle
                         rts
 
 .endproc

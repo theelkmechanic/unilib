@@ -55,7 +55,7 @@ UL_CODE
                         sty UL_src_fptr+1
 
                         ; Calculate number of characters from column to end of line
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         sec
                         sbc ULWGL_col
                         bcs :+

@@ -27,7 +27,7 @@ UL_CODE
                         bcs @invalid
                         ldx gREG::r1L
                         bmi @invalid
-                        cpx ULW_WINDOW_COPY::ncol
+                        cpx ULWC_ncol
                         bcs @invalid
                         lda gREG::r0H
                         bmi @invalid
@@ -35,11 +35,11 @@ UL_CODE
                         bcs @invalid
                         ldy gREG::r1H
                         bmi @invalid
-                        cpy ULW_WINDOW_COPY::nlin
+                        cpy ULWC_nlin
                         bcs @invalid
 
                         ; If there's a border, need to bump the coords up by 1
-                        bit ULW_WINDOW_COPY::flags
+                        bit ULWC_flags
                         bpl :+
                         inx
                         iny
@@ -50,7 +50,7 @@ UL_CODE
                         sty ULW_boxbottom
                         sta ULW_boxtop
                         lda gREG::r0L
-                        bit ULW_WINDOW_COPY::flags
+                        bit ULWC_flags
                         bpl :+
                         inc
 :                       sta ULW_boxleft
@@ -97,7 +97,7 @@ UL_CODE
                         sbc ULW_boxleft
                         dec
                         sta ULWR_destsize
-                        lda ULW_WINDOW_COPY::color
+                        lda ULWC_color
                         sta ULWR_color
                         lda ULW_boxtop
                         sta ULWR_dest+1

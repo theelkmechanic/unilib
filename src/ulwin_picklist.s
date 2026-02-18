@@ -40,11 +40,11 @@ UL_CODE
                         ; Get window info
                         lda ULWPK_handle
                         jsr ULW_getwinstruct
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         sta ULWPK_ncol
-                        lda ULW_WINDOW_COPY::nlin
+                        lda ULWC_nlin
                         sta ULWPK_nlin
-                        lda ULW_WINDOW_COPY::color
+                        lda ULWC_color
                         sta ULWPK_normal_color
 
                         ; Compute inverse color (swap nibbles)

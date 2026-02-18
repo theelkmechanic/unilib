@@ -29,23 +29,23 @@ UL_CODE
 
                         ; Step 1: Unlink from current position in the doubly-linked list
                         ; If we have a previous window, update its next to point to our next
-                        lda ULW_WINDOW_COPY::prev_handle
+                        lda ULWC_prev_handle
                         bmi @no_prev
                         jsr ULW_getwinptr
                         stx ULW_scratch_fptr
                         sty ULW_scratch_fptr+1
                         ldy #ULW_WINDOW::next_handle
-                        lda ULW_WINDOW_COPY::next_handle
+                        lda ULWC_next_handle
                         sta (ULW_scratch_fptr),y
 
 @no_prev:               ; If we have a next window, update its previous to point to our previous
-                        lda ULW_WINDOW_COPY::next_handle
+                        lda ULWC_next_handle
                         bmi @no_next
                         jsr ULW_getwinptr
                         stx ULW_scratch_fptr
                         sty ULW_scratch_fptr+1
                         ldy #ULW_WINDOW::prev_handle
-                        lda ULW_WINDOW_COPY::prev_handle
+                        lda ULWC_prev_handle
                         sta (ULW_scratch_fptr),y
 
                         ; Step 2: Insert at the front (make current)
@@ -82,12 +82,12 @@ UL_CODE
                         ; Step 4: Mark the window region as dirty so it gets redrawn
                         lda ULWSE_handle
                         jsr ULW_getwinstruct
-                        lda ULW_WINDOW_COPY::scol
+                        lda ULWC_scol
                         sta ULWR_dest
-                        ldx ULW_WINDOW_COPY::slin
-                        ldy ULW_WINDOW_COPY::ncol
-                        lda ULW_WINDOW_COPY::nlin
-                        bit ULW_WINDOW_COPY::flags
+                        ldx ULWC_slin
+                        ldy ULWC_ncol
+                        lda ULWC_nlin
+                        bit ULWC_flags
                         bpl :+
                         dec ULWR_dest
                         dex

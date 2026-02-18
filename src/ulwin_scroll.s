@@ -8,28 +8,28 @@ UL_CODE
 ;       Y               - Number of lines to scroll (signed)
 .proc ulwin_scroll
                         ; Save A/X/Y/bank
-                        sta ULW_WINDOW_COPY::handle
+                        sta ULWC_handle
                         lda BANKSEL::RAM
                         pha
                         stx ULWS_savedx
                         sty ULWS_savedy
 
                         ; Access the window structure
-                        lda ULW_WINDOW_COPY::handle
+                        lda ULWC_handle
                         jsr ULW_getwinstruct
 
                         ; Destination is our start line/column plus our Y/X
                         lda ULWS_savedy
                         clc
-                        adc ULW_WINDOW_COPY::slin
+                        adc ULWC_slin
                         sta ULWR_dest+1
                         lda ULWS_savedx
                         clc
-                        adc ULW_WINDOW_COPY::scol
+                        adc ULWC_scol
                         sta ULWR_dest
-                        lda ULW_WINDOW_COPY::nlin
+                        lda ULWC_nlin
                         sta ULWR_destsize+1
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         sta ULWR_destsize
 
                         ; Crop the destination rect to the window contents
@@ -41,25 +41,25 @@ UL_CODE
                         jmp @fillall
 :
                         dec
-                        cmp ULW_WINDOW_COPY::ncol
+                        cmp ULWC_ncol
                         bcs @fillall
                         lda ULWR_destsize+1
                         beq @fillall
                         dec
-                        cmp ULW_WINDOW_COPY::nlin
+                        cmp ULWC_nlin
                         bcs @fillall
 
                         ; Source rect is dest rect offset by -X/-Y, and then need to
                         ; normalize src/dest to the window contents (subtract slin/scol)
                         lda ULWR_dest
                         sec
-                        sbc ULW_WINDOW_COPY::scol
+                        sbc ULWC_scol
                         sta ULWR_dest
                         sbc ULWS_savedx
                         sta ULWR_src
                         lda ULWR_dest+1
                         sec
-                        sbc ULW_WINDOW_COPY::slin
+                        sbc ULWC_slin
                         sta ULWR_dest+1
                         sbc ULWS_savedy
                         sta ULWR_src+1
@@ -76,7 +76,7 @@ UL_CODE
                         txa
                         XCALL ulmath_negate_8, UNILIB_BANK_A
                         tax
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         clc
                         adc ULWS_savedx
                         bra @fillcolumns
@@ -87,12 +87,12 @@ UL_CODE
                         ; Fill columns
 @fillcolumns:           sta ULWR_dest
                         stx ULWR_destsize
-                        lda ULW_WINDOW_COPY::nlin
+                        lda ULWC_nlin
                         sta ULWR_destsize+1
                         stz ULWR_dest+1
-                        lda ULW_WINDOW_COPY::color
+                        lda ULWC_color
                         sta ULWR_color
-                        lda ULW_WINDOW_COPY::handle
+                        lda ULWC_handle
                         jsr ULW_clearrect
 
                         ; Okay, now check if we scrolled up/down
@@ -104,13 +104,13 @@ UL_CODE
                         tya
                         XCALL ulmath_negate_8, UNILIB_BANK_A
                         tay
-                        lda ULW_WINDOW_COPY::nlin
+                        lda ULWC_nlin
                         clc
                         adc ULWS_savedy
                         bra @filllines
 
                         ; Fill whole window
-@fillall:               ldy ULW_WINDOW_COPY::nlin
+@fillall:               ldy ULWC_nlin
 
                         ; Fill top lines
 @filltop:               lda #0
@@ -118,18 +118,18 @@ UL_CODE
                         ; Fill lines
 @filllines:             sta ULWR_dest+1
                         sty ULWR_destsize+1
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         sta ULWR_destsize
                         stz ULWR_dest
-                        lda ULW_WINDOW_COPY::color
+                        lda ULWC_color
                         sta ULWR_color
-                        lda ULW_WINDOW_COPY::handle
+                        lda ULWC_handle
                         jsr ULW_clearrect
 
                         ; Restore A/X/Y/bank
 @alldone:               pla
                         sta BANKSEL::RAM
-                        lda ULW_WINDOW_COPY::handle
+                        lda ULWC_handle
                         ldx ULWS_savedx
                         ldy ULWS_savedy
                         rts

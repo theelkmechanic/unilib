@@ -19,9 +19,9 @@ UL_CODE
                         stz VERA::CTRL
 
                         ; ADDR_L = (scol + ccol) * 2 + 1
-                        lda ULW_WINDOW_COPY::scol
+                        lda ULWC_scol
                         clc
-                        adc ULW_WINDOW_COPY::ccol
+                        adc ULWC_ccol
                         asl
                         inc
                         sta VERA::ADDR
@@ -30,9 +30,9 @@ UL_CODE
                         lda VERA::L0::MAP_BASE
                         asl
                         clc
-                        adc ULW_WINDOW_COPY::slin
+                        adc ULWC_slin
                         clc
-                        adc ULW_WINDOW_COPY::clin
+                        adc ULWC_clin
                         sta VERA::ADDR+1
 
                         ; ADDR_H = 0 (no auto-increment, addr bit 16 = 0)

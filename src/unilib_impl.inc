@@ -289,31 +289,30 @@ prev_handle .byte   ; Previous window handle ($FF if none)
 status      .byte   ; Window status (0x80 - completely covered, 0x40 - partially occluded)
 .endstruct
 
+.global ULW_sj_scratch
+
 .global ULW_getwinentryptr
 .global ULW_getwinptr
 .global ULW_getwinstruct
 .global ULW_copywinstruct
-.struct ULW_WINDOW_COPY
-            .org $06e0
-handle      .byte   ; Window handle
-flags       .byte   ; Flags: 0x80 - border
-scol        .byte   ; Start screen column of the inside of the window
-slin        .byte   ; Start screen line of the inside of the window
-ncol        .byte   ; Number of columns in the window
-nlin        .byte   ; Number of lines in the window
-ecol        .byte   ; Start screen column of the inside of the window + number of columns in the window
-elin        .byte   ; Start screen line of the inside of the window + number of lines in the window
-ccol        .byte   ; Current cursor column inside the window
-clin        .byte   ; Current cursor line inside the window
-color       .byte   ; Normal text color (low nibble = foreground, high nibble = background)
-emcolor     .byte   ; Emphasis text color (low nibble = foreground, high nibble = background)
-charbuf     .word   ; BRP to window character buffer (3 bytes for each tile in the window)
-colorbuf    .word   ; BRP to window color buffer (1 byte for each tile in the window)
-title       .word   ; Title string
-next_handle .byte   ; Next window handle ($FF if none)
-prev_handle .byte   ; Previous window handle ($FF if none)
-status      .byte   ; Window status (0x80 - completely covered, 0x40 - partially occluded)
-.endstruct
+.global ULWC_handle
+.global ULWC_flags
+.global ULWC_scol
+.global ULWC_slin
+.global ULWC_ncol
+.global ULWC_nlin
+.global ULWC_ecol
+.global ULWC_elin
+.global ULWC_ccol
+.global ULWC_clin
+.global ULWC_color
+.global ULWC_emcolor
+.global ULWC_charbuf
+.global ULWC_colorbuf
+.global ULWC_title
+.global ULWC_next_handle
+.global ULWC_prev_handle
+.global ULWC_status
 
 ULWS_OCCLUDED   = $40
 ULWS_COVERED    = $80

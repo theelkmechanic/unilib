@@ -30,8 +30,8 @@ UL_CODE
                         sta ULWR_destsize+1
                         ldx #<ULW_drawdirty
                         ldy #>ULW_drawdirty
-                        stz ULW_WINDOW_COPY::handle
-                        dec ULW_WINDOW_COPY::handle
+                        stz ULWC_handle
+                        dec ULWC_handle
                         jsr ULW_maprect_loop
 
                         ; Clear the dirty rect
@@ -73,19 +73,19 @@ UL_CODE
 
                         ; Access the window information (can skip if we're still in the same window as last time)
                         lda ULW_dirty
-                        cmp ULW_WINDOW_COPY::handle
+                        cmp ULWC_handle
                         beq :+
                         jsr ULW_getwinstruct
 
                         ; Convert screen coordinates to window coordinates
 :                       lda ULW_dirtyrect
                         sec
-                        sbc ULW_WINDOW_COPY::scol
+                        sbc ULWC_scol
                         sta ULW_dirtyrect+2
                         tax
                         lda ULW_dirtyrect+1
                         sec
-                        sbc ULW_WINDOW_COPY::slin
+                        sbc ULWC_slin
                         sta ULW_dirtyrect+3
                         tay
 
@@ -122,6 +122,6 @@ UL_CODE
                         ; Restore bank and return handle with dirty bit clear
                         pla
                         sta BANKSEL::RAM
-                        lda ULW_WINDOW_COPY::handle
+                        lda ULWC_handle
 @exit:                  rts
 .endproc

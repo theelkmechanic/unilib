@@ -41,11 +41,11 @@ a_nearby_rts:           rts
                         ; Clear the window contents
                         stz ULWR_dest
                         stz ULWR_dest+1
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         sta ULWR_destsize
-                        lda ULW_WINDOW_COPY::nlin
+                        lda ULWC_nlin
                         sta ULWR_destsize+1
-                        lda ULW_WINDOW_COPY::color
+                        lda ULWC_color
                         sta ULWR_color
                         jmp ULW_clearrect
 .endproc

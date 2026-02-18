@@ -2,6 +2,13 @@
 
 .include "unilib_impl.inc"
 
+.define ULWJC_first          ULW_sj_scratch+0
+.define ULWJC_second         ULW_sj_scratch+1
+.define ULWJC_nlin           ULW_sj_scratch+2
+.define ULWJC_first_ncol     ULW_sj_scratch+3
+.define ULWJC_second_ncol    ULW_sj_scratch+4
+.define ULWJC_combined_ncol  ULW_sj_scratch+5
+
 UL_CODE
 
 ; ulwin_joincolumns - Join two windows horizontally
@@ -30,19 +37,19 @@ UL_CODE
                         ; Get first window info
                         lda ULWJC_first
                         jsr ULW_getwinstruct
-                        lda ULW_WINDOW_COPY::nlin
+                        lda ULWC_nlin
                         sta ULWJC_nlin
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         sta ULWJC_first_ncol
 
                         ; Get second window info
                         lda ULWJC_second
                         jsr ULW_getwinstruct
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         sta ULWJC_second_ncol
 
                         ; Validate: same height
-                        lda ULW_WINDOW_COPY::nlin
+                        lda ULWC_nlin
                         cmp ULWJC_nlin
                         bne @bad_params
 
@@ -98,11 +105,3 @@ UL_CODE
                         rts
 .endproc
 
-UL_BSS
-
-ULWJC_first:            .res 1
-ULWJC_second:           .res 1
-ULWJC_nlin:             .res 1
-ULWJC_first_ncol:       .res 1
-ULWJC_second_ncol:      .res 1
-ULWJC_combined_ncol:    .res 1

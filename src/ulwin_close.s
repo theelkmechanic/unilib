@@ -11,23 +11,23 @@ UL_CODE
                         rts
 
                         ; Save A/X/Y/RAM bank
-:                       sta ULW_WINDOW_COPY::handle
+:                       sta ULWC_handle
                         lda BANKSEL::RAM
                         pha
                         phx
                         phy
 
                         ; Get a copy of the window structure to work with
-                        lda ULW_WINDOW_COPY::handle
+                        lda ULWC_handle
                         jsr ULW_getwinstruct
 
                         ; Mark the window region as dirty so it will get redrawn at the next refresh
-                        lda ULW_WINDOW_COPY::scol
+                        lda ULWC_scol
                         sta ULWR_dest
-                        ldx ULW_WINDOW_COPY::slin
-                        ldy ULW_WINDOW_COPY::ncol
-                        lda ULW_WINDOW_COPY::nlin
-                        bit ULW_WINDOW_COPY::flags
+                        ldx ULWC_slin
+                        ldy ULWC_ncol
+                        lda ULWC_nlin
+                        bit ULWC_flags
                         bpl :+
                         dec ULWR_dest
                         dex
@@ -41,7 +41,7 @@ UL_CODE
                         jsr ULW_set_dirty_rect
 
                         ; Get the window entry pointer and remove it from the list
-                        lda ULW_WINDOW_COPY::handle
+                        lda ULWC_handle
                         jsr ULW_getwinentryptr
                         stx ULW_scratch_fptr
                         sty ULW_scratch_fptr+1
@@ -75,27 +75,27 @@ UL_CODE
 
                         ; Our next goes in the previous window's next (there will always be a previous window
                         ; because you can't close or select the screen, so it's always at the bottom)
-                        lda ULW_WINDOW_COPY::prev_handle
+                        lda ULWC_prev_handle
                         jsr ULW_getwinptr
                         stx ULW_scratch_fptr
                         sty ULW_scratch_fptr+1
                         ldy #ULW_WINDOW::next_handle
-                        lda ULW_WINDOW_COPY::next_handle
+                        lda ULWC_next_handle
                         sta (ULW_scratch_fptr),y
 
                         ; And if next was empty, we must be the current window, so make the previous current
                         bpl @setnextsprevious
-                        lda ULW_WINDOW_COPY::prev_handle
+                        lda ULWC_prev_handle
                         sta ULW_current_handle
                         bra @updateocclusion
 
                         ; If it wasn't empty, we need to put our previous into the next window's previous
-@setnextsprevious:      lda ULW_WINDOW_COPY::next_handle
+@setnextsprevious:      lda ULWC_next_handle
                         jsr ULW_getwinptr
                         stx ULW_scratch_fptr
                         sty ULW_scratch_fptr+1
                         ldy #ULW_WINDOW::prev_handle
-                        lda ULW_WINDOW_COPY::prev_handle
+                        lda ULWC_prev_handle
                         sta (ULW_scratch_fptr),y
 
                         ; Update the window map and occlusion flags to remove the closed window
@@ -106,6 +106,6 @@ UL_CODE
                         plx
                         pla
                         sta BANKSEL::RAM
-                        lda ULW_WINDOW_COPY::handle
+                        lda ULWC_handle
 @nope:                  rts
 .endproc

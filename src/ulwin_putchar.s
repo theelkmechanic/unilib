@@ -30,29 +30,29 @@ UL_CODE
 
                         ; If we're at the very end of the window, eventually we want to do scrolling;
                         ; for now just don't print
-                        ldx ULW_WINDOW_COPY::ccol
-                        ldy ULW_WINDOW_COPY::clin
-                        cpx ULW_WINDOW_COPY::ncol
+                        ldx ULWC_ccol
+                        ldy ULWC_clin
+                        cpx ULWC_ncol
                         bcc :+
-                        cpy ULW_WINDOW_COPY::nlin
+                        cpy ULWC_nlin
                         bcs @exit
 
                         ; Set the position/color
 :                       stx ULWR_dest
                         sty ULWR_dest+1
-                        lda ULW_WINDOW_COPY::color
+                        lda ULWC_color
                         sta ULWR_color
 
                         ; Draw the character and advance the cursor if it printed
                         jsr ULW_drawchar
                         bcc @exit
-                        ldx ULW_WINDOW_COPY::ccol
-                        ldy ULW_WINDOW_COPY::clin
+                        ldx ULWC_ccol
+                        ldy ULWC_clin
                         inx
-                        cpx ULW_WINDOW_COPY::ncol
+                        cpx ULWC_ncol
                         bcc :+
                         iny
-                        cpy ULW_WINDOW_COPY::nlin
+                        cpy ULWC_nlin
                         bcs @exit
                         ldx #0
 

@@ -6,6 +6,7 @@
 .import ULS_access
 
 EMU_STDOUT = $9FBB      ; emulator host stdout register
+UL_SCRATCH_BASE = $0600 ; UniLib scratch buffer base address
 
 .segment "EXEHDR"
 
@@ -4318,7 +4319,7 @@ start:
                         jsr ULS_access
                         stz fwd_errs
                         ldy #0
-                        lda $0600               ; 'h'
+                        lda UL_SCRATCH_BASE               ; 'h'
                         cmp #$68
                         beq :+
                         inc fwd_errs
@@ -4377,7 +4378,7 @@ start:
                         ldx fp_str
                         ldy fp_str+1
                         jsr ULS_access
-                        lda $0600
+                        lda UL_SCRATCH_BASE
                         cmp #$48                ; 'H'
                         bne @fpsl_fail2
                         lda $0601
@@ -4422,7 +4423,7 @@ start:
                         ldy fp_str+1
                         jsr ULS_access
                         stz fwd_errs
-                        lda $0600               ; £ lead: $C2
+                        lda UL_SCRATCH_BASE               ; £ lead: $C2
                         cmp #$C2
                         beq :+
                         inc fwd_errs
@@ -4523,7 +4524,7 @@ start:
                         ldy fi_str+1
                         jsr ULS_access
                         stz fwd_errs
-                        lda $0600               ; 'C'
+                        lda UL_SCRATCH_BASE               ; 'C'
                         cmp #$43
                         beq :+
                         inc fwd_errs
@@ -4588,7 +4589,7 @@ start:
                         ldx fi_str
                         ldy fi_str+1
                         jsr ULS_access
-                        lda $0600
+                        lda UL_SCRATCH_BASE
                         cmp #$E2
                         bne @fie_fail2
                         lda $0601
@@ -5164,9 +5165,9 @@ start:
                         ldx fm_result
                         ldy fm_result+1
                         jsr ULS_access
-                        ; Check "Hello, World!" at $0600
+                        ; Check "Hello, World!" at UL_SCRATCH_BASE
                         stz fwd_errs
-                        lda $0600
+                        lda UL_SCRATCH_BASE
                         cmp #$48                ; 'H'
                         beq :+
                         inc fwd_errs
@@ -5254,7 +5255,7 @@ start:
                         ldy fm_result+1
                         jsr ULS_access
                         stz fwd_errs
-                        lda $0600               ; 'A'
+                        lda UL_SCRATCH_BASE               ; 'A'
                         cmp #$41
                         beq :+
                         inc fwd_errs
@@ -5367,7 +5368,7 @@ start:
                         ldy #0
 @ins_check:             lda ins_expect,x
                         beq @ins_ok
-                        cmp $0600,x
+                        cmp UL_SCRATCH_BASE,x
                         bne @ins_fail
                         inx
                         bra @ins_check
@@ -5384,7 +5385,7 @@ start:
                         lda #'!'
                         sta EMU_STDOUT
                         ldx #0
-@ins_dump:              lda $0600,x
+@ins_dump:              lda UL_SCRATCH_BASE,x
                         beq @ins_dump_done
                         sta EMU_STDOUT
                         inx
@@ -5464,7 +5465,7 @@ start:
                         ldx #0
 @del_check:             lda del_expect,x
                         beq @del_ok
-                        cmp $0600,x
+                        cmp UL_SCRATCH_BASE,x
                         bne @del_fail
                         inx
                         bra @del_check
@@ -5479,7 +5480,7 @@ start:
                         lda #'!'
                         sta EMU_STDOUT
                         ldx #0
-@del_dump:              lda $0600,x
+@del_dump:              lda UL_SCRATCH_BASE,x
                         beq @del_dump_done
                         sta EMU_STDOUT
                         inx

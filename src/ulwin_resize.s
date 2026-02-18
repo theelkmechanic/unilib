@@ -32,27 +32,27 @@ UL_CODE
                         jsr ULW_getwinstruct
 
                         ; Save old dimensions and buffer BRPs for content copy
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         sta ULWRZ_old_ncol
-                        lda ULW_WINDOW_COPY::nlin
+                        lda ULWC_nlin
                         sta ULWRZ_old_nlin
-                        lda ULW_WINDOW_COPY::charbuf
+                        lda ULWC_charbuf
                         sta ULWRZ_old_charbuf
-                        lda ULW_WINDOW_COPY::charbuf+1
+                        lda ULWC_charbuf+1
                         sta ULWRZ_old_charbuf+1
-                        lda ULW_WINDOW_COPY::colorbuf
+                        lda ULWC_colorbuf
                         sta ULWRZ_old_colorbuf
-                        lda ULW_WINDOW_COPY::colorbuf+1
+                        lda ULWC_colorbuf+1
                         sta ULWRZ_old_colorbuf+1
-                        lda ULW_WINDOW_COPY::flags
+                        lda ULWC_flags
                         sta ULWRZ_flags
 
                         ; Calculate new end column/line
-                        lda ULW_WINDOW_COPY::scol
+                        lda ULWC_scol
                         clc
                         adc ULWRZ_new_ncol
                         sta ULWRZ_new_ecol
-                        lda ULW_WINDOW_COPY::slin
+                        lda ULWC_slin
                         clc
                         adc ULWRZ_new_nlin
                         sta ULWRZ_new_elin
@@ -78,12 +78,12 @@ UL_CODE
                         rts
 
 @params_ok:             ; Mark old position dirty (before resize)
-                        lda ULW_WINDOW_COPY::scol
+                        lda ULWC_scol
                         sta ULWR_dest
-                        ldx ULW_WINDOW_COPY::slin
-                        ldy ULW_WINDOW_COPY::ncol
-                        lda ULW_WINDOW_COPY::nlin
-                        bit ULW_WINDOW_COPY::flags
+                        ldx ULWC_slin
+                        ldy ULWC_ncol
+                        lda ULWC_nlin
+                        bit ULWC_flags
                         bpl :+
                         dec ULWR_dest
                         dex
@@ -378,12 +378,12 @@ UL_CODE
                         ; Update occlusion and mark new region dirty
                         jsr ULW_update_occlusion
 
-                        lda ULW_WINDOW_COPY::scol
+                        lda ULWC_scol
                         sta ULWR_dest
-                        ldx ULW_WINDOW_COPY::slin
-                        ldy ULW_WINDOW_COPY::ncol
-                        lda ULW_WINDOW_COPY::nlin
-                        bit ULW_WINDOW_COPY::flags
+                        ldx ULWC_slin
+                        ldy ULWC_ncol
+                        lda ULWC_nlin
+                        bit ULWC_flags
                         bpl :+
                         dec ULWR_dest
                         dex

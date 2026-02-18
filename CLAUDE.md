@@ -53,7 +53,7 @@
 - Reference counted: `ulstr_addref` increments, `ulstr_release` decrements (frees at 0)
 - Zero-copy substrings: `ulstr_mid` creates a new MB sharing the same data block with adjusted start/end
 - Metadata computed on demand: `ulstr_getrawlen` = end-start, `ulstr_getlen`/`ulstr_getprintlen` scan data
-- `ULS_access`: copies string data to $400 scratch buffer with NUL terminator, sets `ULS_scratch_fptr`
+- `ULS_access`: copies string data to UL_SCRATCH_BASE ($0600) buffer with NUL terminator, sets `ULS_scratch_fptr`
 - `ulstb_put` addrefs the new string; `ulstb_delete` releases all strings in the table
 
 ### LIST Iterator State (`src/ULI_list.s`, `src/ULI_core.s`)

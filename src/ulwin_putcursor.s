@@ -25,16 +25,16 @@ UL_CODE
                         plx
                         bpl :+
                         ldx #0
-:                       cpx ULW_WINDOW_COPY::ncol
+:                       cpx ULWC_ncol
                         bcc :+
-                        ldx ULW_WINDOW_COPY::ncol
+                        ldx ULWC_ncol
                         dex
 :                       ply
                         bpl :+
                         ldy #0
-:                       cpy ULW_WINDOW_COPY::nlin
+:                       cpy ULWC_nlin
                         bcc :+
-                        ldy ULW_WINDOW_COPY::nlin
+                        ldy ULWC_nlin
                         dey
 
                         ; Use the internal helper

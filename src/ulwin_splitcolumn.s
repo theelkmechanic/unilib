@@ -2,6 +2,16 @@
 
 .include "unilib_impl.inc"
 
+.define ULWSC_handle      ULW_sj_scratch+0
+.define ULWSC_splitcol    ULW_sj_scratch+1
+.define ULWSC_right_ncol  ULW_sj_scratch+2
+.define ULWSC_right_scol  ULW_sj_scratch+3
+.define ULWSC_slin        ULW_sj_scratch+4
+.define ULWSC_nlin        ULW_sj_scratch+5
+.define ULWSC_flags       ULW_sj_scratch+6
+.define ULWSC_color       ULW_sj_scratch+7
+.define ULWSC_new_handle  ULW_sj_scratch+8
+
 UL_CODE
 
 ; ulwin_splitcolumn - Split a window into two at specified column
@@ -55,7 +65,7 @@ UL_CODE
                         ; Validate: split column must be > 0 and < ncol
                         lda ULWSC_splitcol
                         beq @bad_params
-                        cmp ULW_WINDOW_COPY::ncol
+                        cmp ULWC_ncol
                         bcc @params_ok
 
 @bad_params:            lda #ULERR::INVALID_PARAMS
@@ -70,30 +80,30 @@ UL_CODE
 
 @params_ok:             ; Calculate new window dimensions
                         ; Right window: starts at scol+splitcol, width = ncol-splitcol
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         sec
                         sbc ULWSC_splitcol
                         sta ULWSC_right_ncol
 
-                        lda ULW_WINDOW_COPY::scol
+                        lda ULWC_scol
                         clc
                         adc ULWSC_splitcol
                         sta ULWSC_right_scol
 
                         ; Save original window properties for the new window
-                        lda ULW_WINDOW_COPY::slin
+                        lda ULWC_slin
                         sta ULWSC_slin
-                        lda ULW_WINDOW_COPY::nlin
+                        lda ULWC_nlin
                         sta ULWSC_nlin
-                        lda ULW_WINDOW_COPY::flags
+                        lda ULWC_flags
                         sta ULWSC_flags
-                        lda ULW_WINDOW_COPY::color
+                        lda ULWC_color
                         sta ULWSC_color
 
                         ; Resize original window to left portion (splitcol columns)
                         lda ULWSC_handle
                         ldx ULWSC_splitcol
-                        ldy ULW_WINDOW_COPY::nlin
+                        ldy ULWC_nlin
                         jsr ulwin_resize
                         bcc :+
                         jmp @alloc_fail
@@ -178,14 +188,3 @@ UL_CODE
                         rts
 .endproc
 
-UL_BSS
-
-ULWSC_handle:           .res 1
-ULWSC_splitcol:         .res 1
-ULWSC_right_ncol:       .res 1
-ULWSC_right_scol:       .res 1
-ULWSC_slin:             .res 1
-ULWSC_nlin:             .res 1
-ULWSC_flags:            .res 1
-ULWSC_color:            .res 1
-ULWSC_new_handle:       .res 1

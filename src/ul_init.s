@@ -364,10 +364,6 @@ ULW_keybg:              .byte   ULCOLOR::BLUE       ; keyboard entry window back
 
 UL_BSS
 
-; Guard byte at $0400 — something (likely KERNAL I/O) occasionally writes $FF
-; to $0400. This sacrificial padding prevents corruption of ULW_keyidle.
-ULW_bss_guard:          .res    1
-
 ULW_keyidle:            .res    2       ; keyboard idle routine address
 
 ULW_screen_handle:      .res    1       ; Window handle of screen

@@ -2,6 +2,13 @@
 
 .include "unilib_impl.inc"
 
+.define ULWJL_first          ULW_sj_scratch+0
+.define ULWJL_second         ULW_sj_scratch+1
+.define ULWJL_ncol           ULW_sj_scratch+2
+.define ULWJL_first_nlin     ULW_sj_scratch+3
+.define ULWJL_second_nlin    ULW_sj_scratch+4
+.define ULWJL_combined_nlin  ULW_sj_scratch+5
+
 UL_CODE
 
 ; ulwin_joinlines - Join two windows vertically
@@ -30,19 +37,19 @@ UL_CODE
                         ; Get first window info
                         lda ULWJL_first
                         jsr ULW_getwinstruct
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         sta ULWJL_ncol
-                        lda ULW_WINDOW_COPY::nlin
+                        lda ULWC_nlin
                         sta ULWJL_first_nlin
 
                         ; Get second window info
                         lda ULWJL_second
                         jsr ULW_getwinstruct
-                        lda ULW_WINDOW_COPY::nlin
+                        lda ULWC_nlin
                         sta ULWJL_second_nlin
 
                         ; Validate: same width
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         cmp ULWJL_ncol
                         bne @bad_params
 
@@ -98,11 +105,3 @@ UL_CODE
                         rts
 .endproc
 
-UL_BSS
-
-ULWJL_first:            .res 1
-ULWJL_second:           .res 1
-ULWJL_ncol:             .res 1
-ULWJL_first_nlin:       .res 1
-ULWJL_second_nlin:      .res 1
-ULWJL_combined_nlin:    .res 1

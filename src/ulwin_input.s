@@ -50,15 +50,15 @@ UL_CODE
 
                         ; Compute start position:
                         ; Input starts at cursor_col - r0H (preloaded text before cursor)
-                        lda ULW_WINDOW_COPY::ccol
+                        lda ULWC_ccol
                         sec
                         sbc ULWI_length
                         sta ULWI_start_col
-                        lda ULW_WINDOW_COPY::clin
+                        lda ULWC_clin
                         sta ULWI_start_line
 
                         ; Compute remaining columns from start to end of line
-                        lda ULW_WINDOW_COPY::ncol
+                        lda ULWC_ncol
                         sec
                         sbc ULWI_start_col
                         sta ULWI_remaining

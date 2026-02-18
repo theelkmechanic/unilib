@@ -30,17 +30,17 @@ UL_CODE
                         ; Calculate new end column/line
                         lda ULWMV_new_col
                         clc
-                        adc ULW_WINDOW_COPY::ncol
+                        adc ULWC_ncol
                         sta ULWMV_new_ecol
                         lda ULWMV_new_lin
                         clc
-                        adc ULW_WINDOW_COPY::nlin
+                        adc ULWC_nlin
                         sta ULWMV_new_elin
 
                         ; Validate new position fits on screen (including border)
                         lda ULWMV_new_col
                         ldx ULWMV_new_lin
-                        bit ULW_WINDOW_COPY::flags
+                        bit ULWC_flags
                         bpl :+
                         dec                     ; border starts 1 earlier
                         dex
@@ -51,7 +51,7 @@ UL_CODE
 
                         lda ULWMV_new_ecol
                         ldy ULWMV_new_elin
-                        bit ULW_WINDOW_COPY::flags
+                        bit ULWC_flags
                         bpl :+
                         inc                     ; border extends 1 further
                         iny
@@ -69,12 +69,12 @@ UL_CODE
                         rts
 
 @params_ok:             ; Mark old position dirty
-                        lda ULW_WINDOW_COPY::scol
+                        lda ULWC_scol
                         sta ULWR_dest
-                        ldx ULW_WINDOW_COPY::slin
-                        ldy ULW_WINDOW_COPY::ncol
-                        lda ULW_WINDOW_COPY::nlin
-                        bit ULW_WINDOW_COPY::flags
+                        ldx ULWC_slin
+                        ldy ULWC_ncol
+                        lda ULWC_nlin
+                        bit ULWC_flags
                         bpl :+
                         dec ULWR_dest
                         dex
@@ -112,12 +112,12 @@ UL_CODE
                         ; Mark new position dirty
                         lda ULWMV_handle
                         jsr ULW_getwinstruct
-                        lda ULW_WINDOW_COPY::scol
+                        lda ULWC_scol
                         sta ULWR_dest
-                        ldx ULW_WINDOW_COPY::slin
-                        ldy ULW_WINDOW_COPY::ncol
-                        lda ULW_WINDOW_COPY::nlin
-                        bit ULW_WINDOW_COPY::flags
+                        ldx ULWC_slin
+                        ldy ULWC_ncol
+                        lda ULWC_nlin
+                        bit ULWC_flags
                         bpl :+
                         dec ULWR_dest
                         dex

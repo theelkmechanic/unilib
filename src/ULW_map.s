@@ -39,7 +39,7 @@ UL_CODE
                         ; Set the whole screen dirty
                         pha
                         lda #$ff
-                        sta ULW_WINDOW_COPY::handle
+                        sta ULWC_handle
                         stz ULWR_dest
                         stz ULWR_dest+1
                         lda #80
@@ -52,7 +52,7 @@ UL_CODE
 ; *** FALL THROUGH INTENTIONAL, DO NOT ADD CODE HERE ***
 
 ; ULW_set_dirty_rect - Mark a screen rectangle as dirty in the map
-;   In: ULW_WINDOW_COPY::handle - Handle to match (0-63, negative=force dirty)
+;   In: ULWC_handle - Handle to match (0-63, negative=force dirty)
 ;       ULWR_dest       - Top/left of screen rectangle (L=column, H=line)
 ;       ULWR_destsize   - Size of screen rectangle (L=columns, H=lines)
 .proc ULW_set_dirty_rect
@@ -90,18 +90,18 @@ UL_CODE
 ;   In: A               - Map cell value (high bit = dirty flag, low 6 bits = window handle)
 ;       X               - Map cell screen column
 ;       Y               - Map cell screen line
-;       ULW_WINDOW_COPY::handle - Set dirty bit if window handle matches (negative = always set dirty bit)
+;       ULWC_handle - Set dirty bit if window handle matches (negative = always set dirty bit)
 .proc ULW_set_dirty_cell
                         ; If dirty bit already set, just leave
                         bit #$80
                         bne @exit
 
                         ; Are we forcing?
-                        bit ULW_WINDOW_COPY::handle
+                        bit ULWC_handle
                         bmi @setit
 
                         ; Does the handle match?
-                        cmp ULW_WINDOW_COPY::handle
+                        cmp ULWC_handle
                         bne @exit
 
                         ; Set the dirty bit
@@ -146,12 +146,12 @@ UL_CODE
                         jsr ULW_copywinstruct
 
                         ; Adjust for border
-                        ldy ULW_WINDOW_COPY::scol
+                        ldy ULWC_scol
                         sty ULWR_dest
-                        ldy ULW_WINDOW_COPY::slin
-                        ldx ULW_WINDOW_COPY::nlin
-                        lda ULW_WINDOW_COPY::ncol
-                        bit ULW_WINDOW_COPY::flags
+                        ldy ULWC_slin
+                        ldx ULWC_nlin
+                        lda ULWC_ncol
+                        bit ULWC_flags
                         bpl :+
                         dec ULWR_dest
                         dey
@@ -170,7 +170,7 @@ UL_CODE
                         phx
 
                         ; Save the window handle
-                        ldx ULW_WINDOW_COPY::handle
+                        ldx ULWC_handle
 
                         ; Store the total number of tiles for this window, and clear the count
                         pla
@@ -271,7 +271,7 @@ ULWM_call_callback:     jmp (ULWM_callback)
                         pha
 
                         ; For screen window (handle 0), don't count changes because we're just clearing
-                        ldy ULW_WINDOW_COPY::handle
+                        ldy ULWC_handle
                         beq :++
 
                         ; See what window was there and decrement its count
@@ -292,7 +292,7 @@ ULWM_call_callback:     jmp (ULWM_callback)
                         ; Put our handle in and preserve the dirty bit
 :                       pla
                         and #$c0
-                        ora ULW_WINDOW_COPY::handle
+                        ora ULWC_handle
 .endproc
 somebodys_rts:          rts
 
@@ -304,7 +304,7 @@ somebodys_rts:          rts
                         lda (ULW_scratch_fptr),y
                         and #<~(ULWS_OCCLUDED | ULWS_COVERED)
                         tay
-                        stz ULW_WINDOW_COPY::status
+                        stz ULWC_status
 
                         ; Get the window handle so we can access the counts
                         lda (ULW_scratch_fptr)
@@ -331,11 +331,11 @@ somebodys_rts:          rts
                         ; Window is occluded, just set the occluded bit
 @occluded:              lda #ULWS_OCCLUDED
 
-@storewinbits:          sta ULW_WINDOW_COPY::status
+@storewinbits:          sta ULWC_status
 
                         ; Store the correct status
 @store_status:          tya
-                        ora ULW_WINDOW_COPY::status
+                        ora ULWC_status
                         ldy #ULW_WINDOW::status
                         sta (ULW_scratch_fptr),y
                         rts
