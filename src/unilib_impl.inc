@@ -185,6 +185,7 @@ flags       .byte       ; 15:    flags
 .global ULI_do_store
 .global ULI_utf8_step_forward
 .global ULI_utf8_step_backward
+.global ULI_utf8_clamp_reverse
 .global ULI_utf8_fetch
 .global ULI_utf8_store
 
@@ -218,6 +219,13 @@ ULI_LIST_STATE_SIZE   = 20
 
 ; PETSCII conversion helper
 .global UL_petscii_to_codepoint
+
+; Cursor blink helpers (ULW_cursor.s)
+.global ULW_show_cursor
+.global ULW_hide_cursor
+.global ULW_check_blink
+.global ULW_blink_on
+.global ULW_blink_jiffy
 
 ; String utilities
 .global ulstr_addref
@@ -364,6 +372,7 @@ ULWS_COVERED    = $80
 ULW_WINMAP = $AD00                  ; Hardcoded address on RAM bank 1
 
 .global ULW_getwinbufptr
+.global ULW_getloc_n
 .global ULW_linelen
 .global ULW_linestride
 

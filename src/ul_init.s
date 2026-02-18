@@ -65,21 +65,8 @@ UL_CODE
                         ; Initialize pool allocator (reserves banks from top, adjusts MEMTOP)
                         jsr ULPOOL_init
 
-.ifdef ROM_BUILD
-                        lda #'C'
-                        sta $9FBB
-                        lda #$0A
-                        sta $9FBB
-.endif
                         ; Initialize the heap (starts at bank 2, sees reduced MEMTOP)
                         jsr ULM_init
-
-.ifdef ROM_BUILD
-                        lda #'D'
-                        sta $9FBB
-                        lda #$0A
-                        sta $9FBB
-.endif
 
                         ; --- Hardcoded bank 1 initialization ---
                         ; Bank 1 layout:
@@ -104,21 +91,9 @@ UL_CODE
                         cpx #$C0
                         bne @zero_bank1
 
-.ifdef ROM_BUILD
-                        lda #'E'
-                        sta $9FBB
-                        lda #$0A
-                        sta $9FBB
-.endif
                         ; Build multiplication tables at $A000 + copy SMC to $B660
                         jsr ULM_multbl_init
 
-.ifdef ROM_BUILD
-                        lda #'F'
-                        sta $9FBB
-                        lda #$0A
-                        sta $9FBB
-.endif
                         ; Initialize font glyph cache at $A800 (bank 1 already zeroed)
                         XCALL ULFT_initfontcache, UNILIB_BANK_B
 
@@ -137,12 +112,6 @@ UL_CODE
                         ;       - line stride is 256
                         ;       - tile set is at $08000 (32k)
 
-.ifdef ROM_BUILD
-                        lda #'G'
-                        sta $9FBB
-                        lda #$0A
-                        sta $9FBB
-.endif
                         ; Load font to $08000 in VRAM
 .ifdef ROM_BUILD
                         ; ROM mode: if no filename provided (r1L=0), decompress from ROM bank C
@@ -186,29 +155,13 @@ UL_CODE
                         lda #$02
                         sta gREG::r4H
 
-                        ; Breadcrumb H: about to decompress
-                        lda #'H'
-                        sta $9FBB
-                        lda #$0A
-                        sta $9FBB
-
                         ; Call memory_decompress_internal via extapi #15
                         lda #15
                         jsr $FEAB
 
-                        ; Breadcrumb I: decompression done
-                        lda #'I'
-                        sta $9FBB
-                        lda #$0A
-                        sta $9FBB
                         bra @font_loaded
 
 @load_font_from_file:
-                        ; Breadcrumb X: file load path taken!
-                        lda #'X'
-                        sta $9FBB
-                        lda #$0A
-                        sta $9FBB
 .endif
                         ; Load font from file (headerless, to VRAM $08000)
                         lda #1
@@ -292,12 +245,6 @@ UL_CODE
                         stz VERA::L1::VSCROLL
                         stz VERA::L1::VSCROLL+1
 
-.ifdef ROM_BUILD
-                        lda #'J'
-                        sta $9FBB
-                        lda #$0A
-                        sta $9FBB
-.endif
                         ; Setup palette colors
                         ldx #15
 :                       txa
@@ -315,22 +262,10 @@ UL_CODE
                         dex
                         bne :-
 
-.ifdef ROM_BUILD
-                        lda #'K'
-                        sta $9FBB
-                        lda #$0A
-                        sta $9FBB
-.endif
                         ; Initialize double buffering
                         stz ULV_backbuf_offset
                         XCALL ULV_swap, UNILIB_BANK_B
 
-.ifdef ROM_BUILD
-                        lda #'L'
-                        sta $9FBB
-                        lda #$0A
-                        sta $9FBB
-.endif
                         ; Lastly, initialize the windowing system; first we need our array of window BRPs,
                         ; so allocate an array to hold 64 BRPs (128 bytes); window handle will be 0-based
                         ; index into this list
@@ -341,12 +276,6 @@ UL_CODE
                         stx ULW_winlist
                         sty ULW_winlist+1
 
-.ifdef ROM_BUILD
-                        lda #'M'
-                        sta $9FBB
-                        lda #$0A
-                        sta $9FBB
-.endif
                         ; Open a window for the screen (color params are already in the right register)
                         stz gREG::r0L
                         stz gREG::r0H
@@ -361,12 +290,6 @@ UL_CODE
                         stz UL_lasterr
                         XCALL ulwin_open, UNILIB_BANK_B
 
-.ifdef ROM_BUILD
-                        lda #'N'
-                        sta $9FBB
-                        lda #$0A
-                        sta $9FBB
-.endif
                         ; Restore the RAM bank and return success/failure
 @init_done:             pla
                         sta BANKSEL::RAM
@@ -440,6 +363,10 @@ ULW_keyfg:              .byte   ULCOLOR::WHITE      ; keyboard entry window fore
 ULW_keybg:              .byte   ULCOLOR::BLUE       ; keyboard entry window background color
 
 UL_BSS
+
+; Guard byte at $0400 — something (likely KERNAL I/O) occasionally writes $FF
+; to $0400. This sacrificial padding prevents corruption of ULW_keyidle.
+ULW_bss_guard:          .res    1
 
 ULW_keyidle:            .res    2       ; keyboard idle routine address
 

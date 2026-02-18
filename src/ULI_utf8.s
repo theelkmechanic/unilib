@@ -92,6 +92,39 @@ UL_CODE
                         bra ULI_utf8_phys_backward
 .endproc
 
+; ULI_utf8_clamp_reverse - Clamp ULI_cur to end sentinel if REVERSE phys_backward overshot
+;   In: ULI_ptr/ULI_state_bank valid, ULI_cur/ULI_cur_bank updated
+;  Out: ULI_cur clamped to end if it went below the sentinel
+;       BANKSEL::RAM = ULI_state_bank
+.proc ULI_utf8_clamp_reverse
+                        lda ULI_state_bank
+                        sta BANKSEL::RAM
+                        ldy #ULI_STATE_END+2    ; compare bank
+                        lda ULI_cur_bank
+                        cmp (ULI_ptr),y
+                        bcc @clamp
+                        bne @done
+                        dey                     ; compare hi
+                        lda ULI_cur+1
+                        cmp (ULI_ptr),y
+                        bcc @clamp
+                        bne @done
+                        dey                     ; compare lo
+                        lda ULI_cur
+                        cmp (ULI_ptr),y
+                        bcs @done
+@clamp:                 ldy #ULI_STATE_END
+                        lda (ULI_ptr),y
+                        sta ULI_cur
+                        iny
+                        lda (ULI_ptr),y
+                        sta ULI_cur+1
+                        iny
+                        lda (ULI_ptr),y
+                        sta ULI_cur_bank
+@done:                  rts
+.endproc
+
 ; ULI_utf8_fetch - Decode UTF-8 codepoint at ULI_cur into r0/r1L
 ;   In: ULI_cur/ULI_cur_bank valid
 ;  Out: r0L = low byte, r0H = mid byte, r1L = high byte of codepoint

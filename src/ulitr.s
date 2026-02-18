@@ -392,6 +392,9 @@ UL_CODE
                         jsr ULI_get_step        ; A = step size
                         bne :+
                         jsr ULI_utf8_step_forward
+                        bit ULI_type_format
+                        bpl @inc_done
+                        jsr ULI_utf8_clamp_reverse
                         bra @inc_done
 :                       jsr ULI_step_forward
 
@@ -492,6 +495,9 @@ UL_CODE
                         jsr ULI_get_step
                         bne :+
                         jsr ULI_utf8_step_forward
+                        bit ULI_type_format
+                        bpl @fai_done
+                        jsr ULI_utf8_clamp_reverse
                         bra @fai_done
 :                       jsr ULI_step_forward
 
@@ -600,6 +606,11 @@ UL_CODE
 @loop:                  lda ULI_scratch+1
                         bne @adv_fixed
                         jsr ULI_utf8_step_forward
+                        bit ULI_type_format
+                        bpl @adv_stepped
+                        phx
+                        jsr ULI_utf8_clamp_reverse
+                        plx
                         bra @adv_stepped
 @adv_fixed:             jsr ULI_step_forward
 
